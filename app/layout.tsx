@@ -1,5 +1,6 @@
 import './globals.css'
 import type { Metadata } from 'next'
+import { Analytics } from "@vercel/analytics/react";
 
 const SITE = process.env.NEXT_PUBLIC_SITE_URL || 'https://wearenationalcornhole.com'
 
@@ -38,7 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Preload the most important image to improve LCP */}
         <link rel="preload" as="image" href="/images/hero-cornhole.webp" />
       </head>
-      <body className="bg-neutral-100 text-gray-900">{children}</body>
+      <body className="bg-neutral-100 text-gray-900">{children} <Analytics /></body>
     </html>
   )
 }
