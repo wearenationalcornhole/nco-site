@@ -1,23 +1,12 @@
-# Dependencies
 node_modules/
-
-# Next.js
 .next/
 out/
 .vercel/
-
-# Env
 .env
 .env.*.local
 .env.local
-
-# OS/editor
 .DS_Store
 *.log
-
-# Build artifacts
 dist/
 coverage/
-
-# Images cache (if any)
 *.orig
