@@ -4,6 +4,18 @@ import { NextResponse } from 'next/server'
 import { getPrisma } from '@/app/lib/safePrisma'
 import { devStore } from '@/app/lib/devStore'
 
+function fallbackGet(slug: string) {
+  try {
+    const event =
+      devStore.getAll<any>('events').find((e) => e.slug === slug) ||
+      devStore.getAll<any>('events').find((e) => e.id === slug)
+    if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    return NextResponse.json(event, { status: 200 })
+  } catch {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+}
+
 export async function GET(_req: Request, context: any) {
   try {
     const { slug } = (context?.params ?? {}) as { slug: string }
@@ -11,25 +23,21 @@ export async function GET(_req: Request, context: any) {
 
     const prisma = await getPrisma()
     if (prisma) {
-      // Avoid relying on schema fields TS might not know; filter in JS
-      const events = await prisma.event.findMany()
-      const event =
-        events.find((e: any) => e.slug === slug) ||
-        events.find((e: any) => e.id === slug)
-
-      if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-      return NextResponse.json(event)
+      try {
+        const events = await prisma.event.findMany()
+        const event =
+          events.find((e: any) => e.slug === slug) ||
+          events.find((e: any) => e.id === slug)
+        if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+        return NextResponse.json(event, { status: 200 })
+      } catch (e) {
+        console.error('Prisma by-slug failed, falling back:', e)
+        return fallbackGet(slug)
+      }
     }
-
-    // Fallback (local dev)
-    const event =
-      devStore.getAll<any>('events').find((e) => e.slug === slug) ||
-      devStore.getAll<any>('events').find((e) => e.id === slug)
-
-    if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    return NextResponse.json(event)
-  } catch (e: any) {
-    console.error('GET /portal/api/events/by-slug/[slug] failed:', e)
+    return fallbackGet(slug)
+  } catch (e) {
+    console.error('GET /portal/api/events/by-slug/[slug] top-level fail:', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
