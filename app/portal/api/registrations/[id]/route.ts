@@ -7,7 +7,7 @@ export async function DELETE(
   ctx: { params: Promise<{ id: string }> }
 ) {
   const { id } = await ctx.params
-  const prisma = getPrisma()
+  const prisma = await getPrisma()
   if (prisma) {
     await prisma.registration.delete({ where: { id } })
     return NextResponse.json({ ok: true })

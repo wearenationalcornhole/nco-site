@@ -1,12 +1,13 @@
 // app/lib/safePrisma.ts
-import { PrismaClient } from '@prisma/client'
+let prismaInstance: any | null = null
 
-let prismaInstance: PrismaClient | null = null
-
-export function getPrisma(): PrismaClient | null {
+export async function getPrisma() {
+  // If DATABASE_URL is not set, skip Prisma (fallback to devStore)
   if (!process.env.DATABASE_URL) return null
   if (prismaInstance) return prismaInstance
   try {
+    // Lazy import so build/routes don't crash if @prisma/client isn't ready
+    const { PrismaClient } = await import('@prisma/client')
     prismaInstance = new PrismaClient({
       log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
     })
