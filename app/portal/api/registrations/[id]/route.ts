@@ -1,17 +1,26 @@
+export const runtime = 'nodejs'
+
 import { NextResponse } from 'next/server'
 import { getPrisma } from '@/app/lib/safePrisma'
 import { devStore } from '@/app/lib/devStore'
 
 export async function DELETE(
   _req: Request,
-  ctx: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await ctx.params
-  const prisma = await getPrisma()
-  if (prisma) {
-    await prisma.registration.delete({ where: { id } })
+  try {
+    const { id } = params
+    const prisma = await getPrisma()
+
+    if (prisma) {
+      await prisma.registration.delete({ where: { id } })
+      return NextResponse.json({ ok: true })
+    }
+
+    devStore.remove('registrations', id)
     return NextResponse.json({ ok: true })
+  } catch (e: any) {
+    console.error('DELETE /portal/api/registrations/[id] failed:', e)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
-  devStore.remove('registrations', id)
-  return NextResponse.json({ ok: true })
 }
