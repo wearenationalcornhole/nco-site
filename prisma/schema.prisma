@@ -1,0 +1,41 @@
+
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")  // pooled (runtime)
+  directUrl = env("DIRECT_URL")    // direct (migrations)
+}
+
+model User {
+  id         String   @id @default(cuid())
+  email      String   @unique
+  name       String?
+  createdAt  DateTime @default(now())
+  events     Event[]  @relation("OrganizerEvents")
+  registrations Registration[]
+}
+
+model Event {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  city        String?
+  date        DateTime
+  createdAt   DateTime @default(now())
+  organizer   User?    @relation("OrganizerEvents", fields: [organizerId], references: [id])
+  organizerId String?
+  registrations Registration[]
+}
+
+model Registration {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  event     Event    @relation(fields: [eventId], references: [id])
+  eventId   String
+  createdAt DateTime @default(now())
+}

@@ -10,3 +10,5 @@ out/
 dist/
 coverage/
 *.orig
+
+/generated/prisma
