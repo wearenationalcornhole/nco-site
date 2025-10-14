@@ -1,12 +1,22 @@
 // app/lib/devStore.ts
-'use client'
+// Minimal localStorage-backed store for dev-only data.
+// Used when Prisma/Supabase aren't available (local dev).
 
 type TableName =
-  | 'users' | 'events' | 'divisions'
-  | 'sponsors' | 'eventSponsors'
-  | 'bagModels' | 'bagSubmissions'
+  | 'users'
+  | 'events'
+  | 'divisions'
+  | 'sponsors'
+  | 'eventSponsors'
+  | 'bagModels'
+  | 'bagSubmissions'
+  | 'registrations' // ← NEW
 
-const defaultData: Record<TableName, any[]> = {
+type AnyRecord = Record<string, any> & { id?: string }
+
+const STORAGE_KEY = 'nco-dev-store-v1'
+
+const defaultData: Record<TableName, AnyRecord[]> = {
   users: [],
   events: [],
   divisions: [],
@@ -14,42 +24,70 @@ const defaultData: Record<TableName, any[]> = {
   eventSponsors: [],
   bagModels: [],
   bagSubmissions: [],
+  registrations: [], // ← NEW
 }
 
-function loadFromLocal<T>(key: TableName): T[] {
-  if (typeof window === 'undefined') return defaultData[key] as T[]
+function load(): Record<TableName, AnyRecord[]> {
+  if (typeof window === 'undefined') return { ...defaultData }
   try {
-    const raw = window.localStorage.getItem(`nco:${key}`)
-    return raw ? (JSON.parse(raw) as T[]) : defaultData[key]
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return { ...defaultData }
+    const parsed = JSON.parse(raw)
+    // Ensure all tables exist
+    for (const key of Object.keys(defaultData) as TableName[]) {
+      if (!Array.isArray(parsed[key])) parsed[key] = []
+    }
+    return parsed
   } catch {
-    return defaultData[key]
+    return { ...defaultData }
   }
 }
 
-function saveToLocal<T>(key: TableName, data: T[]) {
+function save(state: Record<TableName, AnyRecord[]>) {
   if (typeof window === 'undefined') return
-  window.localStorage.setItem(`nco:${key}`, JSON.stringify(data))
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+}
+
+let state = load()
+
+function genId() {
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `id_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 }
 
 export const devStore = {
-  getAll<T>(key: TableName): T[] {
-    return loadFromLocal<T>(key)
+  reset() {
+    state = { ...defaultData }
+    save(state)
   },
-  upsert<T extends { id?: string }>(key: TableName, item: T): T {
-    const list = loadFromLocal<T & { id: string }>(key)
-    const id = item.id ?? crypto.randomUUID()
-    const existingIdx = list.findIndex(i => i.id === id)
-    const next = { ...item, id } as T & { id: string }
-    if (existingIdx >= 0) list[existingIdx] = next
-    else list.unshift(next)
-    saveToLocal(key, list)
+
+  getAll<T = AnyRecord>(table: TableName): T[] {
+    return (state[table] as T[]) ?? ([] as T[])
+  },
+
+  setAll<T = AnyRecord>(table: TableName, rows: T[]) {
+    state[table] = rows as AnyRecord[]
+    save(state)
+  },
+
+  upsert<T extends AnyRecord = AnyRecord>(table: TableName, row: T): T {
+    const rows = this.getAll<T>(table)
+    let id = row.id as string | undefined
+    if (!id) id = genId()
+    const idx = rows.findIndex((r: any) => r.id === id)
+    const next = { ...row, id } as T
+    if (idx === -1) {
+      rows.push(next)
+    } else {
+      rows[idx] = { ...rows[idx], ...next }
+    }
+    this.setAll<T>(table, rows)
     return next
   },
-  remove(key: TableName, id: string) {
-    const list = loadFromLocal<any>(key).filter((i: any) => i.id !== id)
-    saveToLocal(key, list)
+
+  remove(table: TableName, id: string) {
+    const rows = this.getAll(table).filter((r: any) => r.id !== id)
+    this.setAll(table, rows)
   },
-  setAll<T>(key: TableName, data: T[]) {
-    saveToLocal(key, data as any[])
-  }
 }

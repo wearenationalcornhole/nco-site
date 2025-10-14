@@ -37,21 +37,33 @@ export async function POST(
         create: { id: userId, email: `${userId}@dev.local`, name: 'Dev User' },
         update: {},
       })
-      const reg = await prisma.registration.upsert({
-        where: { eventId_userId: { eventId, userId } },
-        update: { status: 'CONFIRMED' },
-        create: { eventId, userId, status: 'CONFIRMED' },
+
+      // Find existing registration
+      const existing = await prisma.registration.findFirst({
+        where: { eventId, userId },
+        select: { id: true },
+      })
+
+      if (existing) {
+        // Already registered — return the existing row
+        const reg = await prisma.registration.findUnique({ where: { id: existing.id } })
+        return NextResponse.json(reg, { status: 200 })
+      }
+
+      // Create minimal registration (no status field)
+      const reg = await prisma.registration.create({
+        data: { eventId, userId },
       })
       return NextResponse.json(reg, { status: 201 })
     }
 
-    // devStore fallback
-    const existing = devStore.getAll<any>('registrations')
+    // devStore fallback (local dev)
+    const already = devStore.getAll<any>('registrations')
       .find((r) => r.eventId === eventId && r.userId === userId)
-    if (existing) return NextResponse.json(existing, { status: 200 })
+    if (already) return NextResponse.json(already, { status: 200 })
 
     const created = devStore.upsert('registrations', {
-      eventId, userId, status: 'CONFIRMED',
+      eventId, userId, status: 'CONFIRMED', // harmless extra field in local-only store
     })
     return NextResponse.json(created, { status: 201 })
   } catch (e: any) {
