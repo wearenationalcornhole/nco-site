@@ -4,14 +4,12 @@ import { NextResponse } from 'next/server'
 import { getPrisma } from '@/app/lib/safePrisma'
 import { devStore } from '@/app/lib/devStore'
 
-export async function GET(
-  _req: Request,
-  { params }: { params: { eventId: string } }
-) {
+export async function GET(_req: Request, context: any) {
   try {
-    const { eventId } = params
-    const prisma = await getPrisma()
+    const { eventId } = (context?.params ?? {}) as { eventId: string }
+    if (!eventId) return NextResponse.json({ error: 'Missing eventId' }, { status: 400 })
 
+    const prisma = await getPrisma()
     if (prisma) {
       const regs = await prisma.registration.findMany({
         where: { eventId },
@@ -29,17 +27,13 @@ export async function GET(
   }
 }
 
-export async function POST(
-  req: Request,
-  { params }: { params: { eventId: string } }
-) {
+export async function POST(req: Request, context: any) {
   try {
-    const { eventId } = params
-    const { userId } = await req.json()
+    const { eventId } = (context?.params ?? {}) as { eventId: string }
+    if (!eventId) return NextResponse.json({ error: 'Missing eventId' }, { status: 400 })
 
-    if (!userId) {
-      return NextResponse.json({ error: 'userId required' }, { status: 400 })
-    }
+    const { userId } = await req.json()
+    if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
 
     const prisma = await getPrisma()
     if (prisma) {
@@ -50,7 +44,7 @@ export async function POST(
         update: {},
       })
 
-      // Check if already registered
+      // If registration exists, return it; otherwise create a new one
       const existing = await prisma.registration.findFirst({
         where: { eventId, userId },
         select: { id: true },
@@ -61,10 +55,7 @@ export async function POST(
         return NextResponse.json(reg, { status: 200 })
       }
 
-      // Create minimal registration
-      const reg = await prisma.registration.create({
-        data: { eventId, userId },
-      })
+      const reg = await prisma.registration.create({ data: { eventId, userId } })
       return NextResponse.json(reg, { status: 201 })
     }
 
