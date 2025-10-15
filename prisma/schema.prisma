@@ -1,41 +1,87 @@
-
-// prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")  // pooled (runtime)
-  directUrl = env("DIRECT_URL")    // direct (migrations)
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
-  id         String   @id @default(cuid())
-  email      String   @unique
-  name       String?
-  createdAt  DateTime @default(now())
-  events     Event[]  @relation("OrganizerEvents")
+  id            String         @id @default(cuid())
+  email         String         @unique
+  name          String?
+  createdAt     DateTime       @default(now()) @db.Timestamptz(6)
   registrations Registration[]
 }
 
 model Event {
-  id          String   @id @default(cuid())
-  title       String
-  description String?
-  city        String?
-  date        DateTime
-  createdAt   DateTime @default(now())
-  organizer   User?    @relation("OrganizerEvents", fields: [organizerId], references: [id])
-  organizerId String?
+  id            String         @id @default(cuid())
+  slug          String?        @unique
+  title         String
+  city          String?
+  date          String?
+  image         String?
+  createdAt     DateTime       @default(now()) @db.Timestamptz(6)
   registrations Registration[]
 }
 
 model Registration {
   id        String   @id @default(cuid())
-  user      User     @relation(fields: [userId], references: [id])
-  userId    String
-  event     Event    @relation(fields: [eventId], references: [id])
   eventId   String
-  createdAt DateTime @default(now())
+  userId    String
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model events {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug           String?
+  title          String
+  city           String?
+  date           DateTime?        @db.Date
+  image          String?
+  created_at     DateTime         @default(now()) @db.Timestamptz(6)
+  event_sponsors event_sponsors[]
+  sponsors       sponsors[]
+
+  @@index([created_at(sort: Desc)])
+  @@index([slug])
+}
+
+model sponsors {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  event_id   String   @db.Uuid
+  name       String
+  url        String?
+  logo       String?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  events     events   @relation(fields: [event_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([event_id])
+}
+
+model event_sponsors {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  event_id          String            @db.Uuid
+  company_id        String            @db.Uuid
+  tier              String?
+  created_at        DateTime          @default(now()) @db.Timestamptz(6)
+  sponsor_companies sponsor_companies @relation(fields: [company_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  events            events            @relation(fields: [event_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([event_id, company_id], map: "event_sponsors_event_company_uniq")
+}
+
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model sponsor_companies {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String
+  website        String?
+  logo_url       String?
+  logo_hash      String?
+  created_at     DateTime         @default(now()) @db.Timestamptz(6)
+  event_sponsors event_sponsors[]
 }
