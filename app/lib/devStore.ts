@@ -1,93 +1,102 @@
 // app/lib/devStore.ts
-// Minimal localStorage-backed store for dev-only data.
-// Used when Prisma/Supabase aren't available (local dev).
+// Tiny in-memory store for local dev & serverless fallbacks.
+// Safe to import in API routes. No browser APIs, no I/O.
 
-type TableName =
+type AnyRecord = { id?: string; [k: string]: any }
+
+// Keep both legacy camelCase and new snake_case keys so nothing breaks.
+export type TableName =
   | 'users'
   | 'events'
   | 'divisions'
   | 'sponsors'
-  | 'eventSponsors'
+  | 'eventSponsors'     // legacy camelCase
   | 'bagModels'
   | 'bagSubmissions'
-  | 'registrations' // ← NEW
+  | 'registrations'
+  | 'sponsor_companies' // new snake_case
+  | 'event_sponsors'    // new snake_case
 
-type AnyRecord = Record<string, any> & { id?: string }
+type StoreShape = Record<TableName, AnyRecord[]>
 
-const STORAGE_KEY = 'nco-dev-store-v1'
+const STORAGE_SYMBOL = '__NCO_DEV_STORE__'
 
-const defaultData: Record<TableName, AnyRecord[]> = {
-  users: [],
-  events: [],
-  divisions: [],
-  sponsors: [],
-  eventSponsors: [],
-  bagModels: [],
-  bagSubmissions: [],
-  registrations: [], // ← NEW
+// Global, per-runtime (OK for Next dev / serverless fallbacks)
+function getGlobalStore(): StoreShape {
+  const g = globalThis as any
+  if (!g[STORAGE_SYMBOL]) {
+    g[STORAGE_SYMBOL] = createDefaultData()
+  }
+  return g[STORAGE_SYMBOL] as StoreShape
 }
 
-function load(): Record<TableName, AnyRecord[]> {
-  if (typeof window === 'undefined') return { ...defaultData }
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return { ...defaultData }
-    const parsed = JSON.parse(raw)
-    // Ensure all tables exist
-    for (const key of Object.keys(defaultData) as TableName[]) {
-      if (!Array.isArray(parsed[key])) parsed[key] = []
-    }
-    return parsed
-  } catch {
-    return { ...defaultData }
+function createDefaultData(): StoreShape {
+  return {
+    // legacy / existing tables
+    users: [],
+    events: [],
+    divisions: [],
+    sponsors: [],
+    eventSponsors: [],   // legacy camelCase link table
+    bagModels: [],
+    bagSubmissions: [],
+    registrations: [],
+
+    // new sponsor tables (snake_case to match DB)
+    sponsor_companies: [],
+    event_sponsors: [],
   }
 }
 
-function save(state: Record<TableName, AnyRecord[]>) {
-  if (typeof window === 'undefined') return
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
-}
-
-let state = load()
-
-function genId() {
-  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
-    ? crypto.randomUUID()
-    : `id_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+function genId(prefix = 'id'): string {
+  // Simple unique-ish id for dev usage
+  return `${prefix}_${Math.random().toString(36).slice(2, 8)}${Date.now().toString(36)}`
 }
 
 export const devStore = {
-  reset() {
-    state = { ...defaultData }
-    save(state)
+  reset(): void {
+    const g = globalThis as any
+    g[STORAGE_SYMBOL] = createDefaultData()
   },
 
   getAll<T = AnyRecord>(table: TableName): T[] {
-    return (state[table] as T[]) ?? ([] as T[])
+    const store = getGlobalStore()
+    return store[table] as T[]
   },
 
-  setAll<T = AnyRecord>(table: TableName, rows: T[]) {
-    state[table] = rows as AnyRecord[]
-    save(state)
+  getById<T = AnyRecord>(table: TableName, id: string): T | undefined {
+    const store = getGlobalStore()
+    return (store[table] as AnyRecord[]).find((r) => r.id === id) as T | undefined
   },
 
-  upsert<T extends AnyRecord = AnyRecord>(table: TableName, row: T): T {
-    const rows = this.getAll<T>(table)
-    let id = row.id as string | undefined
-    if (!id) id = genId()
-    const idx = rows.findIndex((r: any) => r.id === id)
-    const next = { ...row, id } as T
-    if (idx === -1) {
-      rows.push(next)
-    } else {
-      rows[idx] = { ...rows[idx], ...next }
+  upsert<T extends AnyRecord = AnyRecord>(table: TableName, record: T): T {
+    const store = getGlobalStore()
+    const rows = store[table]
+
+    if (!record.id) {
+      // create
+      const created: AnyRecord = { ...record, id: genId(table.replace(/[^a-z]/g, '')) }
+      rows.push(created)
+      return created as T
     }
-    this.setAll<T>(table, rows)
-    return next
+
+    // update if exists
+    const idx = rows.findIndex((r) => r.id === record.id)
+    if (idx >= 0) {
+      rows[idx] = { ...rows[idx], ...record }
+      return rows[idx] as T
+    }
+
+    // else insert
+    rows.push(record)
+    return record
   },
 
-  remove(table: TableName, id: string) {
-    const rows = this.getAll(table).filter((r: any) => r.id !== id)
-    this.setAll(table, rows)
+  remove(table: TableName, id: string): boolean {
+    const store = getGlobalStore()
+    const rows = store[table]
+    const lenBefore = rows.length
+    store[table] = rows.filter((r) => r.id !== id)
+    return store[table].length !== lenBefore
   },
 }
