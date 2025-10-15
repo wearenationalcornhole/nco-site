@@ -7,38 +7,33 @@ import { devStore } from '@/app/lib/devStore'
 
 export async function GET() {
   try {
-    // 1) Try Prisma
+    // 1) Prisma
     const prisma = await getPrisma()
     if (prisma) {
       try {
         const events = await prisma.event.findMany({ orderBy: { createdAt: 'desc' } })
-        return NextResponse.json({ source: 'prisma', events }, { status: 200 })
+        return NextResponse.json(events, { status: 200 })
       } catch (e) {
         console.error('Prisma query failed (events):', e)
       }
     }
 
-    // 2) Try Supabase (server-side)
+    // 2) Supabase
     const sb = getSupabaseServer()
     if (sb) {
       const { data, error } = await sb
         .from('Event')
         .select('*')
         .order('createdAt', { ascending: false })
-      if (!error && data) {
-        return NextResponse.json({ source: 'supabase', events: data }, { status: 200 })
-      }
+      if (!error && data) return NextResponse.json(data, { status: 200 })
       console.error('Supabase query failed (events):', error)
     }
 
-    // 3) Fallback to local dev memory store (empty on Vercel)
-    return NextResponse.json(
-      { source: 'devStore', events: devStore.getAll('events') },
-      { status: 200 }
-    )
-  } catch (e: any) {
+    // 3) Fallback (local dev only)
+    return NextResponse.json(devStore.getAll('events'), { status: 200 })
+  } catch (e) {
     console.error('GET /portal/api/events failed:', e)
-    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+    return NextResponse.json([], { status: 200 })
   }
 }
 
@@ -47,7 +42,6 @@ export async function POST(req: Request) {
     const { title, slug, city, date, image } = await req.json()
     if (!title) return NextResponse.json({ error: 'title required' }, { status: 400 })
 
-    // 1) Try Prisma
     const prisma = await getPrisma()
     if (prisma) {
       try {
@@ -63,7 +57,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2) Try Supabase
     const sb = getSupabaseServer()
     if (sb) {
       const { data, error } = await sb
@@ -71,13 +64,10 @@ export async function POST(req: Request) {
         .insert([{ title, slug, city, date, image }])
         .select()
         .single()
-      if (!error && data) {
-        return NextResponse.json(data, { status: 201 })
-      }
+      if (!error && data) return NextResponse.json(data, { status: 201 })
       console.error('Supabase insert failed (events):', error)
     }
 
-    // 3) Fallback to local dev memory store
     const created = devStore.upsert('events', { title, slug, city, date, image })
     return NextResponse.json(created, { status: 201 })
   } catch (e: any) {
