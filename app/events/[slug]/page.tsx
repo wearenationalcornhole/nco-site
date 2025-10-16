@@ -54,17 +54,15 @@ async function getSponsors(eventId: string): Promise<SponsorLink[]> {
   return res.json()
 }
 
-export default async function Page({ params }: { params: { slug: string } }) {
-  const { slug } = params
+export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params
   const event = await getEventBySlug(slug)
 
   if (!event) {
     return (
       <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
         <h1 className="text-2xl font-semibold">Event not found</h1>
-        <p className="mt-2 text-gray-600">
-          We couldn’t find that event. It may have been moved or removed.
-        </p>
+        <p className="mt-2 text-gray-600">We couldn’t find that event. It may have been moved or removed.</p>
         <div className="mt-6">
           <Link href="/events" className="rounded border px-4 py-2 hover:bg-gray-50">
             Back to Events
@@ -87,15 +85,9 @@ export default async function Page({ params }: { params: { slug: string } }) {
           loading="eager"
         />
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
-          <p className="uppercase tracking-widest text-white/80 text-xs sm:text-sm">
-            National Cornhole Organization
-          </p>
-          <h1 className="mt-2 max-w-3xl text-4xl sm:text-5xl font-extrabold tracking-tight">
-            {event.title}
-          </h1>
-          <p className="mt-3 text-white/90">
-            {event.city ?? 'TBD'} • {fmtDate(event.date)}
-          </p>
+          <p className="uppercase tracking-widest text-white/80 text-xs sm:text-sm">National Cornhole Organization</p>
+          <h1 className="mt-2 max-w-3xl text-4xl sm:text-5xl font-extrabold tracking-tight">{event.title}</h1>
+          <p className="mt-3 text-white/90">{event.city ?? 'TBD'} • {fmtDate(event.date)}</p>
           <div className="mt-6">
             <RegisterButton eventId={event.id} />
           </div>
@@ -108,18 +100,12 @@ export default async function Page({ params }: { params: { slug: string } }) {
           <article className="lg:col-span-2">
             <h2 className="text-xl font-semibold">About this Event</h2>
             <p className="mt-3 text-gray-700">
-              Get ready to throw! Register now to secure your spot. Check back
-              for divisions, prize pools, and schedule.
+              Get ready to throw! Register now to secure your spot. Check back for divisions, prize pools, and schedule.
             </p>
 
             {event.image && (
               <div className="mt-6 overflow-hidden rounded-2xl">
-                <img
-                  src={event.image}
-                  alt=""
-                  className="w-full h-auto object-cover"
-                  loading="lazy"
-                />
+                <img src={event.image} alt="" className="w-full h-auto object-cover" loading="lazy" />
               </div>
             )}
           </article>
@@ -152,9 +138,7 @@ export default async function Page({ params }: { params: { slug: string } }) {
         {sponsors.length > 0 && (
           <section className="mt-12 border-t">
             <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-              <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wider text-center">
-                Sponsors
-              </h2>
+              <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wider text-center">Sponsors</h2>
               <ul className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6 items-center">
                 {sponsors.map((link) => {
                   const c = link.sponsor_companies
