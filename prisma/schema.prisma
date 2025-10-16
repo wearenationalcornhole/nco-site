@@ -73,6 +73,7 @@ model event_sponsors {
   events            events            @relation(fields: [event_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([event_id, company_id], map: "event_sponsors_event_company_uniq")
+  @@index([event_id])
 }
 
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
@@ -85,3 +86,6 @@ model sponsor_companies {
   created_at     DateTime         @default(now()) @db.Timestamptz(6)
   event_sponsors event_sponsors[]
 }
+
+
+

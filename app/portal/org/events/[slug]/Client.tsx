@@ -149,6 +149,53 @@ export default function Client({ slug }: { slug: string }) {
    ───────────────────────────────────────────────────────────── */
 
 function Overview({ event }: { event: Event }) {
+  const [logoUrl, setLogoUrl] = useState<string | null>(event?.image ?? null) // not used; safe to ignore
+  const [tLogo, setTLogo] = useState<string | null>((event as any).tournament_logo_url ?? null)
+  const [file, setFile] = useState<File | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  // upload to Supabase Storage → return public URL
+  async function uploadLogoToSupabase(file: File, eventId: string, slugOrId: string): Promise<string> {
+    const { supabase } = await import('@/app/lib/supabaseClient')
+    const safe = slugOrId.replace(/[^a-z0-9-]/gi, '-').toLowerCase()
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'png'
+    const fname = `event-${safe}-${Date.now()}.${ext}`
+    const path = `logos/${eventId}/${fname}`
+
+    const { error } = await supabase
+      .storage
+      .from('event-logos')
+      .upload(path, file, { cacheControl: '31536000', upsert: true, contentType: file.type || `image/${ext}` })
+    if (error) throw error
+
+    const { data } = supabase.storage.from('event-logos').getPublicUrl(path)
+    return data.publicUrl
+  }
+
+  async function saveLogo(e: React.FormEvent) {
+    e.preventDefault()
+    if (!file) return
+
+    setSaving(true)
+    try {
+      const url = await uploadLogoToSupabase(file, event.id, event.slug ?? event.id)
+      // Persist on the event
+      const res = await fetch(`/portal/api/events/${encodeURIComponent(event.id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tournament_logo_url: url }),
+      })
+      if (!res.ok) throw new Error((await res.json())?.error ?? 'Save failed')
+      setTLogo(url)
+      setFile(null)
+      alert('Tournament logo saved')
+    } catch (err: any) {
+      alert(err?.message ?? 'Upload failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <div className="rounded-xl border bg-white p-6 lg:col-span-2">
@@ -171,6 +218,37 @@ function Overview({ event }: { event: Event }) {
             <dd className="font-medium">{event.city ?? 'TBD'}</dd>
           </div>
         </dl>
+
+        {/* Tournament Logo editor */}
+        <div className="mt-8 border-t pt-6">
+          <h3 className="text-sm font-semibold text-gray-700">Tournament Logo</h3>
+          <p className="mt-1 text-sm text-gray-600">Upload a logo used on public pages and on bag mockups.</p>
+
+          <div className="mt-4 flex items-start gap-4">
+            <div className="h-20 w-20 rounded bg-gray-100 overflow-hidden flex items-center justify-center">
+              {tLogo ? (
+                <img src={tLogo} alt="Tournament logo" className="h-full w-full object-contain" />
+              ) : (
+                <span className="text-xs text-gray-400">No logo</span>
+              )}
+            </div>
+
+            <form onSubmit={saveLogo} className="flex-1 grid gap-2 sm:grid-cols-[1fr_auto]">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                className="rounded border px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-gray-100 file:px-3 file:py-2"
+              />
+              <button
+                disabled={!file || saving}
+                className="rounded bg-usaBlue text-white px-4 py-2 text-sm hover:opacity-90 disabled:opacity-60"
+              >
+                {saving ? 'Saving…' : 'Save Logo'}
+              </button>
+            </form>
+          </div>
+        </div>
       </div>
 
       <div className="rounded-xl border bg-white p-6">
