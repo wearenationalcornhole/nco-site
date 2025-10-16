@@ -1,100 +1,68 @@
+// app/portal/api/event-sponsors/route.ts
 export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
 import { getPrisma } from '@/app/lib/safePrisma'
 import { devStore } from '@/app/lib/devStore'
 
-/**
- * GET /portal/api/event-sponsors?eventId=evt_123
- *  → [{ id, event_id, company_id, tier, company: { id, name, website, logo, logoHash } }]
- *
- * POST /portal/api/event-sponsors
- *  body: { eventId, companyId, tier? }
- */
+/** GET /portal/api/event-sponsors?eventId=evt_123 */
 export async function GET(req: Request) {
   try {
-    const { searchParams } = new URL(req.url)
-    const eventId = searchParams.get('eventId') ?? ''
-    if (!eventId) return NextResponse.json({ error: 'eventId required' }, { status: 400 })
+    const url = new URL(req.url)
+    const eventId = url.searchParams.get('eventId') ?? ''
+    if (!eventId) return NextResponse.json([], { status: 200 })
 
     const prisma = await getPrisma()
     if (prisma) {
-      const EventSponsors     = (prisma as any).event_sponsors
-      const SponsorCompanies  = (prisma as any).sponsor_companies
-      if (!EventSponsors || !SponsorCompanies) throw new Error('Models not found')
-
-      const links = await EventSponsors.findMany({
+      const links = await prisma.event_sponsors.findMany({
         where: { event_id: eventId },
         orderBy: { created_at: 'desc' },
+        include: { company: true },
       })
-      const companyIds = [...new Set(links.map((l: any) => l.company_id))]
-
-      const companies = companyIds.length
-        ? await SponsorCompanies.findMany({ where: { id: { in: companyIds } } })
-        : []
-
-      const byId: Record<string, any> = {}
-      for (const c of companies) {
-        byId[c.id] = {
-          id: c.id,
-          name: c.name,
-          website: c.website ?? null,
-          logo: c.logo_url ?? null,
-          logoHash: c.logo_hash ?? null,
-        }
-      }
-
-      const result = links.map((l: any) => ({
-        id: l.id,
-        event_id: l.event_id,
-        company_id: l.company_id,
-        tier: l.tier ?? null,
-        company: byId[l.company_id] ?? null,
-      }))
-
-      return NextResponse.json(result)
+      return NextResponse.json(links, { status: 200 })
     }
 
-    // dev fallback
-    const links    = (devStore as any).getAll('event_sponsors').filter((l: any) => l.event_id === eventId)
-    const companies = (devStore as any).getAll('sponsor_companies')
-    const byId: Record<string, any> = Object.fromEntries(companies.map((c: any) => [c.id, {
-      id: c.id, name: c.name, website: c.website ?? null, logo: c.logoUrl ?? null, logoHash: c.logoHash ?? null,
-    }]))
-    const result = links.map((l: any) => ({ ...l, company: byId[l.company_id] ?? null }))
-    return NextResponse.json(result)
+    const links = devStore.getAll<any>('event_sponsors').filter((l) => l.event_id === eventId)
+    const companies = devStore.getAll<any>('sponsor_companies')
+    const joined = links.map((l) => ({ ...l, company: companies.find((c) => c.id === l.company_id) ?? null }))
+    return NextResponse.json(joined, { status: 200 })
   } catch (e: any) {
-    console.error('GET /portal/api/event-sponsors error:', e?.message ?? e)
+    console.error('GET /portal/api/event-sponsors error:', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
 
+/** POST /portal/api/event-sponsors  { eventId, companyId } */
 export async function POST(req: Request) {
   try {
-    const { eventId, companyId, tier } = await req.json().catch(() => ({}))
+    const { eventId, companyId } = (await req.json()) as { eventId?: string; companyId?: string }
     if (!eventId || !companyId) {
       return NextResponse.json({ error: 'eventId and companyId required' }, { status: 400 })
     }
 
     const prisma = await getPrisma()
     if (prisma) {
-      const EventSponsors = (prisma as any).event_sponsors
-      if (!EventSponsors) throw new Error('Model event_sponsors not found')
-
-      const existing = await EventSponsors.findFirst({ where: { event_id: eventId, company_id: companyId } })
-      if (existing) return NextResponse.json(existing, { status: 200 })
-
-      const created = await EventSponsors.create({
-        data: { event_id: eventId, company_id: companyId, tier: tier ?? null },
+      const existing = await prisma.event_sponsors.findFirst({
+        where: { event_id: eventId, company_id: companyId },
       })
-      return NextResponse.json(created, { status: 201 })
+      const link = existing
+        ? existing
+        : await prisma.event_sponsors.create({ data: { event_id: eventId, company_id: companyId } })
+      return NextResponse.json(link, { status: existing ? 200 : 201 })
     }
 
-    // dev fallback
-    const created = (devStore as any).upsert('event_sponsors', { event_id: eventId, company_id: companyId, tier: tier ?? null })
-    return NextResponse.json(created, { status: 201 })
+    // devStore fallback
+    const all = devStore.getAll<any>('event_sponsors')
+    const match = all.find((l) => l.event_id === eventId && l.company_id === companyId)
+    const saved = devStore.upsert('event_sponsors', {
+      id: match?.id,
+      event_id: eventId,
+      company_id: companyId,
+      created_at: match?.created_at ?? new Date().toISOString(),
+    })
+    return NextResponse.json(saved, { status: match ? 200 : 201 })
   } catch (e: any) {
-    console.error('POST /portal/api/event-sponsors error:', e?.message ?? e)
-    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+    console.error('POST /portal/api/event-sponsors error:', e)
+    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
   }
 }

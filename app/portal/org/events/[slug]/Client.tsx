@@ -6,6 +6,7 @@ import Link from 'next/link'
 import Spinner from '@/components/ui/Spinner'
 import Badge from '@/components/ui/Badge'
 import Toast from '@/components/ui/Toast'
+import SponsorsPanel from './components/SponsorsPanel'
 
 // Dynamically load the new Sponsors panel (client-only)
 const SponsorsPanel = dynamic(() => import('./SponsorsPanel'), { ssr: false })

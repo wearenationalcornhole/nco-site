@@ -4,3 +4,35 @@
 
 :root { color-scheme: light; }
 html { scroll-behavior: smooth; }
+
+/* Hide scrollbars for horizontal sponsor strip */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;     /* Firefox */
+}
+
+/* ─────────────────────────────
+   Sponsor Strip Autoscroll
+   ───────────────────────────── */
+
+@keyframes sponsor-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-25%);
+  }
+}
+
+/* container that holds the logos */
+.sponsor-scroll:hover ul {
+  animation: sponsor-scroll 15s linear infinite;
+}
+
+/* pause on hover for individual logos */
+.sponsor-scroll ul:hover {
+  animation-play-state: paused;
+}

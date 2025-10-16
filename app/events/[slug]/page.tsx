@@ -21,8 +21,8 @@ type SponsorLink = {
     id: string
     name: string
     website?: string | null
-    logo?: string | null   // API may send `logo` (dev) OR:
-    logo_url?: string | null // `logo_url` (DB)
+    logo?: string | null      // dev fallback
+    logo_url?: string | null  // DB field
   } | null
 }
 
@@ -30,20 +30,12 @@ function fmtDate(iso?: string | null) {
   if (!iso) return 'TBD'
   const [y, m, d] = iso.split('-').map(Number)
   const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1))
-  return dt.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
+  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
 }
 
 async function getEvent(slug: string): Promise<Event | null> {
   try {
-    const res = await fetch(
-      `/portal/api/events/by-slug/${encodeURIComponent(slug)}`,
-      { cache: 'no-store' }
-    )
+    const res = await fetch(`/portal/api/events/by-slug/${encodeURIComponent(slug)}`, { cache: 'no-store' })
     if (!res.ok) return null
     return (await res.json()) as Event
   } catch {
@@ -53,10 +45,7 @@ async function getEvent(slug: string): Promise<Event | null> {
 
 async function getSponsors(eventId: string): Promise<SponsorLink[]> {
   try {
-    const res = await fetch(
-      `/portal/api/event-sponsors?eventId=${encodeURIComponent(eventId)}`,
-      { cache: 'no-store' }
-    )
+    const res = await fetch(`/portal/api/event-sponsors?eventId=${encodeURIComponent(eventId)}`, { cache: 'no-store' })
     if (!res.ok) return []
     return (await res.json()) as SponsorLink[]
   } catch {
@@ -67,7 +56,7 @@ async function getSponsors(eventId: string): Promise<SponsorLink[]> {
 export default async function Page({
   params,
 }: {
-  // Keep this Promise-based typing to match your project’s Next 15 setup
+  // Keep promise-based params to match your Next 15 setup
   params: Promise<{ slug: string }>
 }) {
   const { slug } = await params
@@ -77,14 +66,9 @@ export default async function Page({
     return (
       <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16">
         <h1 className="text-2xl font-semibold">Event not found</h1>
-        <p className="mt-2 text-gray-600">
-          We couldn’t find an event for “{slug}”.
-        </p>
+        <p className="mt-2 text-gray-600">We couldn’t find an event for “{slug}”.</p>
         <div className="mt-6">
-          <Link
-            href="/events"
-            className="inline-flex items-center rounded bg-usaBlue px-4 py-2 text-white hover:opacity-90"
-          >
+          <Link href="/events" className="inline-flex items-center rounded bg-usaBlue px-4 py-2 text-white hover:opacity-90">
             Back to Events
           </Link>
         </div>
@@ -96,7 +80,7 @@ export default async function Page({
 
   return (
     <div className="min-h-screen">
-      {/* Hero / Header */}
+      {/* Hero */}
       <section className="relative isolate overflow-hidden bg-neutral-950 text-white">
         {event.image ? (
           <>
@@ -110,15 +94,9 @@ export default async function Page({
         ) : null}
 
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
-          <p className="uppercase tracking-widest text-white/80 text-xs sm:text-sm">
-            National Cornhole Organization
-          </p>
-          <h1 className="mt-2 max-w-3xl text-balance text-3xl sm:text-4xl lg:text-5xl font-extrabold">
-            {event.title}
-          </h1>
-          <p className="mt-3 text-white/90">
-            {event.city ?? 'TBD'} &middot; {fmtDate(event.date)}
-          </p>
+          <p className="uppercase tracking-widest text-white/80 text-xs sm:text-sm">National Cornhole Organization</p>
+          <h1 className="mt-2 max-w-3xl text-balance text-3xl sm:text-4xl lg:text-5xl font-extrabold">{event.title}</h1>
+          <p className="mt-3 text-white/90">{event.city ?? 'TBD'} &middot; {fmtDate(event.date)}</p>
 
           <div className="mt-6 flex flex-wrap gap-3">
             <a
@@ -137,16 +115,16 @@ export default async function Page({
         </div>
       </section>
 
-      {/* Details */}
+      {/* Body */}
       <section className="py-12 sm:py-16 bg-white">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
             <div className="lg:col-span-2">
               <h2 className="text-xl font-semibold">About this Event</h2>
               <p className="mt-3 text-gray-700">
-                {/* Placeholder copy you can replace with CMS content later */}
-                Join us for a friendly, competitive day of cornhole. Meet local
-                players, enjoy the community vibe, and compete for bragging rights.
+                {/* Placeholder text — replace with CMS content later */}
+                Join us for a friendly, competitive day of cornhole. Meet local players, enjoy the community vibe,
+                and compete for bragging rights.
               </p>
             </div>
 
@@ -169,48 +147,49 @@ export default async function Page({
             </aside>
           </div>
 
-          {/* Sponsors strip */}
+          {/* Sponsors — horizontal strip */}
           {(sponsors?.length ?? 0) > 0 && (
             <section className="mt-12 border-t pt-8">
-              <h3 className="text-base font-semibold text-gray-700">
-                Event Sponsors
-              </h3>
-              <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6 items-center">
-                {sponsors.map((s) => {
-                  const name = s.company?.name ?? 'Sponsor'
-                  // Support either logo_url (DB) or logo (dev fallback):
-                  const logo = (s.company?.logo_url ?? s.company?.logo) || null
-                  const href = s.company?.website ?? undefined
-                  const content = logo ? (
-                    <img
-                      src={logo}
-                      alt={name}
-                      className="max-h-12 w-auto object-contain grayscale hover:grayscale-0 transition"
-                    />
-                  ) : (
-                    <span className="text-xs text-gray-400">{name}</span>
-                  )
-                  return (
-                    <div
-                      key={s.id}
-                      className="h-12 flex items-center justify-center opacity-80 hover:opacity-100"
-                      title={name}
-                    >
-                      {href ? (
-                        <a
-                          href={href}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex"
-                        >
-                          {content}
-                        </a>
-                      ) : (
-                        content
-                      )}
-                    </div>
-                  )
-                })}
+              <h3 className="text-base font-semibold text-gray-700">Event Sponsors</h3>
+
+              {/* Scrollable row with subtle mask edges */}
+              <div
+                className="relative mt-4 sponsor-scroll"
+                aria-label="Sponsor logos"
+              >
+                <div className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-white to-transparent" />
+                <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent" />
+
+                <ul className="no-scrollbar flex items-center gap-8 overflow-x-auto py-2">
+                  {sponsors.map((s) => {
+                    const name = s.company?.name ?? 'Sponsor'
+                    const logo = (s.company?.logo_url ?? s.company?.logo) || null
+                    const href = s.company?.website ?? undefined
+
+                    const content = logo ? (
+                      <img
+                        src={logo}
+                        alt={name}
+                        loading="lazy"
+                        className="h-12 w-auto max-w-none object-contain grayscale hover:grayscale-0 transition"
+                      />
+                    ) : (
+                      <span className="text-xs text-gray-500">{name}</span>
+                    )
+
+                    return (
+                      <li key={s.id} className="shrink-0">
+                        {href ? (
+                          <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center">
+                            {content}
+                          </a>
+                        ) : (
+                          content
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
               </div>
             </section>
           )}
