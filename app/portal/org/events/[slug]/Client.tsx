@@ -2,9 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import Spinner from '@/components/ui/Spinner'
 import Badge from '@/components/ui/Badge'
 import Toast from '@/components/ui/Toast'
+
+// Client-only load to avoid SSR issues
 const SponsorsPanel = dynamic(() => import('./components/SponsorsPanel'), { ssr: false })
 
 type Event = {
@@ -29,7 +32,12 @@ function fmtDate(iso?: string | null) {
   if (!iso) return 'TBD'
   const [y, m, d] = iso.split('-').map(Number)
   const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1))
-  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+  return dt.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
 }
 
 export default function Client({ slug }: { slug: string }) {
@@ -43,9 +51,19 @@ export default function Client({ slug }: { slug: string }) {
     setLoading(true)
     fetch(`/portal/api/events/by-slug/${encodeURIComponent(slug)}`)
       .then(async (r) => (r.ok ? r.json() : Promise.reject(await r.json())))
-      .then((e) => { if (!alive) return; setEvent(e); setLoading(false) })
-      .catch(() => { if (!alive) return; setEvent(null); setLoading(false) })
-    return () => { alive = false }
+      .then((e) => {
+        if (!alive) return
+        setEvent(e)
+        setLoading(false)
+      })
+      .catch(() => {
+        if (!alive) return
+        setEvent(null)
+        setLoading(false)
+      })
+    return () => {
+      alive = false
+    }
   }, [slug])
 
   return (
@@ -67,7 +85,10 @@ export default function Client({ slug }: { slug: string }) {
         {!loading && event && (
           <div className="flex gap-2">
             <CopyLinkButton href={`/portal/events/${event.slug ?? event.id}`} />
-            <Link href={`/portal/events/${event.slug ?? event.id}`} className="rounded bg-black text-white px-3 py-2 text-sm hover:opacity-90">
+            <Link
+              href={`/portal/events/${event.slug ?? event.id}`}
+              className="rounded bg-black text-white px-3 py-2 text-sm hover:opacity-90"
+            >
               View Public
             </Link>
           </div>
@@ -106,15 +127,13 @@ export default function Client({ slug }: { slug: string }) {
           </div>
         )}
         {!loading && !event && (
-          <div className="rounded-xl border bg-white p-6 text-center text-gray-600">
-            Event not found.
-          </div>
+          <div className="rounded-xl border bg-white p-6 text-center text-gray-600">Event not found.</div>
         )}
         {!loading && event && (
           <>
             {tab === 'overview' && <Overview event={event} />}
             {tab === 'registrations' && <RegistrationsTab eventId={event.id} onToast={setToast} />}
-            {tab === 'sponsors' && <SponsorsPanel eventId={event.id} />}
+            {tab === 'sponsors' && <SponsorsPanel event={{ id: event.id, slug: event.slug, title: event.title }} onToast={setToast} />}
             {tab === 'bags' && <BagsTab event={event} onToast={setToast} />}
           </>
         )}
@@ -126,7 +145,7 @@ export default function Client({ slug }: { slug: string }) {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   Tabs (unchanged except Sponsors tab now uses SponsorsPanel)
+   Tabs
    ───────────────────────────────────────────────────────────── */
 
 function Overview({ event }: { event: Event }) {
@@ -169,7 +188,13 @@ function Overview({ event }: { event: Event }) {
   )
 }
 
-function RegistrationsTab({ eventId, onToast }: { eventId: string; onToast: (t: { msg: string; kind: 'success' | 'error' }) => void }) {
+function RegistrationsTab({
+  eventId,
+  onToast,
+}: {
+  eventId: string
+  onToast: (t: { msg: string; kind: 'success' | 'error' }) => void
+}) {
   const [rows, setRows] = useState<Registration[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
@@ -181,9 +206,19 @@ function RegistrationsTab({ eventId, onToast }: { eventId: string; onToast: (t: 
     setLoading(true)
     fetch(`/portal/api/events/${encodeURIComponent(eventId)}/registrations`)
       .then((r) => r.json())
-      .then((data) => { if (!alive) return; setRows(data); setLoading(false) })
-      .catch(() => { if (!alive) return; setRows([]); setLoading(false) })
-    return () => { alive = false }
+      .then((data) => {
+        if (!alive) return
+        setRows(data)
+        setLoading(false)
+      })
+      .catch(() => {
+        if (!alive) return
+        setRows([])
+        setLoading(false)
+      })
+    return () => {
+      alive = false
+    }
   }, [eventId])
 
   const filtered = useMemo(() => {
@@ -191,7 +226,12 @@ function RegistrationsTab({ eventId, onToast }: { eventId: string; onToast: (t: 
     return (rows ?? []).filter((r) => {
       const name = r.user?.name ?? ''
       const email = r.user?.email ?? ''
-      return !term || name.toLowerCase().includes(term) || email.toLowerCase().includes(term) || r.userId.toLowerCase().includes(term)
+      return (
+        !term ||
+        name.toLowerCase().includes(term) ||
+        email.toLowerCase().includes(term) ||
+        r.userId.toLowerCase().includes(term)
+      )
     })
   }, [rows, q])
 
@@ -289,7 +329,9 @@ function RegistrationsTab({ eventId, onToast }: { eventId: string; onToast: (t: 
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
                   <div className="col-span-4 font-medium">{r.user?.name ?? r.userId}</div>
                   <div className="col-span-4 text-gray-700">{r.user?.email ?? '—'}</div>
-                  <div className="col-span-3 text-gray-700">{r.createdAt ? new Date(r.createdAt).toLocaleString() : '—'}</div>
+                  <div className="col-span-3 text-gray-700">
+                    {r.createdAt ? new Date(r.createdAt).toLocaleString() : '—'}
+                  </div>
                   <div className="col-span-1 text-right text-xs text-gray-500 truncate">{r.id ?? '—'}</div>
                 </div>
               </li>
@@ -302,19 +344,21 @@ function RegistrationsTab({ eventId, onToast }: { eventId: string; onToast: (t: 
 }
 
 function BagsTab({ event, onToast }: { event: Event; onToast: (t: { msg: string; kind: 'success' | 'error' }) => void }) {
-  const [rows, setRows] = useState<Array<{ id: string; name: string; status: 'Pending'|'Approved'|'Rejected'; image?: string }>>([
+  const [rows, setRows] = useState<Array<{ id: string; name: string; status: 'Pending' | 'Approved' | 'Rejected'; image?: string }>>([
     { id: 'demo-1', name: 'NCO Signature — Red/White/Blue', status: 'Pending', image: '/images/tournament-1.jpg' },
   ])
 
-  function setStatus(id: string, status: 'Approved'|'Rejected') {
-    setRows(prev => prev.map(b => b.id === id ? { ...b, status } : b))
+  function setStatus(id: string, status: 'Approved' | 'Rejected') {
+    setRows((prev) => prev.map((b) => (b.id === id ? { ...b, status } : b)))
     onToast({ msg: `Bag ${status.toLowerCase()}`, kind: 'success' })
   }
 
   return (
     <div className="rounded-xl border bg-white p-6">
       <h2 className="text-lg font-semibold">Bags Review</h2>
-      <p className="mt-1 text-sm text-gray-600">Review demo bags submitted for <span className="font-medium">{event.title}</span>. (Local state for now — API soon.)</p>
+      <p className="mt-1 text-sm text-gray-600">
+        Review demo bags submitted for <span className="font-medium">{event.title}</span>. (Local state for now — API soon.)
+      </p>
 
       <ul className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {rows.map((b) => (
@@ -325,11 +369,25 @@ function BagsTab({ event, onToast }: { event: Event; onToast: (t: { msg: string;
             <div className="p-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="font-semibold">{b.name}</div>
-                <Badge color={b.status === 'Approved' ? 'green' : b.status === 'Rejected' ? 'red' : 'gray'}>{b.status}</Badge>
+                <Badge
+                  color={b.status === 'Approved' ? 'green' : b.status === 'Rejected' ? 'red' : 'gray'}
+                >
+                  {b.status}
+                </Badge>
               </div>
               <div className="mt-3 flex items-center gap-2">
-                <button onClick={()=>setStatus(b.id, 'Approved')} className="rounded bg-usaBlue text-white px-3 py-1 text-sm hover:opacity-90">Approve</button>
-                <button onClick={()=>setStatus(b.id, 'Rejected')} className="rounded border px-3 py-1 text-sm hover:bg-gray-50">Reject</button>
+                <button
+                  onClick={() => setStatus(b.id, 'Approved')}
+                  className="rounded bg-usaBlue text-white px-3 py-1 text-sm hover:opacity-90"
+                >
+                  Approve
+                </button>
+                <button
+                  onClick={() => setStatus(b.id, 'Rejected')}
+                  className="rounded border px-3 py-1 text-sm hover:bg-gray-50"
+                >
+                  Reject
+                </button>
               </div>
             </div>
           </li>
@@ -345,7 +403,10 @@ function CopyLinkButton({ href }: { href: string }) {
     <button
       onClick={() => {
         const url = location.origin + href
-        navigator.clipboard.writeText(url).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1200) })
+        navigator.clipboard.writeText(url).then(() => {
+          setCopied(true)
+          setTimeout(() => setCopied(false), 1200)
+        })
       }}
       className="rounded border px-3 py-2 text-sm hover:bg-gray-50"
       aria-live="polite"
