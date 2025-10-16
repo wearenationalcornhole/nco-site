@@ -1,10 +1,14 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import Spinner from '@/components/ui/Spinner'
 import Badge from '@/components/ui/Badge'
 import Toast from '@/components/ui/Toast'
+
+// Dynamically load the new Sponsors panel (client-only)
+const SponsorsPanel = dynamic(() => import('./SponsorsPanel'), { ssr: false })
 
 type Event = {
   id: string
@@ -113,7 +117,7 @@ export default function Client({ slug }: { slug: string }) {
           <>
             {tab === 'overview' && <Overview event={event} />}
             {tab === 'registrations' && <RegistrationsTab eventId={event.id} onToast={setToast} />}
-            {tab === 'sponsors' && <SponsorsTab event={event} onToast={setToast} />}
+            {tab === 'sponsors' && <SponsorsPanel eventId={event.id} />}
             {tab === 'bags' && <BagsTab event={event} onToast={setToast} />}
           </>
         )}
@@ -125,7 +129,7 @@ export default function Client({ slug }: { slug: string }) {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   Tabs
+   Tabs (unchanged except Sponsors tab now uses SponsorsPanel)
    ───────────────────────────────────────────────────────────── */
 
 function Overview({ event }: { event: Event }) {
@@ -167,6 +171,7 @@ function Overview({ event }: { event: Event }) {
     </div>
   )
 }
+
 function RegistrationsTab({ eventId, onToast }: { eventId: string; onToast: (t: { msg: string; kind: 'success' | 'error' }) => void }) {
   const [rows, setRows] = useState<Registration[] | null>(null)
   const [loading, setLoading] = useState(true)
@@ -289,145 +294,6 @@ function RegistrationsTab({ eventId, onToast }: { eventId: string; onToast: (t: 
                   <div className="col-span-4 text-gray-700">{r.user?.email ?? '—'}</div>
                   <div className="col-span-3 text-gray-700">{r.createdAt ? new Date(r.createdAt).toLocaleString() : '—'}</div>
                   <div className="col-span-1 text-right text-xs text-gray-500 truncate">{r.id ?? '—'}</div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
-  )
-}
-function SponsorsTab(
-  { event, onToast }: { event: Event; onToast: (t: { msg: string; kind: 'success' | 'error' }) => void }
-) {
-  const [rows, setRows] = useState<Array<{ id: string; name: string; url?: string; logo?: string }>>([])
-  const [name, setName] = useState(''); const [url, setUrl] = useState('')
-  const [file, setFile] = useState<File | null>(null)
-  const [uploading, setUploading] = useState(false)
-
-  // lazy import to keep this component tree light
-  async function uploadToSupabase(file: File): Promise<string> {
-    const { supabase } = await import('@/app/lib/supabaseClient')
-
-    // create a clean path: event/<slug-or-id>/<timestamp>-<sanitized-name>
-    const safeSlug = (event.slug || event.id).replace(/[^a-z0-9-]/gi, '-').toLowerCase()
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'png'
-    const fname = `${Date.now()}-${file.name.replace(/[^a-z0-9.\-]+/gi, '-')}`
-    const path = `event/${safeSlug}/${fname}`
-
-    const { error } = await supabase
-      .storage
-      .from('sponsor-logos')
-      .upload(path, file, { cacheControl: '31536000', upsert: true, contentType: file.type || `image/${ext}` })
-
-    if (error) throw error
-
-    const { data } = supabase.storage.from('sponsor-logos').getPublicUrl(path)
-    return data.publicUrl
-  }
-
-  async function addSponsor(e: React.FormEvent) {
-    e.preventDefault()
-    if (!name.trim()) return onToast({ msg: 'Sponsor name required', kind: 'error' })
-    try {
-      setUploading(true)
-      let logoUrl: string | undefined
-      if (file) {
-        // basic client-side guard
-        if (!file.type.startsWith('image/')) throw new Error('Please choose an image file')
-        // upload to Supabase Storage → get public URL
-        logoUrl = await uploadToSupabase(file)
-      }
-
-      const row = { id: crypto.randomUUID(), name: name.trim(), url: url || undefined, logo: logoUrl }
-      setRows((prev) => [row, ...prev])
-      setName(''); setUrl(''); setFile(null)
-      onToast({ msg: 'Sponsor added', kind: 'success' })
-
-      // TODO: Save this sponsor to your DB via an API route when ready
-    } catch (err: any) {
-      onToast({ msg: err?.message ?? 'Upload failed', kind: 'error' })
-    } finally {
-      setUploading(false)
-    }
-  }
-
-  return (
-    <div className="rounded-xl border bg-white p-6">
-      <h2 className="text-lg font-semibold">Sponsors</h2>
-      <p className="mt-1 text-sm text-gray-600">
-        Upload sponsor logos for <span className="font-medium">{event.title}</span>. Files are stored in Supabase Storage.
-      </p>
-
-      <form onSubmit={addSponsor} className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <input
-          className="rounded border px-3 py-2 text-sm"
-          placeholder="Sponsor name *"
-          value={name}
-          onChange={(e)=>setName(e.target.value)}
-          required
-        />
-        <input
-          className="rounded border px-3 py-2 text-sm"
-          placeholder="Sponsor website (optional)"
-          value={url}
-          onChange={(e)=>setUrl(e.target.value)}
-          type="url"
-        />
-        <label className="block">
-          <span className="sr-only">Logo file</span>
-          <input
-            className="w-full rounded border px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-gray-100 file:px-3 file:py-2"
-            type="file"
-            accept="image/*"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          />
-        </label>
-
-        <div className="sm:col-span-3">
-          <button
-            disabled={uploading}
-            className="inline-flex items-center gap-2 rounded bg-usaBlue text-white px-3 py-2 text-sm hover:opacity-90 disabled:opacity-60"
-          >
-            {uploading ? 'Uploading…' : 'Add Sponsor'}
-          </button>
-        </div>
-      </form>
-
-      <div className="mt-6 overflow-hidden rounded-lg border">
-        <div className="hidden sm:grid grid-cols-12 gap-3 px-4 py-3 border-b bg-gray-50 text-xs font-semibold text-gray-600">
-          <div className="col-span-5">Sponsor</div>
-          <div className="col-span-5">URL</div>
-          <div className="col-span-2 text-right">Actions</div>
-        </div>
-
-        {rows.length === 0 ? (
-          <div className="p-4 text-gray-600">No sponsors yet.</div>
-        ) : (
-          <ul className="divide-y">
-            {rows.map((s) => (
-              <li key={s.id} className="px-4 py-3">
-                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
-                  <div className="col-span-5 flex items-center gap-3">
-                    <div className="h-10 w-14 rounded bg-gray-100 overflow-hidden">
-                      {s.logo
-                        ? <img src={s.logo} alt={`${s.name} logo`} className="h-full w-full object-cover" />
-                        : <div className="h-full w-full grid place-content-center text-xs text-gray-400">No logo</div>}
-                    </div>
-                    <div className="font-medium">{s.name}</div>
-                  </div>
-                  <div className="col-span-5 text-sm text-blue-700 truncate">
-                    {s.url ? <a href={s.url} target="_blank" rel="noopener noreferrer" className="hover:underline">{s.url}</a> : '—'}
-                  </div>
-                  <div className="col-span-2 text-right">
-                    <button
-                      onClick={() => setRows(prev => prev.filter(x => x.id !== s.id))}
-                      className="rounded border px-3 py-1 text-sm hover:bg-gray-50"
-                    >
-                      Remove
-                    </button>
-                  </div>
                 </div>
               </li>
             ))}
