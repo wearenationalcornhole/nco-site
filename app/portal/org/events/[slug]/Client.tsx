@@ -11,6 +11,7 @@ const EditDetailsPanel = dynamic(() => import('./components/EditDetailsPanel'), 
 const LogoPanel = dynamic(() => import('./components/LogoPanel'), { ssr: false })
 const SponsorsPanel = dynamic(() => import('./components/SponsorsPanel'), { ssr: false })
 const BagsPanel = dynamic(() => import('./components/BagsPanel'), { ssr: false })
+const PlayersPanel = dynamic(() => import('./components/PlayersPanel'), { ssr: false })
 
 type Event = {
   id: string
@@ -95,6 +96,7 @@ export default function Client({ slug }: { slug: string }) {
           { id: 'details', label: 'Details' },
           { id: 'sponsors', label: 'Sponsors' },
           { id: 'bags', label: 'Bags' },
+          { id: 'players', label: 'Players' },
         ] as const).map((t) => (
           <button
             key={t.id}
@@ -111,6 +113,7 @@ export default function Client({ slug }: { slug: string }) {
       </div>
 
       {/* Tab Content */}
+      {tab === 'players' && <PlayersPanel event={event} onToast={setToast} />}
       {tab === 'details' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="rounded-xl border bg-white p-6 lg:col-span-2">
