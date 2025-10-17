@@ -7,9 +7,9 @@ import Toast from '@/components/ui/Toast'
 import Badge from '@/components/ui/Badge'
 
 // Dynamic imports (client-only)
+const EditDetailsPanel = dynamic(() => import('./components/EditDetailsPanel'), { ssr: false })
 const SponsorsPanel = dynamic(() => import('./components/SponsorsPanel'), { ssr: false })
 const BagsPanel = dynamic(() => import('./components/BagsPanel'), { ssr: false })
-const LogoPanel = dynamic(() => import('./components/LogoPanel'), { ssr: false })
 
 type Event = {
   id: string
@@ -18,7 +18,6 @@ type Event = {
   city?: string | null
   date?: string | null
   image?: string | null
-  logo_url?: string | null   // ← NEW
 }
 
 export default function Client({ slug }: { slug: string }) {
@@ -67,20 +66,11 @@ export default function Client({ slug }: { slug: string }) {
     <div className="max-w-7xl mx-auto p-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-        <div className="flex items-center gap-3">
-          {/* Tiny live preview if logo exists */}
-          {event.logo_url && (
-            <span className="inline-flex h-10 w-10 overflow-hidden rounded bg-gray-100 ring-1 ring-gray-200">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={event.logo_url} alt="" className="h-full w-full object-contain" />
-            </span>
-          )}
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">{event.title}</h1>
-            <p className="text-gray-600 text-sm">
-              {event.city ?? 'TBD'} • {event.date ?? 'TBD'}
-            </p>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">{event.title}</h1>
+          <p className="text-gray-600 text-sm">
+            {event.city ?? 'TBD'} • {event.date ?? 'TBD'}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -115,42 +105,11 @@ export default function Client({ slug }: { slug: string }) {
 
       {/* Tab Content */}
       {tab === 'details' && (
-        <div className="rounded-xl border bg-white p-6 space-y-6">
-          <div>
-            <h2 className="text-lg font-semibold">Event Details</h2>
-            <p className="mt-3 text-gray-700">
-              Use the tabs above to manage sponsors and bag submissions for this event.
-            </p>
-            <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
-              <div>
-                <div className="text-gray-500">Event ID</div>
-                <div className="font-medium break-all">{event.id}</div>
-              </div>
-              <div>
-                <div className="text-gray-500">Slug</div>
-                <div className="font-medium">{event.slug}</div>
-              </div>
-              <div>
-                <div className="text-gray-500">City</div>
-                <div className="font-medium">{event.city ?? 'TBD'}</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Tournament Logo (upload + live update) */}
-          <div className="pt-6 border-t">
-            <h3 className="text-base font-semibold mb-3">Tournament Logo</h3>
-            <LogoPanel
-              eventId={event.id}
-              currentLogoUrl={event.logo_url ?? null}
-              onSaved={(url) => {
-                // update local state so preview + public page reflect immediately
-                setEvent((prev) => (prev ? { ...prev, logo_url: url } as Event : prev))
-                setToast({ msg: 'Tournament logo saved', kind: 'success' })
-              }}
-            />
-          </div>
-        </div>
+        <EditDetailsPanel
+          event={event}
+          onSaved={(ev) => setEvent(ev)}
+          onToast={setToast}
+        />
       )}
 
       {tab === 'sponsors' && <SponsorsPanel event={event} onToast={setToast} />}
