@@ -2,76 +2,52 @@ export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
 import { getPrisma } from '@/app/lib/safePrisma'
-import { getSupabaseServer } from '@/app/lib/supabaseServer'
 import { devStore } from '@/app/lib/devStore'
 
+/** GET /portal/api/events  → list events */
 export async function GET() {
   try {
-    // 1) Prisma
     const prisma = await getPrisma()
     if (prisma) {
-      try {
-        const events = await prisma.event.findMany({ orderBy: { createdAt: 'desc' } })
-        return NextResponse.json(events, { status: 200 })
-      } catch (e) {
-        console.error('Prisma query failed (events):', e)
-      }
+      const rows = await prisma.events.findMany({
+        orderBy: { created_at: 'desc' },
+      })
+      return NextResponse.json({ source: 'supabase', events: rows })
     }
-
-    // 2) Supabase
-    const sb = getSupabaseServer()
-    if (sb) {
-      const { data, error } = await sb
-        .from('Event')
-        .select('*')
-        .order('createdAt', { ascending: false })
-      if (!error && data) return NextResponse.json(data, { status: 200 })
-      console.error('Supabase query failed (events):', error)
-    }
-
-    // 3) Fallback (local dev only)
-    return NextResponse.json(devStore.getAll('events'), { status: 200 })
+    return NextResponse.json({ source: 'devStore', events: devStore.getAll('events') })
   } catch (e) {
-    console.error('GET /portal/api/events failed:', e)
-    return NextResponse.json([], { status: 200 })
+    console.error('GET /portal/api/events error:', e)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
 
+/** POST /portal/api/events  → create event */
 export async function POST(req: Request) {
   try {
-    const { title, slug, city, date, image } = await req.json()
+    const body = await req.json()
+    const { title, slug, city, date, image } = body ?? {}
     if (!title) return NextResponse.json({ error: 'title required' }, { status: 400 })
 
     const prisma = await getPrisma()
     if (prisma) {
-      try {
-        const data: any = { title }
-        if (typeof slug !== 'undefined') data.slug = slug
-        if (typeof city !== 'undefined') data.city = city
-        if (typeof date !== 'undefined') data.date = date
-        if (typeof image !== 'undefined') data.image = image
-        const created = await prisma.event.create({ data })
-        return NextResponse.json(created, { status: 201 })
-      } catch (e) {
-        console.error('Prisma create failed (events):', e)
-      }
+      const created = await prisma.events.create({
+        data: {
+          title,
+          slug: slug ?? null,
+          city: city ?? null,
+          date: date ?? null,
+          image_url: image ?? null,
+        },
+      })
+      return NextResponse.json(created, { status: 201 })
     }
 
-    const sb = getSupabaseServer()
-    if (sb) {
-      const { data, error } = await sb
-        .from('Event')
-        .insert([{ title, slug, city, date, image }])
-        .select()
-        .single()
-      if (!error && data) return NextResponse.json(data, { status: 201 })
-      console.error('Supabase insert failed (events):', error)
-    }
-
-    const created = devStore.upsert('events', { title, slug, city, date, image })
+    const created = devStore.upsert('events', {
+      title, slug, city, date, image,
+      created_at: new Date().toISOString(),
+    })
     return NextResponse.json(created, { status: 201 })
   } catch (e: any) {
-    console.error('POST /portal/api/events fail:', e)
-    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
+    return NextResponse.json({ error: e?.message ?? 'Invalid payload' }, { status: 400 })
   }
 }

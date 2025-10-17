@@ -1,85 +1,72 @@
-// app/portal/api/events/[id]/route.ts
 export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
 import { getPrisma } from '@/app/lib/safePrisma'
 import { devStore } from '@/app/lib/devStore'
 
-type PartialEvent = {
-  title?: string
-  slug?: string | null
-  city?: string | null
-  date?: string | null
-  image?: string | null
-}
-
-/** GET /portal/api/events/[id] — fetch single event */
+/** GET /portal/api/events/[id] */
 export async function GET(_req: Request, context: any) {
   try {
-    const { id } = await context.params as { id: string }
+    const { id } = context.params as { id: string }
     const prisma = await getPrisma()
     if (prisma) {
-      const row = await prisma.event.findUnique({ where: { id } })
+      const row = await prisma.events.findUnique({ where: { id } })
       if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 })
       return NextResponse.json(row)
     }
-    const row = devStore.getById('events', id)
-    if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    return NextResponse.json(row)
+    const found = devStore.getById('events', id)
+    if (!found) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    return NextResponse.json(found)
   } catch (e) {
     console.error('GET /portal/api/events/[id] error:', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
 
-/** PATCH /portal/api/events/[id] — update fields */
+/** PATCH /portal/api/events/[id] */
 export async function PATCH(req: Request, context: any) {
   try {
-    const { id } = await context.params as { id: string }
-    const payload = (await req.json()) as PartialEvent
-
-    // Only include defined fields so we don’t overwrite unintentionally
-    const data: Record<string, any> = {}
-    if (typeof payload.title !== 'undefined') data.title = payload.title
-    if (typeof payload.slug  !== 'undefined') data.slug  = payload.slug
-    if (typeof payload.city  !== 'undefined') data.city  = payload.city
-    if (typeof payload.date  !== 'undefined') data.date  = payload.date
-    if (typeof payload.image !== 'undefined') data.image = payload.image
+    const { id } = context.params as { id: string }
+    const body = await req.json()
+    const { title, slug, city, date, image, tournament_logo_url } = body ?? {}
 
     const prisma = await getPrisma()
     if (prisma) {
-      const updated = await prisma.event.update({
+      const updated = await prisma.events.update({
         where: { id },
-        data,
+        data: {
+          title,
+          slug,
+          city,
+          date,
+          image_url: image,
+          tournament_logo_url, // if this column exists in your schema
+        },
       })
       return NextResponse.json(updated)
     }
 
-    // dev fallback
     const current = devStore.getById('events', id)
     if (!current) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    const updated = devStore.upsert('events', { ...current, ...data, id })
+    const updated = devStore.upsert('events', { ...current, ...body, id })
     return NextResponse.json(updated)
-  } catch (e: any) {
+  } catch (e) {
     console.error('PATCH /portal/api/events/[id] error:', e)
-    return NextResponse.json({ error: e?.message ?? 'Server error' }, { status: 500 })
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
 
-/** DELETE /portal/api/events/[id] — remove event */
+/** DELETE /portal/api/events/[id] */
 export async function DELETE(_req: Request, context: any) {
   try {
-    const { id } = await context.params as { id: string }
+    const { id } = context.params as { id: string }
     const prisma = await getPrisma()
     if (prisma) {
-      await prisma.event.delete({ where: { id } })
+      await prisma.events.delete({ where: { id } })
       return NextResponse.json({ ok: true })
     }
-
-    // dev fallback
     const ok = devStore.remove('events', id)
-    if (!ok) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok })
   } catch (e) {
     console.error('DELETE /portal/api/events/[id] error:', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
