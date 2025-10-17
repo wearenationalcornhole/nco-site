@@ -6,13 +6,14 @@ import Spinner from '@/components/ui/Spinner'
 import Toast from '@/components/ui/Toast'
 import Badge from '@/components/ui/Badge'
 
-// Client-only panels (code-split)
+// ── Dynamic, client-only panels ─────────────────────────────────────────
 const EditDetailsPanel = dynamic(() => import('./components/EditDetailsPanel'), { ssr: false })
-const LogoPanel = dynamic(() => import('./components/LogoPanel'), { ssr: false })
-const SponsorsPanel = dynamic(() => import('./components/SponsorsPanel'), { ssr: false })
-const BagsPanel = dynamic(() => import('./components/BagsPanel'), { ssr: false })
-const PlayersPanel = dynamic(() => import('./components/PlayersPanel'), { ssr: false })
+const LogoPanel        = dynamic(() => import('./components/LogoPanel'),        { ssr: false })
+const PlayersPanel     = dynamic(() => import('./components/PlayersPanel'),     { ssr: false })
+const SponsorsPanel    = dynamic(() => import('./components/SponsorsPanel'),    { ssr: false })
+const BagsPanel        = dynamic(() => import('./components/BagsPanel'),        { ssr: false })
 
+// ── Types ───────────────────────────────────────────────────────────────
 type Event = {
   id: string
   slug: string | null
@@ -20,11 +21,30 @@ type Event = {
   city?: string | null
   date?: string | null
   image?: string | null
+  logo_url?: string | null // used by LogoPanel current preview
 }
 
+// Typed tab config (prevents union errors)
+const TABS = [
+  { id: 'details',  label: 'Details'  },
+  { id: 'players',  label: 'Players'  },
+  { id: 'sponsors', label: 'Sponsors' },
+  { id: 'bags',     label: 'Bags'     },
+] as const
+type TabId = typeof TABS[number]['id']
+
+// ── Helpers ─────────────────────────────────────────────────────────────
+function fmtDate(iso?: string | null) {
+  if (!iso) return 'TBD'
+  const [y, m, d] = iso.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1))
+  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+}
+
+// ── Component ───────────────────────────────────────────────────────────
 export default function Client({ slug }: { slug: string }) {
   const [event, setEvent] = useState<Event | null>(null)
-  const [tab, setTab] = useState<'details' | 'sponsors' | 'bags'>('details')
+  const [tab, setTab] = useState<TabId>('details')
   const [toast, setToast] = useState<{ msg: string; kind: 'success' | 'error' } | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -33,7 +53,7 @@ export default function Client({ slug }: { slug: string }) {
     try {
       const res = await fetch(`/portal/api/events/by-slug/${encodeURIComponent(slug)}`)
       if (!res.ok) throw new Error('Failed to fetch event')
-      const ev: Event = await res.json()
+      const ev = (await res.json()) as Event
       setEvent(ev)
     } catch (err) {
       console.error(err)
@@ -50,7 +70,7 @@ export default function Client({ slug }: { slug: string }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-48 text-gray-600">
-        <Spinner /> <span className="ml-2">Loading event…</span>
+        <Spinner /> Loading event…
       </div>
     )
   }
@@ -73,31 +93,20 @@ export default function Client({ slug }: { slug: string }) {
           <h1 className="text-2xl font-bold text-gray-800">{event.title}</h1>
           <div className="mt-1 flex flex-wrap gap-2 text-sm text-gray-700">
             <Badge color="gray">{event.slug ?? event.id}</Badge>
+            <Badge color="blue">{fmtDate(event.date)}</Badge>
             <Badge color="gray">{event.city ?? 'TBD'}</Badge>
-            <Badge color="gray">{event.date ?? 'TBD'}</Badge>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={fetchEvent} className="rounded border px-3 py-1 text-sm hover:bg-gray-50">
+          <button onClick={fetchEvent} className="rounded border px-3 py-2 text-sm hover:bg-gray-50">
             Refresh
           </button>
-          <a
-            href={`/portal/events/${event.slug ?? event.id}`}
-            className="rounded bg-black text-white px-3 py-2 text-sm hover:opacity-90"
-          >
-            View Public
-          </a>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="flex border-b mb-6 overflow-x-auto">
-        {([
-          { id: 'details', label: 'Details' },
-          { id: 'sponsors', label: 'Sponsors' },
-          { id: 'bags', label: 'Bags' },
-          { id: 'players', label: 'Players' },
-        ] as const).map((t) => (
+        {TABS.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
@@ -113,48 +122,64 @@ export default function Client({ slug }: { slug: string }) {
       </div>
 
       {/* Tab Content */}
-      {tab === 'players' && <PlayersPanel event={event} onToast={setToast} />}
       {tab === 'details' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          {/* Summary + Edit */}
           <div className="rounded-xl border bg-white p-6 lg:col-span-2">
-            <h2 className="text-lg font-semibold">Edit Event Details</h2>
-            <p className="text-sm text-gray-600 mt-1">Update basics like title, city, or date.</p>
-            <div className="mt-4">
+            <h2 className="text-lg font-semibold">Event Details</h2>
+            <dl className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+              <div>
+                <dt className="text-gray-500">Title</dt>
+                <dd className="font-medium">{event.title}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-500">Slug</dt>
+                <dd className="font-medium">{event.slug ?? '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-500">Date</dt>
+                <dd className="font-medium">{fmtDate(event.date)}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-500">City</dt>
+                <dd className="font-medium">{event.city ?? 'TBD'}</dd>
+              </div>
+            </dl>
+
+            <div className="mt-6">
               <EditDetailsPanel
                 event={event}
-                onToast={setToast}
                 onSaved={(updated) => {
-                  // prefer local state update (fast UX); fallback to refetch if panel doesn’t return full event
-                  if (updated) setEvent(updated as Event)
-                  else fetchEvent()
-                  setToast({ msg: 'Event updated', kind: 'success' })
+                  setEvent(updated)
+                  setToast({ msg: 'Event details saved', kind: 'success' })
                 }}
+                onToast={setToast}
               />
             </div>
           </div>
 
+          {/* Tournament Logo */}
           <div className="rounded-xl border bg-white p-6">
-            <h2 className="text-lg font-semibold">Tournament Logo</h2>
-            <p className="text-sm text-gray-600 mt-1">Upload or replace the tournament logo.</p>
-            <div className="mt-4">
+            <h3 className="text-sm font-semibold text-gray-700">Tournament Logo</h3>
+            <div className="mt-3">
               <LogoPanel
-  eventId={event.id}
-  currentLogoUrl={event.image ?? null}
-  onSaved={(url) => {
-    // update local event state and toast
-    setEvent((prev) => (prev ? { ...prev, image: url ?? null } : prev))
-    setToast({ msg: url ? 'Logo updated' : 'Logo removed', kind: 'success' })
-  }}
-/>
+                eventId={event.id}
+                currentLogoUrl={event.logo_url ?? null}
+                onSaved={(newUrl) => {
+                  setEvent((prev) => (prev ? { ...prev, logo_url: newUrl ?? null } : prev))
+                  setToast({ msg: newUrl ? 'Logo updated' : 'Logo cleared', kind: 'success' })
+                }}
+              />
             </div>
           </div>
         </div>
       )}
 
+      {tab === 'players' && <PlayersPanel event={event} onToast={setToast} />}
       {tab === 'sponsors' && <SponsorsPanel event={event} onToast={setToast} />}
       {tab === 'bags' && <BagsPanel event={event} onToast={setToast} />}
 
-      {/* Toast */}
+      {/* Toast notification */}
       {toast && (
         <Toast
           key={toast.msg}
