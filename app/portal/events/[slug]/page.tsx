@@ -9,11 +9,16 @@ type Event = {
   city?: string | null
   date?: string | null
   image?: string | null
+  logo_url?: string | null
   createdAt?: string | null
 }
 
 type SponsorLink = {
   id: string
+  event_id: string
+  company_id: string
+  tier?: string | null
+  created_at?: string | null
   sponsor_companies?: {
     id: string
     name: string
@@ -26,11 +31,16 @@ function fmtDate(iso?: string | null) {
   if (!iso) return 'TBD'
   const [y, m, d] = iso.split('-').map(Number)
   const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1))
-  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+  return dt.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
 }
 
 async function getEventBySlug(slug: string): Promise<Event | null> {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL ?? ''}/portal/api/events/by-slug/${encodeURIComponent(slug)}`, {
+  const res = await fetch(`/portal/api/events/by-slug/${encodeURIComponent(slug)}`, {
     cache: 'no-store',
   })
   if (!res.ok) return null
@@ -38,7 +48,7 @@ async function getEventBySlug(slug: string): Promise<Event | null> {
 }
 
 async function getSponsors(eventId: string): Promise<SponsorLink[]> {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL ?? ''}/portal/api/event-sponsors?eventId=${encodeURIComponent(eventId)}`, {
+  const res = await fetch(`/portal/api/event-sponsors?eventId=${encodeURIComponent(eventId)}`, {
     cache: 'no-store',
   })
   if (!res.ok) return []
@@ -55,7 +65,9 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
         <h1 className="text-2xl font-semibold">Event not found</h1>
         <p className="mt-2 text-gray-600">We couldn’t find that event. It may have been moved or removed.</p>
         <div className="mt-6">
-          <Link href="/events" className="rounded border px-4 py-2 hover:bg-gray-50">Back to Events</Link>
+          <Link href="/portal/events" className="rounded border px-4 py-2 hover:bg-gray-50">
+            Back to Events
+          </Link>
         </div>
       </div>
     )
@@ -67,16 +79,38 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
     <div className="min-h-screen">
       {/* Hero */}
       <section className="relative isolate overflow-hidden bg-usaBlue/75 text-white">
+        {/* Background image */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={event.image ?? '/images/hero-cornhole.webp'}
           alt={event.title}
           className="absolute inset-0 -z-10 h-full w-full object-cover mix-blend-multiply opacity-80"
           loading="eager"
         />
+
+        {/* Tournament logo badge (if present) */}
+        {event.logo_url && (
+          <div className="absolute left-4 top-4 sm:left-6 sm:top-6 z-10">
+            <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-full bg-white/90 ring-2 ring-white/60 overflow-hidden grid place-content-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={event.logo_url}
+                alt={`${event.title} logo`}
+                className="h-full w-full object-contain p-1"
+                loading="eager"
+              />
+            </div>
+          </div>
+        )}
+
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
           <p className="uppercase tracking-widest text-white/80 text-xs sm:text-sm">National Cornhole Organization</p>
-          <h1 className="mt-2 max-w-3xl text-4xl sm:text-5xl font-extrabold tracking-tight">{event.title}</h1>
-          <p className="mt-3 text-white/90">{event.city ?? 'TBD'} • {fmtDate(event.date)}</p>
+          <h1 className="mt-2 max-w-3xl text-4xl sm:text-5xl font-extrabold tracking-tight">
+            {event.title}
+          </h1>
+          <p className="mt-3 text-white/90">
+            {event.city ?? 'TBD'} • {fmtDate(event.date)}
+          </p>
           <div className="mt-6">
             <RegisterButton eventId={event.id} />
           </div>
@@ -91,9 +125,17 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
             <p className="mt-3 text-gray-700">
               Get ready to throw! Register now to secure your spot. Check back for divisions, prize pools, and schedule.
             </p>
+
+            {/* Optional inline image block */}
             {event.image && (
               <div className="mt-6 overflow-hidden rounded-2xl">
-                <img src={event.image} alt="" className="w-full h-auto object-cover" loading="lazy" />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={event.image}
+                  alt=""
+                  className="w-full h-auto object-cover"
+                  loading="lazy"
+                />
               </div>
             )}
           </article>
@@ -126,14 +168,22 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
         {sponsors.length > 0 && (
           <section className="mt-12 border-t">
             <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-              <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wider text-center">Sponsors</h2>
+              <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wider text-center">
+                Sponsors
+              </h2>
               <ul className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6 items-center">
                 {sponsors.map((link) => {
                   const c = link.sponsor_companies
                   return (
                     <li key={link.id} className="flex items-center justify-center">
                       {c?.logo_url ? (
-                        <img src={c.logo_url} alt={c.name} className="h-12 w-auto object-contain grayscale hover:grayscale-0 transition" loading="lazy" />
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={c.logo_url}
+                          alt={c.name}
+                          className="h-12 w-auto object-contain grayscale hover:grayscale-0 transition"
+                          loading="lazy"
+                        />
                       ) : (
                         <span className="text-sm text-gray-600">{c?.name ?? 'Sponsor'}</span>
                       )}
