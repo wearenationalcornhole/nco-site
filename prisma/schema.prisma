@@ -37,15 +37,16 @@ model Registration {
 }
 
 model events {
-  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  slug           String?
-  title          String
-  city           String?
-  date           DateTime?        @db.Date
-  image          String?
-  created_at     DateTime         @default(now()) @db.Timestamptz(6)
-  event_sponsors event_sponsors[]
-  sponsors       sponsors[]
+  id                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug                  String?
+  title                 String
+  city                  String?
+  date                  DateTime?               @db.Date
+  image                 String?
+  created_at            DateTime                @default(now()) @db.Timestamptz(6)
+  event_sponsors        event_sponsors[]
+  sponsors              sponsors[]
+  event_bag_submissions event_bag_submissions[]
 
   @@index([created_at(sort: Desc)])
   @@index([slug])
@@ -87,5 +88,16 @@ model sponsor_companies {
   event_sponsors event_sponsors[]
 }
 
+model event_bag_submissions {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  event_id   String   @db.Uuid
+  name       String
+  image_url  String?
+  status     String   @default("Pending") // "Pending" | "Approved" | "Rejected"
+  notes      String?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
 
+  events events @relation(fields: [event_id], references: [id], onDelete: Cascade)
 
+  @@index([event_id])
+}

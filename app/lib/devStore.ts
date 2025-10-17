@@ -16,6 +16,7 @@ export type TableName =
   | 'registrations'
   | 'sponsor_companies' // new snake_case
   | 'event_sponsors'    // new snake_case
+  | 'event_bag_submissions'
 
 type StoreShape = Record<TableName, AnyRecord[]>
 
@@ -45,6 +46,9 @@ function createDefaultData(): StoreShape {
     // new sponsor tables (snake_case to match DB)
     sponsor_companies: [],
     event_sponsors: [],
+
+    // new bags submissions table (snake_case to match DB)
+    event_bag_submissions: [],
   }
 }
 
@@ -75,7 +79,7 @@ export const devStore = {
 
     if (!record.id) {
       // create
-      const created: AnyRecord = { ...record, id: genId(table.replace(/[^a-z]/g, '')) }
+      const created: AnyRecord = { ...record, id: genId(table.replace(/[^a-z]/gi, '')) }
       rows.push(created)
       return created as T
     }
@@ -92,11 +96,31 @@ export const devStore = {
     return record
   },
 
-  remove(table: TableName, id: string): boolean {
+  /**
+   * Replace an existing row by id. Returns the updated row or undefined if not found.
+   */
+  replace<T extends AnyRecord = AnyRecord>(table: TableName, id: string, next: T): T | undefined {
     const store = getGlobalStore()
     const rows = store[table]
-    const lenBefore = rows.length
-    store[table] = rows.filter((r) => r.id !== id)
-    return store[table].length !== lenBefore
+    const idx = rows.findIndex((r) => r.id === id)
+    if (idx === -1) return undefined
+    rows[idx] = { ...rows[idx], ...next }
+    return rows[idx] as T
+  },
+
+  /**
+   * Remove by id; optional predicate lets you assert a parent relation (e.g., same event_id).
+   * Returns true if a row was removed.
+   */
+  remove(table: TableName, id: string, predicate?: (row: AnyRecord) => boolean): boolean {
+    const store = getGlobalStore()
+    const rows = store[table]
+    const before = rows.length
+    store[table] = rows.filter((r) => {
+      if (r.id !== id) return true
+      if (predicate && !predicate(r)) return true
+      return false
+    })
+    return store[table].length !== before
   },
 }
