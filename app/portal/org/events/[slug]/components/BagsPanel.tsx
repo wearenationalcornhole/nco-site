@@ -140,11 +140,14 @@ export default function BagsPanel({
       if (!res.ok) throw new Error((await res.json())?.error ?? 'Failed to update status')
       const updated = (await res.json()) as BagRow
       setRows((prev) => prev?.map((r) => (r.id === id ? updated : r)) ?? [])
-      onToast({ msg: `Marked as ${status}`, kind: 'success' })
+      const msg = status === 'Approved' ? 'Bag approved — sent to production' : status === 'Rejected' ? 'Bag rejected' : `Marked as ${status}`
+      onToast({ msg, kind: 'success' })
     } catch (err: any) {
       onToast({ msg: err?.message ?? 'Update failed', kind: 'error' })
     }
   }
+  const approve = (id: string) => setStatus(id, 'Approved')
+  const reject  = (id: string) => setStatus(id, 'Rejected')
 
   async function remove(id: string) {
     try {
@@ -265,14 +268,14 @@ export default function BagsPanel({
                   </div>
                   <div className="col-span-2 flex justify-end gap-2">
                     <button
-                      onClick={() => setStatus(b.id, 'Approved')}
+                      onClick={() => approve(b.id)}
                       className="rounded bg-usaBlue text-white px-3 py-1 text-sm hover:opacity-90"
                       title="Approve"
                     >
                       Approve
                     </button>
                     <button
-                      onClick={() => setStatus(b.id, 'Rejected')}
+                      onClick={() => reject(b.id)}
                       className="rounded border px-3 py-1 text-sm hover:bg-gray-50"
                       title="Reject"
                     >
