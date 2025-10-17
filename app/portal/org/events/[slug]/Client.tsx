@@ -131,16 +131,14 @@ export default function Client({ slug }: { slug: string }) {
       {tab === 'bags' && <BagsPanel event={event} onToast={setToast} />}
 
       {/* Toast notification */}
-      {toast && (
-        <Toast
-          key={toast.msg}
-          kind={toast.kind}
-          onClose={() => setToast(null)}
-          className="fixed bottom-4 right-4"
-        >
-          {toast.msg}
-        </Toast>
-      )}
+	 {toast && (
+  	   <Toast
+    		key={toast.msg}
+    		message={toast.msg}
+    		kind={toast.kind}
+    		onDone={() => setToast(null)}
+  	   />
+	  )}
     </div>
   )
 }
