@@ -135,13 +135,14 @@ export default function Client({ slug }: { slug: string }) {
             <p className="text-sm text-gray-600 mt-1">Upload or replace the tournament logo.</p>
             <div className="mt-4">
               <LogoPanel
-                event={event}
-                onToast={setToast}
-                onSaved={(updated) => {
-                  if (updated) setEvent(updated as Event)
-                  else fetchEvent()
-                }}
-              />
+  eventId={event.id}
+  currentLogoUrl={event.image ?? null}
+  onSaved={(url) => {
+    // update local event state and toast
+    setEvent((prev) => (prev ? { ...prev, image: url ?? null } : prev))
+    setToast({ msg: url ? 'Logo updated' : 'Logo removed', kind: 'success' })
+  }}
+/>
             </div>
           </div>
         </div>
