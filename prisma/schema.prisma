@@ -1,3 +1,5 @@
+// prisma/schema.prisma
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,42 +10,21 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-model User {
-  id            String         @id @default(cuid())
-  email         String         @unique
-  name          String?
-  createdAt     DateTime       @default(now()) @db.Timestamptz(6)
-  registrations Registration[]
-}
-
-model Event {
-  id            String         @id @default(cuid())
-  slug          String?        @unique
-  title         String
-  city          String?
-  date          String?
-  image         String?
-  createdAt     DateTime       @default(now()) @db.Timestamptz(6)
-  registrations Registration[]
-}
-
-model Registration {
-  id        String   @id @default(cuid())
-  eventId   String
-  userId    String
-  createdAt DateTime @default(now()) @db.Timestamptz(6)
-  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-}
+// ─────────────────────────────────────────────────────────────
+// CORE TABLES YOU'RE USING TODAY
+// (snake_case to match Supabase public schema)
+// ─────────────────────────────────────────────────────────────
 
 model events {
-  id                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  slug                  String?
-  title                 String
-  city                  String?
-  date                  DateTime?               @db.Date
-  image                 String?
-  created_at            DateTime                @default(now()) @db.Timestamptz(6)
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug       String?
+  title      String
+  city       String?
+  date       DateTime? @db.Date
+  image      String?
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+
+  // Relations
   event_sponsors        event_sponsors[]
   sponsors              sponsors[]
   event_bag_submissions event_bag_submissions[]
@@ -59,33 +40,38 @@ model sponsors {
   url        String?
   logo       String?
   created_at DateTime @default(now()) @db.Timestamptz(6)
-  events     events   @relation(fields: [event_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  // Relations
+  events events @relation(fields: [event_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([event_id])
 }
 
+model sponsor_companies {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String
+  website    String?
+  logo_url   String?
+  logo_hash  String?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  event_sponsors event_sponsors[]
+}
+
 model event_sponsors {
-  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  event_id          String            @db.Uuid
-  company_id        String            @db.Uuid
-  tier              String?
-  created_at        DateTime          @default(now()) @db.Timestamptz(6)
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  event_id   String   @db.Uuid
+  company_id String   @db.Uuid
+  tier       String?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  // Relations
   sponsor_companies sponsor_companies @relation(fields: [company_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   events            events            @relation(fields: [event_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([event_id, company_id], map: "event_sponsors_event_company_uniq")
   @@index([event_id])
-}
-
-/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
-model sponsor_companies {
-  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name           String
-  website        String?
-  logo_url       String?
-  logo_hash      String?
-  created_at     DateTime         @default(now()) @db.Timestamptz(6)
-  event_sponsors event_sponsors[]
 }
 
 model event_bag_submissions {
@@ -97,7 +83,128 @@ model event_bag_submissions {
   notes      String?
   created_at DateTime @default(now()) @db.Timestamptz(6)
 
+  // Relations
   events events @relation(fields: [event_id], references: [id], onDelete: Cascade)
 
   @@index([event_id])
 }
+
+// ─────────────────────────────────────────────────────────────
+// PLAYERS + CLUBS (CURRENT)
+// ─────────────────────────────────────────────────────────────
+
+model users {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email         String   @unique
+  name          String?
+  profile_image String?
+  city          String?
+  state         String?
+  role          String? // 'player' | 'organizer' | 'admin'
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  club_members club_members[]
+}
+
+model clubs {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String
+  city       String?
+  state      String?
+  logo_url   String?
+  website    String?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  members club_members[]
+}
+
+model club_members {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  club_id   String   @db.Uuid
+  user_id   String   @db.Uuid
+  role      String? // 'member' | 'captain' | 'organizer' | 'admin'
+  joined_at DateTime @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  club clubs @relation(fields: [club_id], references: [id], onDelete: Cascade)
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([club_id, user_id], map: "club_members_unique_member_per_club")
+  @@index([club_id])
+  @@index([user_id])
+}
+
+// ─────────────────────────────────────────────────────────────
+// FUTURE: LEAGUES / SEASONS / DIVISIONS / TEAMS (COMMENTED OUT)
+// ─────────────────────────────────────────────────────────────
+
+// model leagues {
+//   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+//   club_id     String   @db.Uuid
+//   name        String
+//   slug        String   @unique
+//   description String?
+//   created_at  DateTime @default(now()) @db.Timestamptz(6)
+//
+//   club    clubs           @relation(fields: [club_id], references: [id], onDelete: Cascade)
+//   seasons league_seasons[]
+//
+//   @@index([club_id])
+// }
+//
+// model league_seasons {
+//   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+//   league_id  String   @db.Uuid
+//   name       String
+//   starts_on  DateTime?
+//   ends_on    DateTime?
+//   created_at DateTime @default(now()) @db.Timestamptz(6)
+//
+//   league leagues @relation(fields: [league_id], references: [id], onDelete: Cascade)
+//
+//   @@index([league_id])
+// }
+//
+// model league_divisions {
+//   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+//   season_id  String   @db.Uuid
+//   name       String
+//   created_at DateTime @default(now()) @db.Timestamptz(6)
+//
+//   season league_seasons @relation(fields: [season_id], references: [id], onDelete: Cascade)
+//
+//   @@index([season_id])
+// }
+//
+// model teams {
+//   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+//   club_id     String?  @db.Uuid
+//   division_id String?  @db.Uuid
+//   name        String
+//   logo_url    String?
+//   created_at  DateTime @default(now()) @db.Timestamptz(6)
+//
+//   club       clubs?            @relation(fields: [club_id], references: [id], onDelete: SetNull)
+//   division   league_divisions? @relation(fields: [division_id], references: [id], onDelete: SetNull)
+//   members    team_members[]
+//
+//   @@index([club_id])
+//   @@index([division_id])
+// }
+//
+// model team_members {
+//   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+//   team_id   String   @db.Uuid
+//   user_id   String   @db.Uuid
+//   role      String?  // 'player' | 'captain'
+//   joined_at DateTime @default(now()) @db.Timestamptz(6)
+//
+//   team teams @relation(fields: [team_id], references: [id], onDelete: Cascade)
+//   user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+//
+//   @@unique([team_id, user_id], map: "team_members_unique_member_per_team")
+//   @@index([team_id])
+//   @@index([user_id])
+// }

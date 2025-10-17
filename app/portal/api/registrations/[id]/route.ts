@@ -4,25 +4,24 @@ import { NextResponse } from 'next/server'
 import { getPrisma } from '@/app/lib/safePrisma'
 import { devStore } from '@/app/lib/devStore'
 
+/**
+ * DELETE /portal/api/registrations/[id]
+ */
 export async function DELETE(_req: Request, context: any) {
   try {
-    const { id } = (context?.params ?? {}) as { id: string }
-    if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+    const id = context.params?.id as string
+    if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
     const prisma = await getPrisma()
     if (prisma) {
-      try {
-        await prisma.registration.delete({ where: { id } })
-        return NextResponse.json({ ok: true }, { status: 200 })
-      } catch (e) {
-        console.error('Prisma regs delete failed, falling back:', e)
-      }
+      await prisma.registration.delete({ where: { id } })
+      return NextResponse.json({ ok: true })
     }
 
-    devStore.remove('registrations', id)
-    return NextResponse.json({ ok: true }, { status: 200 })
+    const ok = devStore.remove('registrations', id)
+    return NextResponse.json({ ok })
   } catch (e) {
-    console.error('DELETE /portal/api/registrations/[id] fail:', e)
+    console.error('DELETE /portal/api/registrations/[id] error:', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }

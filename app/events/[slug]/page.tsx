@@ -86,8 +86,12 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
         />
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
           <p className="uppercase tracking-widest text-white/80 text-xs sm:text-sm">National Cornhole Organization</p>
-          <h1 className="mt-2 max-w-3xl text-4xl sm:text-5xl font-extrabold tracking-tight">{event.title}</h1>
-          <p className="mt-3 text-white/90">{event.city ?? 'TBD'} • {fmtDate(event.date)}</p>
+          <h1 className="mt-2 max-w-3xl text-4xl sm:text-5xl font-extrabold tracking-tight">
+            {event.title}
+          </h1>
+          <p className="mt-3 text-white/90">
+            {event.city ?? 'TBD'} • {fmtDate(event.date)}
+          </p>
           <div className="mt-6">
             <RegisterButton eventId={event.id} />
           </div>
@@ -105,7 +109,12 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
 
             {event.image && (
               <div className="mt-6 overflow-hidden rounded-2xl">
-                <img src={event.image} alt="" className="w-full h-auto object-cover" loading="lazy" />
+                <img
+                  src={event.image}
+                  alt=""
+                  className="w-full h-auto object-cover"
+                  loading="lazy"
+                />
               </div>
             )}
           </article>
@@ -134,11 +143,13 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
           </aside>
         </div>
 
-        {/* Sponsors strip */}
+        {/* Sponsors strip (kept) */}
         {sponsors.length > 0 && (
           <section className="mt-12 border-t">
             <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-              <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wider text-center">Sponsors</h2>
+              <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wider text-center">
+                Sponsors
+              </h2>
               <ul className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6 items-center">
                 {sponsors.map((link) => {
                   const c = link.sponsor_companies

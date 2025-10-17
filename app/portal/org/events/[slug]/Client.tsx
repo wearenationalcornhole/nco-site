@@ -5,11 +5,15 @@ import dynamic from 'next/dynamic'
 import Spinner from '@/components/ui/Spinner'
 import Toast from '@/components/ui/Toast'
 import Badge from '@/components/ui/Badge'
+import EditDetailsPanel from './components/EditDetailsPanel'
+
+
 
 // Dynamic imports (client-only)
 const EditDetailsPanel = dynamic(() => import('./components/EditDetailsPanel'), { ssr: false })
 const SponsorsPanel = dynamic(() => import('./components/SponsorsPanel'), { ssr: false })
 const BagsPanel = dynamic(() => import('./components/BagsPanel'), { ssr: false })
+const DivisionsPanel = dynamic(() => import('./components/DivisionsPanel'), { ssr: false })
 
 type Event = {
   id: string
@@ -88,6 +92,7 @@ export default function Client({ slug }: { slug: string }) {
           { id: 'details', label: 'Details' },
           { id: 'sponsors', label: 'Sponsors' },
           { id: 'bags', label: 'Bags' },
+	  { id: 'divisions', label: 'Divisions' },
         ].map((t) => (
           <button
             key={t.id}
@@ -114,6 +119,7 @@ export default function Client({ slug }: { slug: string }) {
 
       {tab === 'sponsors' && <SponsorsPanel event={event} onToast={setToast} />}
       {tab === 'bags' && <BagsPanel event={event} onToast={setToast} />}
+      {tab === 'divisions' && <DivisionsPanel event={event} onToast={setToast} />}
 
       {/* Toast notification */}
       {toast && (
