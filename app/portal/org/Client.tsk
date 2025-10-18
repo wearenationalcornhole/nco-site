@@ -1,0 +1,214 @@
+'use client'
+
+import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
+
+type Event = {
+  id: string
+  slug: string | null
+  title: string
+  city?: string | null
+  date?: string | null
+  image?: string | null
+  createdAt?: string | null
+}
+
+type Row = Event & {
+  stats?: {
+    registrations: number
+    sponsors: number
+    bags: number
+  }
+  _loading?: boolean
+  _error?: string | null
+}
+
+function fmtDate(iso?: string | null) {
+  if (!iso) return 'TBD'
+  // keep UTC to avoid hydration mismatch
+  const [y, m, d] = iso.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1))
+  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+}
+
+export default function Client() {
+  const [rows, setRows] = useState<Row[] | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [q, setQ] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  // 1) Load events
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+    fetch('/portal/api/events', { cache: 'no-store' })
+      .then(async (r) => (r.ok ? r.json() : Promise.reject(await r.json())))
+      .then((events: Event[] | { events?: Event[] }) => {
+        if (!alive) return
+        const list = Array.isArray(events) ? events : (events?.events ?? [])
+        const seeded = (list ?? []).map((e) => ({ ...e, _loading: true, _error: null })) as Row[]
+        setRows(seeded)
+      })
+      .catch((e) => {
+        if (!alive) return
+        setError(e?.error ?? 'Failed to load events')
+        setRows([])
+      })
+      .finally(() => {
+        if (!alive) return
+        setLoading(false)
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  // 2) For each event, fetch stats (registrations, sponsors, bags)
+  useEffect(() => {
+    if (!rows || rows.length === 0) return
+    let cancelled = false
+
+    async function hydrateStats() {
+      const updates = await Promise.all(rows.map(async (e) => {
+        try {
+          // registrations
+          const rRegs = await fetch(`/portal/api/events/${encodeURIComponent(e.id)}/registrations`, { cache: 'no-store' })
+          const regs = rRegs.ok ? await rRegs.json() : []
+          const registrations = Array.isArray(regs) ? regs.length : (Array.isArray(regs?.rows) ? regs.rows.length : 0)
+
+          // sponsors
+          const rSpon = await fetch(`/portal/api/event-sponsors?eventId=${encodeURIComponent(e.id)}`, { cache: 'no-store' })
+          const sRes = rSpon.ok ? await rSpon.json() : []
+          const sponsors = Array.isArray(sRes) ? sRes.length : (Array.isArray(sRes?.rows) ? sRes.rows.length : 0)
+
+          // bags
+          const rBags = await fetch(`/portal/api/events/${encodeURIComponent(e.id)}/bags`, { cache: 'no-store' })
+          const bRes = rBags.ok ? await rBags.json() : {}
+          const bags = Array.isArray((bRes as any).rows) ? (bRes as any).rows.length : 0
+
+          return { id: e.id, stats: { registrations, sponsors, bags }, _loading: false, _error: null as string | null }
+        } catch (err: any) {
+          return { id: e.id, stats: { registrations: 0, sponsors: 0, bags: 0 }, _loading: false, _error: 'Stats failed' }
+        }
+      }))
+
+      if (cancelled) return
+      setRows(prev =>
+        (prev ?? []).map(r => {
+          const u = updates.find(x => x.id === r.id)
+          return u ? { ...r, stats: u.stats, _loading: u._loading, _error: u._error } : r
+        })
+      )
+    }
+
+    hydrateStats()
+    return () => { cancelled = true }
+  }, [rows?.length])
+
+  const filtered = useMemo(() => {
+    const term = q.trim().toLowerCase()
+    return (rows ?? []).filter(e =>
+      !term ||
+      (e.title ?? '').toLowerCase().includes(term) ||
+      (e.city ?? '').toLowerCase().includes(term) ||
+      (e.slug ?? '').toLowerCase().includes(term)
+    )
+  }, [rows, q])
+
+  return (
+    <div className="max-w-7xl mx-auto p-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Organizer Dashboard</h1>
+          <p className="text-gray-600">Overview of your events and activity.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            className="w-full sm:w-72 rounded border px-3 py-2 text-sm"
+            placeholder="Search events by title, city, or slug…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            aria-label="Search events"
+          />
+          {/* If you have a Create Event flow later, route this to that page */}
+          <Link href="/portal/org/events" className="rounded bg-usaBlue text-white px-3 py-2 text-sm hover:opacity-90">
+            Manage Events
+          </Link>
+        </div>
+      </div>
+
+      {/* Empty / error states */}
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800 mb-4">
+          {error}
+        </div>
+      )}
+      {loading && (
+        <div className="text-gray-600">Loading events…</div>
+      )}
+      {!loading && (filtered?.length ?? 0) === 0 && (
+        <div className="rounded-lg border bg-white p-6 text-gray-600">
+          No events yet.
+        </div>
+      )}
+
+      {/* Grid of event cards */}
+      <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {filtered.map((e) => (
+          <li key={e.id} className="rounded-2xl border bg-white overflow-hidden">
+            {e.image ? (
+              <div className="aspect-[16/9] bg-gray-100">
+                <img src={e.image} alt="" className="h-full w-full object-cover" loading="lazy" />
+              </div>
+            ) : (
+              <div className="aspect-[16/9] bg-gray-100 grid place-content-center text-gray-400 text-sm">
+                No image
+              </div>
+            )}
+            <div className="p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-semibold">{e.title}</h3>
+                  <p className="text-sm text-gray-600">
+                    {(e.city ?? 'TBD')} • {fmtDate(e.date)}
+                  </p>
+                </div>
+                <Link
+                  href={`/portal/org/events/${e.slug ?? e.id}`}
+                  className="rounded border px-3 py-1 text-sm hover:bg-gray-50"
+                >
+                  Open
+                </Link>
+              </div>
+
+              {/* Stats */}
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                <StatBox label="Players" value={e.stats?.registrations ?? 0} loading={!!e._loading} error={e._error} />
+                <StatBox label="Sponsors" value={e.stats?.sponsors ?? 0} loading={!!e._loading} error={e._error} />
+                <StatBox label="Bags" value={e.stats?.bags ?? 0} loading={!!e._loading} error={e._error} />
+              </div>
+
+              {/* Quick links */}
+              <div className="mt-4 flex flex-wrap gap-2 text-sm">
+                <Link href={`/portal/org/events/${e.slug ?? e.id}`} className="rounded bg-usaBlue text-white px-3 py-1 hover:opacity-90">Manage</Link>
+                <Link href={`/portal/events/${e.slug ?? e.id}`} className="rounded border px-3 py-1 hover:bg-gray-50">Public</Link>
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function StatBox({ label, value, loading, error }: { label: string; value: number; loading: boolean; error: string | null | undefined }) {
+  return (
+    <div className="rounded-lg border bg-gray-50 px-3 py-2">
+      <div className="text-[11px] uppercase tracking-wide text-gray-500">{label}</div>
+      <div className="mt-1 text-lg font-semibold text-gray-900">
+        {loading ? '—' : error ? '!' : value}
+      </div>
+    </div>
+  )
+}

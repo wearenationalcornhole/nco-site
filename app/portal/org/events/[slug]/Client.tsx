@@ -7,6 +7,7 @@ import Toast from '@/components/ui/Toast'
 import Badge from '@/components/ui/Badge'
 
 // ── Dynamic, client-only panels ─────────────────────────────────────────
+const InsightsPanel  = dynamic(() => import('./components/InsightsPanel'),  { ssr: false })
 const EditDetailsPanel = dynamic(() => import('./components/EditDetailsPanel'), { ssr: false })
 const LogoPanel        = dynamic(() => import('./components/LogoPanel'),        { ssr: false })
 const PlayersPanel     = dynamic(() => import('./components/PlayersPanel'),     { ssr: false })
@@ -21,11 +22,12 @@ type Event = {
   city?: string | null
   date?: string | null
   image?: string | null
-  logo_url?: string | null // used by LogoPanel current preview
+  logo_url?: string | null
 }
 
-// Typed tab config (prevents union errors)
+// Tabs configuration (add Insights)
 const TABS = [
+  { id: 'insights', label: 'Insights' },
   { id: 'details',  label: 'Details'  },
   { id: 'players',  label: 'Players'  },
   { id: 'sponsors', label: 'Sponsors' },
@@ -44,7 +46,7 @@ function fmtDate(iso?: string | null) {
 // ── Component ───────────────────────────────────────────────────────────
 export default function Client({ slug }: { slug: string }) {
   const [event, setEvent] = useState<Event | null>(null)
-  const [tab, setTab] = useState<TabId>('details')
+  const [tab, setTab] = useState<TabId>('insights')
   const [toast, setToast] = useState<{ msg: string; kind: 'success' | 'error' } | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -122,9 +124,9 @@ export default function Client({ slug }: { slug: string }) {
       </div>
 
       {/* Tab Content */}
+      {tab === 'insights' && <InsightsPanel eventId={event.id} />}
       {tab === 'details' && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          {/* Summary + Edit */}
           <div className="rounded-xl border bg-white p-6 lg:col-span-2">
             <h2 className="text-lg font-semibold">Event Details</h2>
             <dl className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
@@ -179,14 +181,9 @@ export default function Client({ slug }: { slug: string }) {
       {tab === 'sponsors' && <SponsorsPanel event={event} onToast={setToast} />}
       {tab === 'bags' && <BagsPanel event={event} onToast={setToast} />}
 
-      {/* Toast notification */}
+      {/* Toast */}
       {toast && (
-        <Toast
-          key={toast.msg}
-          message={toast.msg}
-          kind={toast.kind}
-          onDone={() => setToast(null)}
-        />
+        <Toast key={toast.msg} message={toast.msg} kind={toast.kind} onDone={() => setToast(null)} />
       )}
     </div>
   )
