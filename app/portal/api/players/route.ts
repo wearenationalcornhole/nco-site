@@ -1,91 +1,95 @@
+// app/portal/api/players/route.ts
 export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
 import { getPrisma } from '@/app/lib/safePrisma'
 import { devStore } from '@/app/lib/devStore'
 
-type Q = { q?: string; page?: string }
-
+/**
+ * GET /portal/api/players?q=&page=&pageSize=
+ * Lists players (users). Supports search & basic pagination.
+ */
 export async function GET(req: Request) {
   try {
-    const { searchParams } = new URL(req.url)
-    const q = (searchParams.get('q') || '').trim()
-    const page = Math.max(1, Number(searchParams.get('page') || '1'))
-    const pageSize = 20
-    const prisma = await getPrisma()
+    const url = new URL(req.url)
+    const q = (url.searchParams.get('q') ?? '').trim()
+    const page = Math.max(1, Number(url.searchParams.get('page') || 1))
+    const pageSize = Math.min(100, Math.max(1, Number(url.searchParams.get('pageSize') || 20)))
+    const offset = (page - 1) * pageSize
 
+    const prisma = await getPrisma()
     if (prisma) {
       const where = q
         ? {
             OR: [
-              { name: { contains: q, mode: 'insensitive' } },
-              { email: { contains: q, mode: 'insensitive' } },
+              { name:   { contains: q, mode: 'insensitive' as const } },
+              { email:  { contains: q, mode: 'insensitive' as const } },
             ],
           }
         : {}
 
       const [items, total] = await Promise.all([
-        prisma.users.findMany({
-          where,
-          orderBy: { created_at: 'desc' },
-          skip: (page - 1) * pageSize,
-          take: pageSize,
+        prisma.user.findMany({
+          where, orderBy: { createdAt: 'desc' }, skip: offset, take: pageSize,
+          select: { id: true, name: true, email: true, createdAt: true },
         }),
-        prisma.users.count({ where }),
+        prisma.user.count({ where }),
       ])
 
-      return NextResponse.json({ source: 'db', items, total, page, pageSize })
+      return NextResponse.json({ items, total, page, pageSize, source: 'prisma' })
     }
 
-    // devStore fallback
-    let items = devStore.getAll<any>('users')
-    if (q) {
-      const qq = q.toLowerCase()
-      items = items.filter(
-        (u: any) =>
-          (u.name || '').toLowerCase().includes(qq) ||
-          (u.email || '').toLowerCase().includes(qq)
-      )
-    }
-    const total = items.length
-    const paged = items.slice((page - 1) * pageSize, page * pageSize)
-    return NextResponse.json({ source: 'dev', items: paged, total, page, pageSize })
-  } catch (e) {
+    // dev fallback
+    const all = devStore.getAll<any>('users')
+    const filtered = q
+      ? all.filter((u) =>
+          (u.name ?? '').toLowerCase().includes(q.toLowerCase()) ||
+          (u.email ?? '').toLowerCase().includes(q.toLowerCase())
+        )
+      : all
+    const total = filtered.length
+    const items = filtered
+      .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
+      .slice(offset, offset + pageSize)
+
+    return NextResponse.json({ items, total, page, pageSize, source: 'devStore' })
+  } catch (e: any) {
+    console.error('GET /portal/api/players failed:', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
 
+/**
+ * POST /portal/api/players
+ * { email, name? } → creates (or returns existing) player.
+ */
 export async function POST(req: Request) {
   try {
-    const body = await req.json().catch(() => ({}))
-    const email = (body?.email || '').trim()
-    const name = (body?.name || '').trim()
-    if (!email && !name) {
-      return NextResponse.json({ error: 'email or name required' }, { status: 400 })
+    const { email, name } = await req.json()
+    if (!email || typeof email !== 'string') {
+      return NextResponse.json({ error: 'email required' }, { status: 400 })
     }
 
     const prisma = await getPrisma()
     if (prisma) {
-      // Try find by email if present
-      const existing =
-        email ? await prisma.users.findFirst({ where: { email } }) : null
-      if (existing) return NextResponse.json(existing, { status: 200 })
+      const existing = await prisma.user.findUnique({ where: { email } })
+      if (existing) return NextResponse.json(existing)
 
-      const created = await prisma.users.create({
-        data: { email: email || null, name: name || null },
+      const created = await prisma.user.create({
+        data: { email, name: name || null },
+        select: { id: true, name: true, email: true, createdAt: true },
       })
       return NextResponse.json(created, { status: 201 })
     }
 
-    // devStore fallback
+    // dev fallback
     const all = devStore.getAll<any>('users')
-    const byEmail = email ? all.find((u: any) => u.email === email) : null
-    if (byEmail) return NextResponse.json(byEmail, { status: 200 })
-
+    const found = all.find((u) => (u.email ?? '').toLowerCase() === email.toLowerCase())
+    if (found) return NextResponse.json(found)
     const created = devStore.upsert('users', {
-      email: email || undefined,
-      name: name || undefined,
-      created_at: new Date().toISOString(),
+      email,
+      name: name || null,
+      createdAt: new Date().toISOString(),
     })
     return NextResponse.json(created, { status: 201 })
   } catch (e: any) {
