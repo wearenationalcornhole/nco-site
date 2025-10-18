@@ -5,103 +5,49 @@ import { NextResponse } from 'next/server'
 import { getPrisma } from '@/app/lib/safePrisma'
 import { devStore } from '@/app/lib/devStore'
 
-/**
- * GET → list registrations for an event (joined with user)
- */
-export async function GET(_req: Request, ctx: any) {
+export async function GET(_req: Request, context: any) {
   try {
-    const eventId = ctx.params?.id as string
-    if (!eventId) return NextResponse.json({ error: 'id required' }, { status: 400 })
-
+    const { id } = context.params as { id: string }
     const prisma = await getPrisma()
     if (prisma) {
-      const regs = await prisma.registration.findMany({
-        where: { eventId },
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true, eventId: true, userId: true, createdAt: true,
-          user: { select: { id: true, name: true, email: true } },
-        },
+      // DB path
+      const rows = await prisma.registrations.findMany({
+        where: { event_id: id },
+        orderBy: { created_at: 'desc' },
       })
-      return NextResponse.json(regs)
+      return NextResponse.json(rows)
     }
-
-    // dev fallback
-    const regs = devStore.getAll<any>('registrations')
-      .filter((r) => r.eventId === eventId)
-      .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
-      .map((r) => ({
-        ...r,
-        user: devStore.getById<any>('users', r.userId) ?? null,
-      }))
-
-    return NextResponse.json(regs)
+    // Fallback: dev store
+    const rows = devStore.getAll<any>('registrations').filter(r => r.event_id === id)
+    return NextResponse.json(rows)
   } catch (e: any) {
-    console.error('GET /registrations failed', e)
+    console.error('GET /portal/api/events/[id]/registrations error:', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
 
-/**
- * POST → add a registration
- * Accepts: { userId? , email? , name? }
- * - If email is provided and user doesn’t exist → create the user (with optional name).
- */
-export async function POST(req: Request, ctx: any) {
+export async function POST(req: Request, context: any) {
   try {
-    const eventId = ctx.params?.id as string
-    if (!eventId) return NextResponse.json({ error: 'id required' }, { status: 400 })
-
-    const { userId, email, name } = await req.json()
+    const { id } = context.params as { id: string }
+    const { userId } = await req.json() as { userId?: string }
+    if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
 
     const prisma = await getPrisma()
     if (prisma) {
-      let uid = userId as string | undefined
-
-      if (!uid) {
-        if (!email) return NextResponse.json({ error: 'userId or email required' }, { status: 400 })
-        // find-or-create user by email
-        const existing = await prisma.user.findUnique({ where: { email } })
-        const user = existing ?? (await prisma.user.create({ data: { email, name: name || null } }))
-        uid = user.id
-      }
-
-      const created = await prisma.registration.create({
-        data: { eventId, userId: uid! },
-        select: {
-          id: true, eventId: true, userId: true, createdAt: true,
-          user: { select: { id: true, name: true, email: true } },
-        },
+      const created = await prisma.registrations.create({
+        data: { event_id: id, user_id: userId },
       })
       return NextResponse.json(created, { status: 201 })
     }
-
-    // dev fallback
-    let uid = userId as string | undefined
-    if (!uid) {
-      if (!email) return NextResponse.json({ error: 'userId or email required' }, { status: 400 })
-      const all = devStore.getAll<any>('users')
-      let user = all.find((u) => (u.email ?? '').toLowerCase() === email.toLowerCase())
-      if (!user) {
-        user = devStore.upsert('users', {
-          email,
-          name: name || null,
-          createdAt: new Date().toISOString(),
-        })
-      }
-      uid = user.id
-    }
-
+    // Fallback: dev store
     const created = devStore.upsert('registrations', {
-      eventId,
-      userId: uid!,
-      createdAt: new Date().toISOString(),
+      event_id: id,
+      user_id: userId,
+      created_at: new Date().toISOString(),
     })
-
-    // attach user for UI convenience
-    const user = devStore.getById<any>('users', uid!)
-    return NextResponse.json({ ...created, user }, { status: 201 })
+    return NextResponse.json(created, { status: 201 })
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? 'Invalid payload' }, { status: 400 })
+    console.error('POST /portal/api/events/[id]/registrations error:', e)
+    return NextResponse.json({ error: e?.message ?? 'Server error' }, { status: 500 })
   }
 }
