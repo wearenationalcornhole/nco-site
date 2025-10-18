@@ -1,6 +1,8 @@
 // app/portal/org/page.tsx
 import Link from 'next/link'
 import { headers } from 'next/headers'
+import CreateEventButton from './components/CreateEventButton'
+
 
 type Event = {
   id: string
@@ -78,7 +80,7 @@ export default async function Page() {
   const counts = await Promise.all(top.map((e) => fetchRegCount(base, e.id)))
   const regById = new Map(top.map((e, i) => [e.id, counts[i]]))
 
-  return (
+    return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -88,6 +90,7 @@ export default async function Page() {
           <p className="mt-1 text-gray-600">Quick view of your events and activity.</p>
         </div>
         <div className="flex gap-2">
+          <CreateEventButton />
           <Link
             href="/portal/org/events"
             className="rounded bg-black text-white px-4 py-2 text-sm hover:opacity-90"
