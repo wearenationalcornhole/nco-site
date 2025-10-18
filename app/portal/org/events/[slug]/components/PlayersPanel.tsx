@@ -1,145 +1,220 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import Spinner from '@/components/ui/Spinner'
 import Badge from '@/components/ui/Badge'
 
 type Event = { id: string; title: string; slug: string | null }
-type User = { id: string; name?: string | null; email: string; created_at?: string | null }
-type Props = {
-  event: Event
-  onToast: (t: { msg: string; kind: 'success' | 'error' }) => void
+
+type PlayerRow = {
+  id: string           // registration id
+  event_id: string
+  user_id: string
+  email: string
+  name?: string | null
+  status?: string | null
+  checked_in?: boolean | null
+  notes?: string | null
+  created_at?: string | null
 }
 
-export default function PlayersPanel({ event, onToast }: Props) {
+export default function PlayersPanel({
+  event,
+  onToast,
+}: {
+  event: Event
+  onToast: (t: { msg: string; kind: 'success' | 'error' }) => void
+}) {
+  const [rows, setRows] = useState<PlayerRow[] | null>(null)
+  const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [rows, setRows] = useState<User[]>([])
-  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [name, setName] = useState('')
+  const [saving, setSaving] = useState(false)
 
-  async function search() {
+  const eventId = event.id
+
+  async function load() {
     setLoading(true)
     try {
-      const res = await fetch(`/portal/api/users?q=${encodeURIComponent(q)}`)
-      const json = await res.json()
-      setRows(json.items ?? [])
+      const res = await fetch(`/portal/api/events/${encodeURIComponent(eventId)}/players`, { cache: 'no-store' })
+      const data = await res.json()
+      const items: PlayerRow[] = Array.isArray(data?.items) ? data.items : []
+      setRows(items)
     } catch {
-      onToast({ msg: 'Search failed', kind: 'error' })
+      setRows([])
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => {
-    // initial fetch (recent users)
-    search()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  useEffect(() => { load() }, [eventId])
 
-  async function addUser(e: React.FormEvent) {
+  const filtered = useMemo(() => {
+    const term = q.trim().toLowerCase()
+    return (rows ?? []).filter(r =>
+      !term ||
+      (r.name ?? '').toLowerCase().includes(term) ||
+      (r.email ?? '').toLowerCase().includes(term)
+    )
+  }, [rows, q])
+
+  async function addPlayer(e: React.FormEvent) {
     e.preventDefault()
-    if (!email.trim()) return onToast({ msg: 'Email required', kind: 'error' })
+    const em = email.trim().toLowerCase()
+    if (!em) return onToast({ msg: 'Email required', kind: 'error' })
+    setSaving(true)
     try {
-      const res = await fetch(`/portal/api/users`, {
+      const res = await fetch(`/portal/api/events/${encodeURIComponent(eventId)}/players`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name || undefined, email: email.trim() }),
+        body: JSON.stringify({ email: em, name: name.trim() || undefined }),
       })
-      if (!res.ok) throw new Error((await res.json())?.error ?? 'Create failed')
-      const created = (await res.json()) as User
-      setRows((prev) => [created, ...prev])
-      setName('')
-      setEmail('')
-      onToast({ msg: 'Player created', kind: 'success' })
-    } catch (e: any) {
-      onToast({ msg: e?.message ?? 'Create failed', kind: 'error' })
+      if (!res.ok) throw new Error((await res.json())?.error ?? 'Failed to add')
+      const created = await res.json()
+      setRows(prev => [created, ...(prev ?? [])])
+      setEmail(''); setName('')
+      onToast({ msg: 'Player added', kind: 'success' })
+    } catch (err: any) {
+      onToast({ msg: err?.message ?? 'Error adding player', kind: 'error' })
+    } finally {
+      setSaving(false)
     }
   }
 
-  async function register(userId: string) {
+  async function setChecked(id: string, checked: boolean) {
     try {
-      const res = await fetch(`/portal/api/events/${encodeURIComponent(event.id)}/registrations`, {
-        method: 'POST',
+      const res = await fetch(`/portal/api/registrations/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({ checked_in: checked }),
       })
-      if (!res.ok) throw new Error((await res.json())?.error ?? 'Register failed')
-      onToast({ msg: 'Registered to event', kind: 'success' })
-    } catch (e: any) {
-      onToast({ msg: e?.message ?? 'Register failed', kind: 'error' })
+      if (!res.ok) throw new Error((await res.json())?.error ?? 'Failed to update')
+      const updated = await res.json()
+      setRows(prev => prev?.map(r => r.id === id ? { ...r, ...updated } : r) ?? [])
+    } catch (err: any) {
+      onToast({ msg: err?.message ?? 'Check-in failed', kind: 'error' })
     }
   }
 
-  const filtered = useMemo(() => rows, [rows])
+  async function remove(id: string) {
+    if (!confirm('Remove this registration?')) return
+    try {
+      const res = await fetch(`/portal/api/registrations/${encodeURIComponent(id)}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error((await res.json())?.error ?? 'Failed to delete')
+      setRows(prev => prev?.filter(r => r.id !== id) ?? [])
+      onToast({ msg: 'Removed', kind: 'success' })
+    } catch (err: any) {
+      onToast({ msg: err?.message ?? 'Delete failed', kind: 'error' })
+    }
+  }
+
+  function exportCSV() {
+    const headers = ['reg_id','event_id','user_id','name','email','checked_in','status','created_at']
+    const lines = [headers.join(',')]
+    for (const r of (filtered ?? [])) {
+      lines.push([
+        r.id, r.event_id, r.user_id,
+        (r.name ?? '').replaceAll(',', ' '),
+        (r.email ?? '').replaceAll(',', ' '),
+        String(!!r.checked_in),
+        r.status ?? '',
+        r.created_at ?? '',
+      ].join(','))
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `players-${event.slug ?? event.id}.csv`; a.click()
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <div className="rounded-xl border bg-white p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-semibold">Players</h2>
-          <Badge color="blue">{filtered.length}</Badge>
+          <Badge color="blue">{rows?.length ?? 0}</Badge>
         </div>
         <div className="flex items-center gap-2">
           <input
-            className="w-full sm:w-64 rounded border px-3 py-2 text-sm"
-            placeholder="Search name or email…"
+            placeholder="Search by name or email…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => (e.key === 'Enter' ? search() : undefined)}
+            className="w-full sm:w-64 rounded border px-3 py-2 text-sm"
+            aria-label="Search players"
           />
-          <button onClick={search} className="rounded border px-3 py-2 text-sm hover:bg-gray-50" disabled={loading}>
-            {loading ? 'Searching…' : 'Search'}
+          <button onClick={exportCSV} className="rounded border px-3 py-2 text-sm hover:bg-gray-50">
+            Export CSV
           </button>
         </div>
       </div>
 
-      {/* Create Player */}
-      <form onSubmit={addUser} className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-2">
+      {/* Add by email */}
+      <form onSubmit={addPlayer} className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-2">
+        <input
+          className="rounded border px-3 py-2 text-sm"
+          placeholder="Player email *"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
         <input
           className="rounded border px-3 py-2 text-sm"
           placeholder="Name (optional)"
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
-        <input
-          className="rounded border px-3 py-2 text-sm"
-          placeholder="Email *"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          type="email"
-        />
-        <button className="rounded bg-usaBlue text-white px-3 py-2 text-sm hover:opacity-90">
-          Add Player
-        </button>
+        <div>
+          <button
+            disabled={saving}
+            className="inline-flex items-center gap-2 rounded bg-usaBlue text-white px-3 py-2 text-sm hover:opacity-90 disabled:opacity-60"
+          >
+            {saving && <Spinner size={16} />} Add Player
+          </button>
+        </div>
       </form>
 
       {/* Table */}
       <div className="mt-6 overflow-hidden rounded-lg border">
         <div className="hidden sm:grid grid-cols-12 gap-3 px-4 py-3 border-b bg-gray-50 text-xs font-semibold text-gray-600">
           <div className="col-span-5">Player</div>
-          <div className="col-span-5">Email</div>
+          <div className="col-span-3">Email</div>
+          <div className="col-span-2">Checked In</div>
           <div className="col-span-2 text-right">Actions</div>
         </div>
 
         {loading ? (
           <div className="p-4 text-gray-600 flex items-center gap-2"><Spinner /> Loading…</div>
-        ) : filtered.length === 0 ? (
-          <div className="p-4 text-gray-600">No players found.</div>
+        ) : (filtered ?? []).length === 0 ? (
+          <div className="p-4 text-gray-600">No players yet.</div>
         ) : (
           <ul className="divide-y">
-            {filtered.map((u) => (
-              <li key={u.id} className="px-4 py-3">
+            {filtered!.map((r) => (
+              <li key={r.id} className="px-4 py-3">
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
-                  <div className="col-span-5 font-medium">{u.name ?? '—'}</div>
-                  <div className="col-span-5 text-gray-700">{u.email}</div>
+                  <div className="col-span-5">
+                    <div className="font-medium">{r.name ?? '(no name)'}</div>
+                    <div className="text-xs text-gray-500">Reg ID: {r.id}</div>
+                  </div>
+                  <div className="col-span-3 text-gray-700">{r.email}</div>
+                  <div className="col-span-2">
+                    <label className="inline-flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={!!r.checked_in}
+                        onChange={(e) => setChecked(r.id, e.target.checked)}
+                      />
+                      <span>Checked in</span>
+                    </label>
+                  </div>
                   <div className="col-span-2 text-right">
                     <button
-                      onClick={() => register(u.id)}
-                      className="rounded bg-usaBlue text-white px-3 py-1 text-sm hover:opacity-90"
+                      onClick={() => remove(r.id)}
+                      className="rounded border px-3 py-1 text-sm hover:bg-gray-50"
                     >
-                      Register to Event
+                      Remove
                     </button>
                   </div>
                 </div>
