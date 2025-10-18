@@ -177,7 +177,7 @@ export default function Client({ slug }: { slug: string }) {
         </div>
       )}
 
-      {tab === 'players' && <PlayersPanel eventID={event.id} onToast={setToast} />}
+      {tab === 'players' && <PlayersPanel eventId={event.id} onToast={setToast} />}
       {tab === 'sponsors' && <SponsorsPanel event={event} onToast={setToast} />}
       {tab === 'bags' && <BagsPanel event={event} onToast={setToast} />}
 
