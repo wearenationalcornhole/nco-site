@@ -126,8 +126,12 @@ export default async function Page() {
         </div>
 
         {events.length === 0 ? (
-          <div className="p-6 text-gray-600">No events yet. Create your first event from the Events page.</div>
-        ) : (
+  <div className="p-6 text-gray-600 flex items-center justify-between">
+    <span>No events yet. Create your first event.</span>
+    <CreateEventButton />
+  </div>
+) : (
+  /* keep your existing table */
           <div className="divide-y">
             {top.map((e) => (
               <div key={e.id} className="px-4 py-4 grid grid-cols-1 sm:grid-cols-12 gap-3">

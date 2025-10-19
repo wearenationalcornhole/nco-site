@@ -1,185 +1,151 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Spinner from '@/components/ui/Spinner'
-import Toast from '@/components/ui/Toast'
 
-type OrgProfile = {
-  user: {
-    id: string
-    email: string
-    name: string | null
-    city: string | null
-    state: string | null
-    profile_image: string | null
-  }
-  club: {
-    id: string
-    name: string
-    city: string | null
-    state: string | null
-    logo_url: string | null
-    website: string | null
-  } | null
+type User = {
+  id?: string
+  email: string
+  name?: string | null
+  city?: string | null
+  state?: string | null
+  profile_image?: string | null
+  role?: string | null
+}
+
+type Club = {
+  id: string
+  name: string
+  city?: string | null
+  state?: string | null
+  logo_url?: string | null
+  website?: string | null
 }
 
 export default function Client() {
   const [loading, setLoading] = useState(true)
-  const [toast, setToast] = useState<{ msg: string; kind: 'success' | 'error' } | null>(null)
-  const [data, setData] = useState<OrgProfile | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [user, setUser] = useState<User | null>(null)
+  const [club, setClub] = useState<Club | null>(null)
 
-  // editable form state
   const [name, setName] = useState('')
   const [city, setCity] = useState('')
-  const [stateVal, setStateVal] = useState('')
+  const [state, setState] = useState('')
   const [clubName, setClubName] = useState('')
-  const [clubCity, setClubCity] = useState('')
-  const [clubState, setClubState] = useState('')
-  const [clubWebsite, setClubWebsite] = useState('')
+  const [msg, setMsg] = useState<string | null>(null)
 
   useEffect(() => {
     let alive = true
-    async function load() {
-      setLoading(true)
-      try {
-        const res = await fetch('/portal/api/org/profile', { cache: 'no-store' })
-        if (!res.ok) throw new Error('Failed to load organizer profile')
-        const json: OrgProfile = await res.json()
+    setLoading(true)
+    fetch('/portal/api/org/profile', { cache: 'no-store' })
+      .then(async (r) => (r.ok ? r.json() : Promise.reject(await r.json())))
+      .then((data) => {
         if (!alive) return
-        setData(json)
-
-        // seed form
-        setName(json.user.name ?? '')
-        setCity(json.user.city ?? '')
-        setStateVal(json.user.state ?? '')
-        setClubName(json.club?.name ?? '')
-        setClubCity(json.club?.city ?? '')
-        setClubState(json.club?.state ?? '')
-        setClubWebsite(json.club?.website ?? '')
-      } catch (e: any) {
-        if (!alive) return
-        setToast({ msg: e?.message ?? 'Load error', kind: 'error' })
-      } finally {
+        setUser(data.user ?? null)
+        setClub(data.club ?? null)
+        setName(data.user?.name ?? '')
+        setCity(data.user?.city ?? '')
+        setState(data.user?.state ?? '')
+        setClubName(data.club?.name ?? '')
+        setLoading(false)
+      })
+      .catch(() => {
         if (!alive) return
         setLoading(false)
-      }
-    }
-    load()
+      })
     return () => { alive = false }
   }, [])
 
-  async function saveUser(e: React.FormEvent) {
+  async function save(e: React.FormEvent) {
     e.preventDefault()
+    setSaving(true)
+    setMsg(null)
     try {
       const res = await fetch('/portal/api/org/profile', {
-        method: 'POST',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'saveUser',
-          user: { name, city, state: stateVal },
+          name: name || null,
+          city: city || null,
+          state: state || null,
+          clubName: clubName || null,
         }),
       })
       if (!res.ok) throw new Error((await res.json())?.error ?? 'Save failed')
-      const updated: OrgProfile = await res.json()
-      setData(updated)
-      setToast({ msg: 'Profile saved', kind: 'success' })
-    } catch (e: any) {
-      setToast({ msg: e?.message ?? 'Save failed', kind: 'error' })
+      const data = await res.json()
+      setUser(data.user ?? null)
+      setClub(data.club ?? null)
+      setMsg('Saved!')
+    } catch (err: any) {
+      setMsg(err?.message ?? 'Error saving profile')
+    } finally {
+      setSaving(false)
+      setTimeout(() => setMsg(null), 1800)
     }
-  }
-
-  async function saveClub(e: React.FormEvent) {
-    e.preventDefault()
-    try {
-      const res = await fetch('/portal/api/org/profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'saveClub',
-          club: { name: clubName, city: clubCity, state: clubState, website: clubWebsite },
-        }),
-      })
-      if (!res.ok) throw new Error((await res.json())?.error ?? 'Save failed')
-      const updated: OrgProfile = await res.json()
-      setData(updated)
-      setToast({ msg: 'Club saved', kind: 'success' })
-    } catch (e: any) {
-      setToast({ msg: e?.message ?? 'Save failed', kind: 'error' })
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="h-48 grid place-content-center text-gray-600">
-        <div className="flex items-center gap-2"><Spinner /> Loading…</div>
-      </div>
-    )
-  }
-
-  if (!data) {
-    return <div className="p-6 text-gray-600">No profile data</div>
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-8">
-      <h1 className="text-2xl font-bold">Organizer Profile</h1>
-      <p className="text-gray-600 mt-1">Manage your profile and club.</p>
+    <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-8">
+      <h1 className="text-2xl font-bold text-gray-900">Organizer Profile</h1>
+      <p className="mt-1 text-gray-600">Update your organizer info and optional club.</p>
 
-      {/* User */}
-      <section className="mt-6 rounded-xl border bg-white p-6">
-        <h2 className="text-lg font-semibold">Your Info</h2>
-        <dl className="mt-3 text-sm grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div><dt className="text-gray-500">Email</dt><dd className="font-medium">{data.user.email}</dd></div>
-          <div><dt className="text-gray-500">User ID</dt><dd className="font-medium break-all">{data.user.id}</dd></div>
-        </dl>
-
-        <form onSubmit={saveUser} className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <input className="rounded border px-3 py-2 text-sm" placeholder="Name"
-            value={name} onChange={(e)=>setName(e.target.value)} />
-          <input className="rounded border px-3 py-2 text-sm" placeholder="City"
-            value={city} onChange={(e)=>setCity(e.target.value)} />
-          <input className="rounded border px-3 py-2 text-sm" placeholder="State"
-            value={stateVal} onChange={(e)=>setStateVal(e.target.value)} />
-          <div className="sm:col-span-3">
-            <button className="rounded bg-usaBlue text-white px-3 py-2 text-sm hover:opacity-90">Save Profile</button>
-          </div>
-        </form>
-      </section>
-
-      {/* Club */}
-      <section className="mt-6 rounded-xl border bg-white p-6">
-        <h2 className="text-lg font-semibold">Club</h2>
-        {data.club ? (
-          <p className="text-sm text-gray-600 mt-1">You are linked to <span className="font-medium">{data.club.name}</span>.</p>
+      <div className="mt-6 rounded-xl border bg-white p-6">
+        {loading ? (
+          <div className="text-gray-600">Loading…</div>
         ) : (
-          <p className="text-sm text-gray-600 mt-1">No club yet—create one below.</p>
+          <form onSubmit={save} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2">
+              <label className="text-sm text-gray-700">Email (read-only)</label>
+              <input
+                className="mt-1 w-full rounded border px-3 py-2 text-sm bg-gray-50"
+                value={user?.email ?? ''}
+                readOnly
+              />
+            </div>
+
+            <div>
+              <label className="text-sm text-gray-700">Name</label>
+              <input className="mt-1 w-full rounded border px-3 py-2 text-sm"
+                     value={name} onChange={(e) => setName(e.target.value)} />
+            </div>
+
+            <div>
+              <label className="text-sm text-gray-700">State</label>
+              <input className="mt-1 w-full rounded border px-3 py-2 text-sm"
+                     value={state} onChange={(e) => setState(e.target.value)} />
+            </div>
+
+            <div>
+              <label className="text-sm text-gray-700">City</label>
+              <input className="mt-1 w-full rounded border px-3 py-2 text-sm"
+                     value={city} onChange={(e) => setCity(e.target.value)} />
+            </div>
+
+            <div>
+              <label className="text-sm text-gray-700">Club (optional)</label>
+              <input className="mt-1 w-full rounded border px-3 py-2 text-sm"
+                     placeholder="Your club name" value={clubName}
+                     onChange={(e) => setClubName(e.target.value)} />
+            </div>
+
+            <div className="sm:col-span-2">
+              <button
+                disabled={saving}
+                className="rounded bg-usaBlue text-white px-4 py-2 text-sm hover:opacity-90 disabled:opacity-60"
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+              {msg && <span className="ml-3 text-sm text-gray-700">{msg}</span>}
+            </div>
+
+            {club && (
+              <div className="sm:col-span-2 mt-4 rounded border p-4 bg-gray-50">
+                <div className="text-sm text-gray-700">Linked Club</div>
+                <div className="mt-1 font-medium">{club.name}</div>
+              </div>
+            )}
+          </form>
         )}
-
-        <form onSubmit={saveClub} className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <input className="rounded border px-3 py-2 text-sm" placeholder="Club name *" required
-            value={clubName} onChange={(e)=>setClubName(e.target.value)} />
-          <input className="rounded border px-3 py-2 text-sm" placeholder="Website"
-            value={clubWebsite} onChange={(e)=>setClubWebsite(e.target.value)} />
-          <input className="rounded border px-3 py-2 text-sm" placeholder="City"
-            value={clubCity} onChange={(e)=>setClubCity(e.target.value)} />
-          <input className="rounded border px-3 py-2 text-sm" placeholder="State"
-            value={clubState} onChange={(e)=>setClubState(e.target.value)} />
-          <div className="sm:col-span-2">
-            <button className="rounded bg-black text-white px-3 py-2 text-sm hover:opacity-90">
-              {data.club ? 'Save Club' : 'Create Club'}
-            </button>
-          </div>
-        </form>
-      </section>
-
-      {toast && (
-        <Toast
-          key={toast.msg}
-          message={toast.msg}
-          kind={toast.kind}
-          onDone={() => setToast(null)}
-        />
-      )}
+      </div>
     </div>
   )
 }
