@@ -52,7 +52,7 @@ export default async function Home() {
             alt=""
             className="h-full w-full object-cover opacity-70"
           />
-          <div className="absolute inset-0 bg-usaBlue/85" />
+          <div className="absolute inset-0 bg-usaBlue/65" />
           <div className="absolute inset-0 bg-gradient-to-b from-brand/40 via-brand/50 to-brand/60" />
         </div>
 
