@@ -9,11 +9,12 @@ import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 
 // ── Dynamic, client-only panels ─────────────────────────────────────────
-const EditDetailsPanel = dynamic(() => import('./components/EditDetailsPanel'), { ssr: false })
-const LogoPanel        = dynamic(() => import('./components/LogoPanel'),        { ssr: false })
-const PlayersPanel     = dynamic(() => import('./components/PlayersPanel'),     { ssr: false })
-const SponsorsPanel    = dynamic(() => import('./components/SponsorsPanel'),    { ssr: false })
-const BagsPanel        = dynamic(() => import('./components/BagsPanel'),        { ssr: false })
+const EditDetailsPanel = dynamic(() => import('./components/EditDetailsPanel'), { ssr: false });
+const LogoPanel        = dynamic(() => import('./components/LogoPanel'),        { ssr: false });
+const PlayersPanel     = dynamic(() => import('./components/PlayersPanel'),     { ssr: false });
+const SponsorsPanel    = dynamic(() => import('./components/SponsorsPanel'),    { ssr: false });
+const BagsPanel        = dynamic(() => import('./components/BagsPanel'),        { ssr: false });
+const DivisionsPanel   = dynamic(() => import('./components/DivisionsPanel'),   { ssr: false });
 
 // ── Types ───────────────────────────────────────────────────────────────
 type Event = {
@@ -23,19 +24,19 @@ type Event = {
   city?: string | null
   date?: string | null
   image?: string | null
-  logo_url?: string | null // used by LogoPanel current preview
+  logo_url?: string | null
 }
 
-// Typed tab config (prevents union errors)
+// Typed tab config
 const TABS = [
-  { id: 'details',  label: 'Details'  },
-  { id: 'players',  label: 'Players'  },
-  { id: 'sponsors', label: 'Sponsors' },
-  { id: 'bags',     label: 'Bags'     },
+  { id: 'details',   label: 'Details'   },
+  { id: 'players',   label: 'Players'   },
+  { id: 'divisions', label: 'Divisions' },
+  { id: 'sponsors',  label: 'Sponsors'  },
+  { id: 'bags',      label: 'Bags'      },
 ] as const
 type TabId = typeof TABS[number]['id']
 
-// ── Helpers ─────────────────────────────────────────────────────────────
 function fmtDate(iso?: string | null) {
   if (!iso) return 'TBD'
   const [y, m, d] = iso.split('-').map(Number)
@@ -43,7 +44,6 @@ function fmtDate(iso?: string | null) {
   return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
 }
 
-// ── Component ───────────────────────────────────────────────────────────
 export default function Client({ slug }: { slug: string }) {
   const [event, setEvent] = useState<Event | null>(null)
   const [tab, setTab] = useState<TabId>('details')
@@ -79,15 +79,12 @@ export default function Client({ slug }: { slug: string }) {
 
   if (!event) {
     return (
-      <div className="p-6">
-        <div className="rounded-xl border bg-white p-6">
-          <h2 className="text-lg font-semibold text-gray-800">Event not found</h2>
-          <p className="text-gray-500 mt-2">The event may have been deleted or moved.</p>
-          <div className="mt-4">
-            <Button asChild variant="outline">
-              <Link href="/portal/org/events">Back to Events</Link>
-            </Button>
-          </div>
+      <div className="p-6 text-center">
+        <h2 className="text-lg font-semibold text-gray-800">Event not found</h2>
+        <div className="mt-4">
+          <Button asChild variant="outline">
+            <Link href="/portal/org/events">Back to Events</Link>
+          </Button>
         </div>
       </div>
     )
@@ -105,9 +102,14 @@ export default function Client({ slug }: { slug: string }) {
             <Badge color="blue">{fmtDate(event.date)}</Badge>
             <Badge color="gray">{event.city ?? 'TBD'}</Badge>
           </div>
+          <div className="mt-4">
+            <Button asChild variant="outline">
+              <Link href="/portal/org/events">Back to Events</Link>
+            </Button>
+          </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={fetchEvent}>Refresh</Button>
+          <Button onClick={fetchEvent} variant="outline">Refresh</Button>
           <Button asChild>
             <Link href={`/portal/events/${event.slug ?? event.id}`}>View Public</Link>
           </Button>
@@ -185,9 +187,10 @@ export default function Client({ slug }: { slug: string }) {
         </div>
       )}
 
-      {tab === 'players' && <PlayersPanel eventId={event.id} onToast={setToast} />}
-      {tab === 'sponsors' && <SponsorsPanel event={event} onToast={setToast} />}
-      {tab === 'bags' && <BagsPanel event={event} onToast={setToast} />}
+      {tab === 'players'   && <PlayersPanel   eventId={event.id} onToast={setToast} />}
+      {tab === 'divisions' && <DivisionsPanel event={event}     onToast={setToast} />}
+      {tab === 'sponsors'  && <SponsorsPanel  event={event}     onToast={setToast} />}
+      {tab === 'bags'      && <BagsPanel      event={event}     onToast={setToast} />}
 
       {/* Toast notification */}
       {toast && (

@@ -17,6 +17,7 @@ export type TableName =
   | 'sponsor_companies' // new snake_case
   | 'event_sponsors'    // new snake_case
   | 'event_bag_submissions'
+  | 'event_divisions'
   | 'clubs'             // NEW
   | 'club_members'      // NEW
 
@@ -49,6 +50,7 @@ function createDefaultData(): StoreShape {
     sponsor_companies: [],
     event_sponsors: [],
     event_bag_submissions: [],
+    event_divisions: [],
 
     // NEW: clubs & memberships
     clubs: [],
