@@ -1,79 +1,66 @@
-import * as React from 'react';
+// components/ui/Button.tsx
+'use client'
 
-type Variant =
-  | 'primary'   // brand action
-  | 'accent'    // gold CTA
-  | 'danger'    // destructive
-  | 'outline'   // bordered brand
-  | 'subtle'    // soft bg
-  | 'ghost'     // text button
-  | 'link';     // inline link look
+import React from 'react'
 
-type Size = 'sm' | 'md' | 'lg';
+type Variant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger'
+type Size = 'sm' | 'md' | 'lg'
 
-export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: Variant;
-  size?: Size;
-  isLoading?: boolean;
-  leftIcon?: React.ReactNode;
-  rightIcon?: React.ReactNode;
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: Variant
+  size?: Size
+  loading?: boolean
+  leftIcon?: React.ReactNode
+  rightIcon?: React.ReactNode
 }
 
-/** tiny utility so we don't pull in a classnames lib */
-function cx(...parts: Array<string | false | undefined>) {
-  return parts.filter(Boolean).join(' ');
+const variantClasses: Record<Variant, string> = {
+  primary:
+    'bg-usaBlue text-white hover:opacity-90 focus:ring-2 focus:ring-usaBlue/30 disabled:opacity-60',
+  secondary:
+    'bg-usaRed text-white hover:opacity-90 focus:ring-2 focus:ring-usaRed/30 disabled:opacity-60',
+  outline:
+    'border border-gray-300 text-gray-800 hover:bg-gray-50 disabled:opacity-60',
+  ghost:
+    'text-gray-800 hover:bg-gray-50 disabled:opacity-60',
+  danger:
+    'bg-red-600 text-white hover:bg-red-700 focus:ring-2 focus:ring-red-600/30 disabled:opacity-60',
 }
 
-const VARIANT: Record<Variant, string> = {
-  primary: 'bg-brand text-white hover:bg-brand-hover focus-visible:ring-brand',
-  accent:  'bg-accent text-black hover:bg-accent-hover focus-visible:ring-accent',
-  danger:  'bg-danger text-white hover:bg-danger-hover focus-visible:ring-danger',
-  outline: 'border border-brand text-brand hover:bg-brand-light focus-visible:ring-brand',
-  subtle:  'bg-neutral-light text-neutral hover:bg-white/60 border border-usaLight focus-visible:ring-neutral',
-  ghost:   'text-brand hover:bg-brand-light focus-visible:ring-brand',
-  link:    'text-brand hover:underline p-0 h-auto leading-normal',
-};
-
-const SIZE: Record<Size, string> = {
-  sm: 'h-8 px-3 text-sm rounded-lg',
-  md: 'h-10 px-4 text-sm rounded-xl',
-  lg: 'h-11 px-5 text-base rounded-2xl',
-};
+const sizeClasses: Record<Size, string> = {
+  sm: 'px-2.5 py-1.5 text-sm rounded-lg',
+  md: 'px-3 py-2 text-sm rounded-lg',
+  lg: 'px-4 py-2.5 text-base rounded-xl',
+}
 
 export default function Button({
   variant = 'primary',
   size = 'md',
-  isLoading = false,
+  loading = false,
   leftIcon,
   rightIcon,
-  className,
+  className = '',
   children,
   disabled,
   ...props
 }: ButtonProps) {
-  const base =
-    'inline-flex items-center justify-center gap-2 font-medium transition select-none focus:outline-none ' +
-    'focus-visible:ring-2 focus-visible:ring-offset-2 ring-offset-white disabled:opacity-60 disabled:cursor-not-allowed';
-
-  // link-style buttons shouldn’t have padding/height unless explicitly set
-  const sizing = variant === 'link' ? '' : SIZE[size];
-
   return (
     <button
-      className={cx(base, VARIANT[variant], sizing, className)}
-      disabled={disabled || isLoading}
+      className={[
+        'inline-flex items-center justify-center gap-2 transition',
+        variantClasses[variant],
+        sizeClasses[size],
+        className,
+      ].join(' ')}
+      disabled={disabled || loading}
       {...props}
     >
-      {isLoading && (
-        <span
-          aria-hidden
-          className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/60 border-t-transparent"
-        />
+      {loading && (
+        <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/60 border-t-transparent" />
       )}
-      {!isLoading && leftIcon ? <span className="shrink-0">{leftIcon}</span> : null}
+      {!loading && leftIcon}
       <span>{children}</span>
-      {!isLoading && rightIcon ? <span className="shrink-0">{rightIcon}</span> : null}
+      {!loading && rightIcon}
     </button>
-  );
+  )
 }
