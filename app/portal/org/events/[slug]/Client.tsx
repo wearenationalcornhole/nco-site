@@ -8,7 +8,7 @@ import Toast from '@/components/ui/Toast'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 
-// ── Dynamic client-only panels ─────────────────────────────────────────
+// ── Dynamic, client-only panels ─────────────────────────────────────────
 const EditDetailsPanel = dynamic(() => import('./components/EditDetailsPanel'), { ssr: false })
 const LogoPanel        = dynamic(() => import('./components/LogoPanel'),        { ssr: false })
 const PlayersPanel     = dynamic(() => import('./components/PlayersPanel'),     { ssr: false })
@@ -23,10 +23,10 @@ type Event = {
   city?: string | null
   date?: string | null
   image?: string | null
-  logo_url?: string | null
+  logo_url?: string | null // used by LogoPanel current preview
 }
 
-// Tab config (typed)
+// Typed tab config (prevents union errors)
 const TABS = [
   { id: 'details',  label: 'Details'  },
   { id: 'players',  label: 'Players'  },
@@ -35,19 +35,15 @@ const TABS = [
 ] as const
 type TabId = typeof TABS[number]['id']
 
-// Helpers
+// ── Helpers ─────────────────────────────────────────────────────────────
 function fmtDate(iso?: string | null) {
   if (!iso) return 'TBD'
   const [y, m, d] = iso.split('-').map(Number)
   const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1))
-  return dt.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
+  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
 }
 
+// ── Component ───────────────────────────────────────────────────────────
 export default function Client({ slug }: { slug: string }) {
   const [event, setEvent] = useState<Event | null>(null)
   const [tab, setTab] = useState<TabId>('details')
@@ -76,20 +72,22 @@ export default function Client({ slug }: { slug: string }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-48 text-gray-600">
-        <Spinner /> <span className="ml-2">Loading event…</span>
+        <Spinner /> Loading event…
       </div>
     )
   }
 
   if (!event) {
     return (
-      <div className="p-6 text-center">
-        <h2 className="text-lg font-semibold text-gray-800">Event not found</h2>
-        <p className="text-gray-500 mt-2">The event may have been deleted or moved.</p>
-        <div className="mt-4">
-          <Link href="/portal/org/events">
-            <Button as="span" variant="outline">Back to Events</Button>
-          </Link>
+      <div className="p-6">
+        <div className="rounded-xl border bg-white p-6">
+          <h2 className="text-lg font-semibold text-gray-800">Event not found</h2>
+          <p className="text-gray-500 mt-2">The event may have been deleted or moved.</p>
+          <div className="mt-4">
+            <Button asChild variant="outline">
+              <Link href="/portal/org/events">Back to Events</Link>
+            </Button>
+          </div>
         </div>
       </div>
     )
@@ -101,7 +99,7 @@ export default function Client({ slug }: { slug: string }) {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <p className="text-xs uppercase tracking-wider text-gray-500">Organizer · Event</p>
-          <h1 className="text-2xl font-bold text-gray-900">{event.title}</h1>
+          <h1 className="text-2xl font-bold text-gray-800">{event.title}</h1>
           <div className="mt-1 flex flex-wrap gap-2 text-sm text-gray-700">
             <Badge color="gray">{event.slug ?? event.id}</Badge>
             <Badge color="blue">{fmtDate(event.date)}</Badge>
@@ -110,9 +108,9 @@ export default function Client({ slug }: { slug: string }) {
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={fetchEvent}>Refresh</Button>
-          <Link href={`/portal/events/${event.slug ?? event.id}`}>
-            <Button as="span">View Public</Button>
-          </Link>
+          <Button asChild>
+            <Link href={`/portal/events/${event.slug ?? event.id}`}>View Public</Link>
+          </Button>
         </div>
       </div>
 
@@ -187,26 +185,9 @@ export default function Client({ slug }: { slug: string }) {
         </div>
       )}
 
-      {tab === 'players' && (
-        <PlayersPanel
-          eventId={event.id}
-          onToast={setToast}
-        />
-      )}
-
-      {tab === 'sponsors' && (
-        <SponsorsPanel
-          event={event}
-          onToast={setToast}
-        />
-      )}
-
-      {tab === 'bags' && (
-        <BagsPanel
-          event={event}
-          onToast={setToast}
-        />
-      )}
+      {tab === 'players' && <PlayersPanel eventId={event.id} onToast={setToast} />}
+      {tab === 'sponsors' && <SponsorsPanel event={event} onToast={setToast} />}
+      {tab === 'bags' && <BagsPanel event={event} onToast={setToast} />}
 
       {/* Toast notification */}
       {toast && (
