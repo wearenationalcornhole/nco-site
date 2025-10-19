@@ -37,7 +37,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="scroll-smooth">
-      <body className="antialiased text-gray-900 bg-white min-h-screen flex flex-col">
+      <body className="antialiased text-gray-900 bg-usaBlue min-h-screen flex flex-col">
         {/* ── Fixed Header ───────────────────────────────────────────── */}
         <Header />
 

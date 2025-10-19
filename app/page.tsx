@@ -88,7 +88,7 @@ export default async function Home() {
       </section>
 
       {/* FEATURES */}
-      <section className="bg-white">
+      <section className="bg-usaBlue">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10 grid grid-cols-1 sm:grid-cols-3 gap-6">
           <div className="rounded-xl border p-5">
             <div className="text-sm font-semibold text-usaBlue">For Players</div>
@@ -112,7 +112,7 @@ export default async function Home() {
       </section>
 
       {/* FEATURED EVENTS */}
-      <section className="bg-white">
+      <section className="bg-usaBlue">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-gray-900">Featured Events</h2>
