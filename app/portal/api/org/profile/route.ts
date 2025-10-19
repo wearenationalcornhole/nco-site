@@ -10,7 +10,7 @@ const DEMO_EMAIL = 'organizer@example.com'
 const DEMO_USER_ID = 'demo-user-1'
 
 type UserShape = {
-  id: string
+  id?: string // optional for devStore create
   email: string
   name?: string | null
   city?: string | null
@@ -21,7 +21,7 @@ type UserShape = {
 }
 
 type ClubShape = {
-  id: string
+  id?: string // optional for devStore create
   name: string
   city?: string | null
   state?: string | null
@@ -31,7 +31,7 @@ type ClubShape = {
 }
 
 type ClubMemberShape = {
-  id?: string
+  id?: string // optional for devStore create
   club_id: string
   user_id: string
   role?: string | null
@@ -93,7 +93,6 @@ export async function GET() {
             },
           })) as unknown as ClubShape
 
-          // Guard again: only create membership if both exist
           if (club?.id && user?.id) {
             await prisma.club_members.create({
               data: {
@@ -141,7 +140,7 @@ export async function GET() {
     let user = devStore.getAll<UserShape>('users').find((u) => u.email === DEMO_EMAIL) ?? null
     if (!user) {
       user = devStore.upsert<UserShape>('users', {
-        id: DEMO_USER_ID,
+        id: DEMO_USER_ID, // we give a stable id for demo
         email: DEMO_EMAIL,
         name: 'Demo Organizer',
         city: 'Boston',
@@ -156,7 +155,7 @@ export async function GET() {
     let club: ClubShape | null = null
     if (user?.id) {
       const membership =
-        devStore.getAll<ClubMemberShape>('club_members').find((m) => m.user_id === user!.id) ?? null
+        devStore.getAll<ClubMemberShape>('club_members').find((m) => m.user_id === user.id) ?? null
 
       if (membership) {
         club = devStore.getById<ClubShape>('clubs', membership.club_id) ?? null
