@@ -11,6 +11,7 @@ const config: Config = {
     extend: {
       colors: {
         // ─── Core Brand Palette ─────────────────────────────
+        heroBlue: '#0A3D91',
         usaBlue: '#002868',      // Deep Navy – brand primary
         usaRed: '#BF0A30',       // Bold Red – alerts/destructive
         usaGold: '#FFD700',      // Gold – premium accent
