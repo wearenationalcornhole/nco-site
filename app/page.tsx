@@ -4,7 +4,6 @@ import Link from 'next/link'
 import Button from '@/components/ui/Button'
 import EventCard from '@/components/EventCard'
 
-// Types
 type Event = {
   id: string
   slug: string | null
@@ -15,23 +14,15 @@ type Event = {
   createdAt?: string | null
 }
 
-// Try API first; fall back to local JSON if needed
 async function getEvents(): Promise<Event[]> {
   try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL ?? ''}/portal/api/events`, {
-      cache: 'no-store',
-      // If NEXT_PUBLIC_BASE_URL is empty, allow relative fetch during runtime
-      // (Next will resolve it server-side). If that throws, we catch below.
-    })
+    const base = process.env.NEXT_PUBLIC_BASE_URL ?? ''
+    const res = await fetch(`${base}/portal/api/events`, { cache: 'no-store' })
     if (res.ok) {
       const json = await res.json()
       return Array.isArray(json) ? json : json.events ?? []
     }
-  } catch {
-    // ignore and fall back
-  }
-
-  // Local JSON fallback (lightweight featured list)
+  } catch {/* fall back */}
   const local = (await import('./data/events.json')).default as Event[]
   return local.slice(0, 6)
 }
@@ -53,9 +44,8 @@ export default async function Home() {
 
   return (
     <main className="min-h-screen">
-      {/* ── HERO (NCO Blue + PNG Logo) ───────────────────────────── */}
+      {/* HERO */}
       <section className="relative isolate overflow-hidden">
-        {/* Background image (subtle), then NCO blue overlay */}
         <div className="absolute inset-0 -z-10">
           <img
             src="/images/hero-cornhole.webp"
@@ -63,12 +53,10 @@ export default async function Home() {
             className="h-full w-full object-cover opacity-70"
           />
           <div className="absolute inset-0 bg-usaBlue/85" />
-          {/* top-to-bottom brand gradient for depth */}
           <div className="absolute inset-0 bg-gradient-to-b from-brand/40 via-brand/50 to-brand/60" />
         </div>
 
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 sm:py-24 text-white">
-          {/* Logo (PNG) */}
           <div className="flex justify-center">
             <Image
               src="/images/nco-mark.png"
@@ -88,7 +76,6 @@ export default async function Home() {
             organizers, and clubs across the country.
           </p>
 
-          {/* CTAs — use Button asChild so it's a proper <a> */}
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Button asChild size="lg">
               <Link href="/events">Find Events</Link>
@@ -100,7 +87,7 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* ── FEATURES (quick value props) ─────────────────────────── */}
+      {/* FEATURES */}
       <section className="bg-white">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10 grid grid-cols-1 sm:grid-cols-3 gap-6">
           <div className="rounded-xl border p-5">
@@ -124,7 +111,7 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* ── FEATURED EVENTS ──────────────────────────────────────── */}
+      {/* FEATURED EVENTS */}
       <section className="bg-white">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex items-center justify-between">
@@ -142,8 +129,7 @@ export default async function Home() {
                 <EventCard
                   key={e.id}
                   title={e.title}
-                  city={e.city ?? 'TBD'}
-                  date={fmtDate(e.date)}
+                  subtitle={`${e.city ?? 'TBD'} • ${fmtDate(e.date)}`}
                   image={e.image ?? '/images/tournament-1.webp'}
                   href={`/portal/events/${e.slug ?? e.id}`}
                 />
