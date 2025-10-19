@@ -1,6 +1,6 @@
 // app/events/[slug]/page.tsx
 import Link from 'next/link'
-import RegisterButton from '@/app/components/RegisterButton'
+import RegisterButton from '@/components/RegisterButton'
 import { headers } from 'next/headers'
 
 type Event = {
