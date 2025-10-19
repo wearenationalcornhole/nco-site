@@ -91,19 +91,19 @@ export default async function Home() {
       <section className="bg-usaBlue">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10 grid grid-cols-1 sm:grid-cols-3 gap-6">
           <div className="rounded-xl border p-5">
-            <div className="text-sm font-semibold text-usaBlue">For Players</div>
+            <div className="text-sm font-semibold text-white">For Players</div>
             <p className="mt-1 text-white-700">
               Find local tournaments and leagues. Track where you’ve played.
             </p>
           </div>
           <div className="rounded-xl border p-5">
-            <div className="text-sm font-semibold text-usaBlue">For Organizers</div>
+            <div className="text-sm font-semibold text-white">For Organizers</div>
             <p className="mt-1 text-white-700">
               Manage events, sponsors, divisions, and registrations—fast.
             </p>
           </div>
           <div className="rounded-xl border p-5">
-            <div className="text-sm font-semibold text-usaBlue">For Clubs</div>
+            <div className="text-sm font-semibold text-white">For Clubs</div>
             <p className="mt-1 text-white-700">
               Build your community, run nights, and grow the local game.
             </p>
