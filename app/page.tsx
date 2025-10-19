@@ -50,10 +50,10 @@ export default async function Home() {
           <img
             src="/images/hero-cornhole.webp"
             alt=""
-            className="h-full w-full object-cover opacity-80"
+            className="h-full w-full object-cover opacity-90"
           />
           <div className="absolute inset-0 bg-usaBlue/25" />
-          <div className="absolute inset-0 bg-gradient-to-b from-brand/40 via-brand/50 to-brand/60" />
+          <div className="absolute inset-0 bg-gradient-to-b from-brand/30 via-brand/40 to-brand/50" />
         </div>
 
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 sm:py-24 text-white">
@@ -92,19 +92,19 @@ export default async function Home() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10 grid grid-cols-1 sm:grid-cols-3 gap-6">
           <div className="rounded-xl border p-5">
             <div className="text-sm font-semibold text-usaBlue">For Players</div>
-            <p className="mt-1 text-gray-700">
+            <p className="mt-1 text-white-700">
               Find local tournaments and leagues. Track where you’ve played.
             </p>
           </div>
           <div className="rounded-xl border p-5">
             <div className="text-sm font-semibold text-usaBlue">For Organizers</div>
-            <p className="mt-1 text-gray-700">
+            <p className="mt-1 text-white-700">
               Manage events, sponsors, divisions, and registrations—fast.
             </p>
           </div>
           <div className="rounded-xl border p-5">
             <div className="text-sm font-semibold text-usaBlue">For Clubs</div>
-            <p className="mt-1 text-gray-700">
+            <p className="mt-1 text-white-700">
               Build your community, run nights, and grow the local game.
             </p>
           </div>
