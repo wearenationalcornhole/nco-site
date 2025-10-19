@@ -1,47 +1,66 @@
 // app/lib/devStore.ts
 // Tiny in-memory store for local dev & serverless fallbacks.
+// Safe to import in API routes. No browser APIs, no I/O.
 
 type AnyRecord = { id?: string; [k: string]: any }
 
 export type TableName =
   | 'users'
   | 'events'
-  | 'registrations'
+  | 'divisions'
   | 'sponsors'
+  | 'eventSponsors'         // legacy camelCase link table
   | 'bagModels'
   | 'bagSubmissions'
-  | 'eventSponsors'          // legacy camel
-  | 'sponsor_companies'      // snake
-  | 'event_sponsors'         // snake
-  | 'event_bag_submissions'  // snake
-  | 'event_divisions'        // NEW
-  | 'event_division_members' // NEW
+  | 'registrations'
+  // new(er) snake_case tables you actively use
+  | 'sponsor_companies'
+  | 'event_sponsors'
+  | 'event_bag_submissions'
+  | 'event_divisions'
+  | 'event_division_members'
+  // organizer profile / clubs
+  | 'clubs'
+  | 'club_members'
 
 type StoreShape = Record<TableName, AnyRecord[]>
 
 const STORAGE_SYMBOL = '__NCO_DEV_STORE__'
 
+// Global, per-runtime (OK for Next dev / serverless fallbacks)
+function getGlobalStore(): StoreShape {
+  const g = globalThis as any
+  if (!g[STORAGE_SYMBOL]) {
+    g[STORAGE_SYMBOL] = createDefaultData()
+  }
+  return g[STORAGE_SYMBOL] as StoreShape
+}
+
 function createDefaultData(): StoreShape {
   return {
+    // legacy / existing
     users: [],
     events: [],
-    registrations: [],
+    divisions: [],
     sponsors: [],
+    eventSponsors: [],
     bagModels: [],
     bagSubmissions: [],
-    eventSponsors: [],
+    registrations: [],
+
+    // sponsors (current)
     sponsor_companies: [],
     event_sponsors: [],
     event_bag_submissions: [],
+
+    // divisions (current)
     event_divisions: [],
     event_division_members: [],
-  }
-}
 
-function getGlobalStore(): StoreShape {
-  const g = globalThis as any
-  if (!g[STORAGE_SYMBOL]) g[STORAGE_SYMBOL] = createDefaultData()
-  return g[STORAGE_SYMBOL] as StoreShape
+    // clubs (organizer profile)
+    clubs: [],
+    club_members: [],
+  }
 }
 
 function genId(prefix = 'id'): string {
@@ -55,11 +74,13 @@ export const devStore = {
   },
 
   getAll<T = AnyRecord>(table: TableName): T[] {
-    return getGlobalStore()[table] as T[]
+    const store = getGlobalStore()
+    return store[table] as T[]
   },
 
   getById<T = AnyRecord>(table: TableName, id: string): T | undefined {
-    return (getGlobalStore()[table] as AnyRecord[]).find((r) => r.id === id) as T | undefined
+    const store = getGlobalStore()
+    return (store[table] as AnyRecord[]).find((r) => r.id === id) as T | undefined
   },
 
   upsert<T extends AnyRecord = AnyRecord>(table: TableName, record: T): T {
@@ -85,8 +106,8 @@ export const devStore = {
   remove(table: TableName, id: string): boolean {
     const store = getGlobalStore()
     const rows = store[table]
-    const lenBefore = rows.length
+    const before = rows.length
     store[table] = rows.filter((r) => r.id !== id)
-    return store[table].length !== lenBefore
+    return store[table].length !== before
   },
 }
