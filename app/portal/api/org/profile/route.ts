@@ -1,20 +1,23 @@
+// app/portal/api/org/profile/route.ts
 export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
 import { getPrisma } from '@/app/lib/safePrisma'
 import { devStore } from '@/app/lib/devStore'
 
-/** Temporary stand-in until Auth lands */
-const DEMO_ORG_EMAIL = process.env.DEMO_ORG_EMAIL ?? 'demo@wearenationalcornhole.com'
+// Demo identity (until real auth)
+const DEMO_EMAIL = 'organizer@example.com'
+const DEMO_USER_ID = 'demo-user-1'
 
 type UserShape = {
-  id?: string
+  id: string
   email: string
   name?: string | null
   city?: string | null
   state?: string | null
   profile_image?: string | null
   role?: string | null
+  created_at?: string | Date | null
 }
 
 type ClubShape = {
@@ -24,157 +27,188 @@ type ClubShape = {
   state?: string | null
   logo_url?: string | null
   website?: string | null
+  created_at?: string | Date | null
 }
 
-function assureDevUser(): UserShape {
-  // find or create a dev user
-  const users = devStore.getAll<UserShape>('users')
-  let u = users.find((x) => x.email === DEMO_ORG_EMAIL)
-  if (!u) {
-    u = devStore.upsert<UserShape>('users', {
-      email: DEMO_ORG_EMAIL,
-      name: 'Demo Organizer',
-      role: 'organizer',
-      city: null,
-      state: null,
-      profile_image: null,
-    })
-  }
-  return u
+type ClubMemberShape = {
+  id?: string
+  club_id: string
+  user_id: string
+  role?: string | null
+  joined_at?: string | Date | null
+}
+
+// Helpers
+function iso(d?: string | Date | null) {
+  if (!d) return null
+  return d instanceof Date ? d.toISOString() : d
 }
 
 export async function GET() {
   try {
     const prisma = await getPrisma()
-    let user: UserShape | null = null
-    let club: ClubShape | null = null
 
+    // ─────────────────────────────────────────────────────────
+    // PRISMA PATH
+    // ─────────────────────────────────────────────────────────
     if (prisma) {
-      user = await prisma.users.findFirst({ where: { email: DEMO_ORG_EMAIL } }) as any
+      // 1) Ensure a demo user exists (or fetch existing)
+      let user = (await prisma.users.findFirst({
+        where: { email: DEMO_EMAIL },
+      })) as unknown as UserShape | null
+
       if (!user) {
-        // seed a minimal organizer row on first hit (optional)
-        user = await prisma.users.create({
+        user = (await prisma.users.create({
           data: {
-            email: DEMO_ORG_EMAIL,
+            email: DEMO_EMAIL,
             name: 'Demo Organizer',
+            city: 'Boston',
+            state: 'MA',
+            profile_image: null,
             role: 'organizer',
           },
-        }) as any
+        })) as unknown as UserShape
       }
 
-      // Try to fetch a club for this user (via club_members)
-      const membership = await prisma.club_members.findFirst({
-        where: { user_id: user.id! },
+      // 2) Find (or create) a club for that user
+      let club: ClubShape | null = null
+      if (user?.id) {
+        const membership = (await prisma.club_members.findFirst({
+          where: { user_id: user.id },
+        })) as unknown as ClubMemberShape | null
+
+        if (membership) {
+          club = (await prisma.clubs.findUnique({
+            where: { id: membership.club_id },
+          })) as unknown as ClubShape | null
+        } else {
+          // Create a default club and connect user as organizer
+          club = (await prisma.clubs.create({
+            data: {
+              name: 'Demo Cornhole Club',
+              city: 'Boston',
+              state: 'MA',
+              logo_url: null,
+              website: null,
+            },
+          })) as unknown as ClubShape
+
+          // Guard again: only create membership if both exist
+          if (club?.id && user?.id) {
+            await prisma.club_members.create({
+              data: {
+                club_id: club.id,
+                user_id: user.id,
+                role: 'organizer',
+              },
+            })
+          }
+        }
+      }
+
+      return NextResponse.json({
+        source: 'prisma',
+        user: user
+          ? {
+              id: user.id,
+              email: user.email,
+              name: user.name ?? null,
+              city: user.city ?? null,
+              state: user.state ?? null,
+              profile_image: user.profile_image ?? null,
+              role: user.role ?? null,
+              created_at: iso(user.created_at),
+            }
+          : null,
+        club: club
+          ? {
+              id: club.id,
+              name: club.name,
+              city: club.city ?? null,
+              state: club.state ?? null,
+              logo_url: club.logo_url ?? null,
+              website: club.website ?? null,
+              created_at: iso(club.created_at),
+            }
+          : null,
       })
-      if (membership) {
-        club = await prisma.clubs.findUnique({ where: { id: membership.club_id } }) as any
-      }
-    } else {
-      const devUser = assureDevUser()
-      user = devUser
+    }
 
-      const membership = devStore.getAll<any>('club_members').find((m) => m.user_id === devUser.id)
-      club = membership ? devStore.getById<ClubShape>('clubs', membership.club_id) ?? null : null
+    // ─────────────────────────────────────────────────────────
+    // DEVSTORE PATH (fallback)
+    // ─────────────────────────────────────────────────────────
+    // Ensure demo user in devStore
+    let user = devStore.getAll<UserShape>('users').find((u) => u.email === DEMO_EMAIL) ?? null
+    if (!user) {
+      user = devStore.upsert<UserShape>('users', {
+        id: DEMO_USER_ID,
+        email: DEMO_EMAIL,
+        name: 'Demo Organizer',
+        city: 'Boston',
+        state: 'MA',
+        profile_image: null,
+        role: 'organizer',
+        created_at: new Date(),
+      })
+    }
+
+    // Ensure a demo club & membership
+    let club: ClubShape | null = null
+    if (user?.id) {
+      const membership =
+        devStore.getAll<ClubMemberShape>('club_members').find((m) => m.user_id === user!.id) ?? null
+
+      if (membership) {
+        club = devStore.getById<ClubShape>('clubs', membership.club_id) ?? null
+      } else {
+        // create club + membership
+        club = devStore.upsert<ClubShape>('clubs', {
+          name: 'Demo Cornhole Club',
+          city: 'Boston',
+          state: 'MA',
+          logo_url: null,
+          website: null,
+          created_at: new Date(),
+        })
+        if (club?.id) {
+          devStore.upsert<ClubMemberShape>('club_members', {
+            club_id: club.id,
+            user_id: user.id,
+            role: 'organizer',
+            joined_at: new Date(),
+          })
+        }
+      }
     }
 
     return NextResponse.json({
-      user,
-      club,
+      source: 'devStore',
+      user: user
+        ? {
+            id: user.id,
+            email: user.email,
+            name: user.name ?? null,
+            city: user.city ?? null,
+            state: user.state ?? null,
+            profile_image: user.profile_image ?? null,
+            role: user.role ?? null,
+            created_at: iso(user.created_at),
+          }
+        : null,
+      club: club
+        ? {
+            id: club.id,
+            name: club.name,
+            city: club.city ?? null,
+            state: club.state ?? null,
+            logo_url: club.logo_url ?? null,
+            website: club.website ?? null,
+            created_at: iso(club.created_at),
+          }
+        : null,
     })
   } catch (e: any) {
     console.error('GET /portal/api/org/profile error:', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
-  }
-}
-
-export async function PUT(req: Request) {
-  try {
-    const { name, city, state, profile_image, clubName } = await req.json()
-
-    const prisma = await getPrisma()
-    let user: UserShape | null = null
-    let club: ClubShape | null = null
-
-    if (prisma) {
-      // Upsert user by email
-      user = await prisma.users.upsert({
-        where: { email: DEMO_ORG_EMAIL },
-        create: {
-          email: DEMO_ORG_EMAIL,
-          name: name ?? null,
-          city: city ?? null,
-          state: state ?? null,
-          profile_image: profile_image ?? null,
-          role: 'organizer',
-        },
-        update: {
-          name: name ?? null,
-          city: city ?? null,
-          state: state ?? null,
-          profile_image: profile_image ?? null,
-        },
-      }) as any
-
-      // Link/create a club if clubName provided
-      if (clubName && String(clubName).trim().length > 0) {
-        club = await prisma.clubs.upsert({
-          where: { name: clubName },
-          create: { name: clubName },
-          update: {},
-        }) as any
-
-        // Ensure membership
-        const existing = await prisma.club_members.findFirst({
-          where: { user_id: user.id!, club_id: club.id },
-        })
-        if (!existing) {
-          await prisma.club_members.create({
-            data: { user_id: user.id!, club_id: club.id, role: 'organizer' },
-          })
-        }
-      } else {
-        // no club change
-        const membership = await prisma.club_members.findFirst({ where: { user_id: user.id! } })
-        if (membership) {
-          club = await prisma.clubs.findUnique({ where: { id: membership.club_id } }) as any
-        }
-      }
-    } else {
-      // devStore fallback
-      const devUser = assureDevUser()
-      user = devStore.upsert<UserShape>('users', {
-        ...devUser,
-        name: name ?? devUser.name ?? null,
-        city: city ?? devUser.city ?? null,
-        state: state ?? devUser.state ?? null,
-        profile_image: profile_image ?? devUser.profile_image ?? null,
-      })
-
-      if (clubName && String(clubName).trim().length > 0) {
-        // find or create club
-        let existingClub = devStore.getAll<ClubShape>('clubs').find((c) => c.name === clubName) ?? null
-        if (!existingClub) {
-          existingClub = devStore.upsert<ClubShape>('clubs', { name: clubName })
-        }
-        club = existingClub
-
-        // ensure membership
-        const existingMem = devStore.getAll<any>('club_members').find(
-          (m) => m.user_id === user.id && m.club_id === club.id
-        )
-        if (!existingMem) {
-          devStore.upsert('club_members', { user_id: user.id, club_id: club.id, role: 'organizer' })
-        }
-      } else {
-        // no club change
-        const membership = devStore.getAll<any>('club_members').find((m) => m.user_id === user!.id)
-        club = membership ? devStore.getById<ClubShape>('clubs', membership.club_id) ?? null : null
-      }
-    }
-
-    return NextResponse.json({ ok: true, user, club })
-  } catch (e: any) {
-    console.error('PUT /portal/api/org/profile error:', e)
-    return NextResponse.json({ error: e?.message ?? 'Invalid payload' }, { status: 400 })
   }
 }
