@@ -71,7 +71,7 @@ export default function Header() {
           {/* Hamburger / Close icon (pure CSS) */}
           <div className="relative h-3.5 w-5">
             <span
-              className={`absolute left-0 top-0 h-0.5 w-5 bg-white transition-transform ${
+              className={`absolute left-0 top-0 h-0.5 w-5 bg-0A3161 transition-transform ${
                 open ? 'translate-y-1.5 rotate-45' : ''
               }`}
             />
