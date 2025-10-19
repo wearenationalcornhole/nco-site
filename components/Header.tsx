@@ -23,7 +23,7 @@ export default function Header() {
 
   return (
     <header
-      className={`sticky top-0 z-50 bg-gray-950 text-white ${
+      className={`sticky top-0 z-50 bg-#0A3161 text-white ${
         scrolled ? 'shadow-lg shadow-black/20' : ''
       }`}
       role="banner"
@@ -33,7 +33,7 @@ export default function Header() {
         <div className="flex items-center gap-2">
           <Link href="/" className="flex items-center gap-2" aria-label="NCO Home">
             <Image
-              src="/images/nco-mark.svg"
+              src="/images/nco-mark.pngg"
               alt="NCO"
               width={32}
               height={32}
