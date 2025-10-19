@@ -1,6 +1,7 @@
 // app/events/[slug]/page.tsx
 import Link from 'next/link'
 import RegisterButton from '@/app/components/RegisterButton'
+import { headers } from 'next/headers'
 
 type Event = {
   id: string
@@ -36,6 +37,13 @@ function fmtDate(iso?: string | null) {
     year: 'numeric',
     timeZone: 'UTC',
   })
+}
+
+async function baseUrl() {
+  const h = await headers()
+  const proto = h.get('x-forwarded-proto') ?? 'https'
+  const host = h.get('host') ?? process.env.VERCEL_URL ?? 'localhost:3000'
+  return `${proto}://${host}`
 }
 
 async function getEventBySlug(slug: string): Promise<Event | null> {
