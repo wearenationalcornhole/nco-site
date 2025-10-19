@@ -1,8 +1,5 @@
 // app/portal/org/profile/page.tsx
-import dynamic from 'next/dynamic'
-
-// Keep the page a Server Component and lazy-load the client UI
-const Client = dynamic(() => import('./Client'), { ssr: false })
+import Client from './Client' // Client.tsx must have "use client" at the top
 
 export default function Page() {
   return <Client />
