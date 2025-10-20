@@ -3,31 +3,30 @@ import Link from 'next/link'
 import Button from '@/components/ui/Button'
 import productsData from '@/app/data/products.json'
 
-// Explicit local interface (avoids conflict with global PageProps)
-interface ProductPageProps {
-  params: {
+// Your repo expects Promise-wrapped params — await them:
+export default async function ProductPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>
+}) {
+  const { slug } = await params
+
+  type Product = {
+    id: string
     slug: string
+    title: string
+    price?: number
+    image?: string
+    description?: string
   }
-}
 
-type Product = {
-  id: string
-  slug: string
-  title: string
-  price?: number
-  image?: string
-  description?: string
-}
-
-function formatPrice(n?: number) {
-  if (typeof n !== 'number') return '—'
-  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
-}
-
-export default function ProductPage({ params }: ProductPageProps) {
-  const { slug } = params
   const products = (productsData as Product[]) ?? []
   const product = products.find((p) => p.slug === slug)
+
+  function formatPrice(n?: number) {
+    if (typeof n !== 'number') return '—'
+    return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+  }
 
   if (!product) {
     return (
