@@ -1,13 +1,45 @@
 // app/lib/supabaseServer.ts
-import { createClient } from '@supabase/supabase-js'
+import { cookies } from 'next/headers'
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
-export function getSupabaseServer() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  // Prefer service role for server-side reads/writes; fallback to anon for read-only
-  const key = process.env.SUPABASE_SERVICE_ROLE || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  if (!url || !key) return null
-  return createClient(url, key, {
-    auth: { persistSession: false },
-    global: { fetch }, // use platform fetch
-  })
+export type ServerSupabase = SupabaseClient
+
+export function getSupabaseServer(): ServerSupabase {
+  const cookieStore = cookies()
+
+  // NOTE: createServerClient handles reading/writing the auth cookies for SSR
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          const c = cookieStore.get(name)
+          return c?.value
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          // Next 15: headers() cookies are immutable at runtime in RSC;
+          // createServerClient gracefully no-ops set() on server.
+        },
+        remove(name: string, options: CookieOptions) {
+          // no-op on server
+        },
+      },
+    }
+  )
+
+  return supabase
+}
+
+export async function getSession() {
+  const supabase = getSupabaseServer()
+  const { data } = await supabase.auth.getSession()
+  return data.session ?? null
+}
+
+export async function getUser() {
+  const supabase = getSupabaseServer()
+  const { data } = await supabase.auth.getUser()
+  return data.user ?? null
 }

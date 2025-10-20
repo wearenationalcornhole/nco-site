@@ -5,10 +5,19 @@ import Spinner from '@/components/ui/Spinner'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 
+type Division = {
+  id: string
+  event_id: string
+  name: string
+  cap?: number | null
+  created_at?: string | null
+}
+
 type Row = {
   id?: string
   eventId: string
   userId: string
+  divisionId?: string | null
   createdAt?: string
   user?: { id: string; email?: string | null; name?: string | null } | null
 }
@@ -28,7 +37,11 @@ export default function PlayersPanel({
   const [submitting, setSubmitting] = useState(false)
   const [removing, setRemoving] = useState<string | null>(null)
 
-  // ── Fetch players ────────────────────────────────────────────────
+  // divisions
+  const [divisions, setDivisions] = useState<Division[]>([])
+  const [divisionId, setDivisionId] = useState<string>('')
+
+  // Load players
   useEffect(() => {
     let alive = true
     setLoading(true)
@@ -49,7 +62,43 @@ export default function PlayersPanel({
     }
   }, [eventId])
 
-  // ── Search filter ────────────────────────────────────────────────
+  // Load divisions
+  useEffect(() => {
+    let alive = true
+    fetch(`/portal/api/events/${encodeURIComponent(eventId)}/divisions`, { cache: 'no-store' })
+      .then(async (r) => (r.ok ? r.json() : Promise.reject(await r.json())))
+      .then((data: Division[]) => {
+        if (!alive) return
+        setDivisions(data || [])
+        // default to the first division if present
+        if (data?.length && !divisionId) setDivisionId(data[0].id)
+      })
+      .catch(() => {
+        if (!alive) return
+        setDivisions([])
+      })
+    return () => {
+      alive = false
+    }
+  }, [eventId])
+
+  // counts by division
+  const countByDivision = useMemo(() => {
+    const map = new Map<string, number>()
+    ;(rows ?? []).forEach((r) => {
+      const key = r.divisionId ?? '__none__'
+      map.set(key, (map.get(key) ?? 0) + 1)
+    })
+    return map
+  }, [rows])
+
+  const selectedDivision = divisions.find((d) => d.id === divisionId)
+  const selectedCount = selectedDivision ? (countByDivision.get(selectedDivision.id) ?? 0) : 0
+  const selectedCap = selectedDivision?.cap ?? null
+  const remaining =
+    typeof selectedCap === 'number' && selectedCap >= 0 ? Math.max(0, selectedCap - selectedCount) : null
+
+  // Search filter
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase()
     return (rows ?? []).filter((r) => {
@@ -64,13 +113,18 @@ export default function PlayersPanel({
     })
   }, [rows, q])
 
-  // ── Add player by email ──────────────────────────────────────────
+  // Add player
   async function addByEmail(e: React.FormEvent) {
     e.preventDefault()
     if (!email.trim()) {
       onToast({ msg: 'Email is required', kind: 'error' })
       return
     }
+    if (selectedDivision && typeof selectedDivision.cap === 'number' && remaining === 0) {
+      onToast({ msg: 'Division is full', kind: 'error' })
+      return
+    }
+
     setSubmitting(true)
     try {
       const res = await fetch(
@@ -81,6 +135,7 @@ export default function PlayersPanel({
           body: JSON.stringify({
             email: email.trim(),
             name: name.trim() || undefined,
+            divisionId: divisionId || undefined,
           }),
         }
       )
@@ -97,7 +152,7 @@ export default function PlayersPanel({
     }
   }
 
-  // ── Remove player ────────────────────────────────────────────────
+  // Remove player
   async function removePlayer(row: Row) {
     const confirmDelete = window.confirm(
       `Remove ${row.user?.name || row.user?.email || row.userId}?`
@@ -123,7 +178,6 @@ export default function PlayersPanel({
     }
   }
 
-  // ── Render ───────────────────────────────────────────────────────
   return (
     <div className="rounded-xl border bg-white p-6">
       {/* Header */}
@@ -145,10 +199,10 @@ export default function PlayersPanel({
       {/* Add player */}
       <form
         onSubmit={addByEmail}
-        className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2"
+        className="mt-4 grid grid-cols-1 lg:grid-cols-5 gap-2"
       >
         <input
-          className="rounded border px-3 py-2 text-sm"
+          className="rounded border px-3 py-2 text-sm lg:col-span-2"
           placeholder="Email *"
           type="email"
           required
@@ -156,29 +210,50 @@ export default function PlayersPanel({
           onChange={(e) => setEmail(e.target.value)}
         />
         <input
-          className="rounded border px-3 py-2 text-sm"
+          className="rounded border px-3 py-2 text-sm lg:col-span-1"
           placeholder="Name (optional)"
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
-        <div>
-          <Button disabled={submitting}>
-            {submitting ? 'Adding…' : 'Add Player'}
+
+        <select
+          className="rounded border px-3 py-2 text-sm lg:col-span-1"
+          value={divisionId}
+          onChange={(e) => setDivisionId(e.target.value)}
+        >
+          {divisions.length === 0 && <option value="">No divisions</option>}
+          {divisions.map((d) => {
+            const taken = countByDivision.get(d.id) ?? 0
+            const cap = d.cap ?? null
+            const label =
+              typeof cap === 'number' && cap >= 0
+                ? `${d.name} (${Math.max(0, cap - taken)} left)`
+                : d.name
+            return (
+              <option key={d.id} value={d.id}>
+                {label}
+              </option>
+            )
+          })}
+        </select>
+
+        <div className="lg:col-span-1">
+          <Button disabled={submitting || (selectedDivision && remaining === 0)}>
+            {submitting ? 'Adding…' : remaining === 0 ? 'Division Full' : 'Add Player'}
           </Button>
         </div>
       </form>
 
-      {/* Table header */}
+      {/* Table */}
       <div className="mt-6 overflow-hidden rounded-lg border">
         <div className="hidden sm:grid grid-cols-12 gap-3 px-4 py-3 border-b bg-gray-50 text-xs font-semibold text-gray-600">
-          <div className="col-span-4">Name</div>
-          <div className="col-span-4">Email</div>
+          <div className="col-span-3">Name</div>
+          <div className="col-span-3">Email</div>
+          <div className="col-span-2">Division</div>
           <div className="col-span-2">Registered</div>
-          <div className="col-span-1 text-right">ID</div>
-          <div className="col-span-1 text-right">Actions</div>
+          <div className="col-span-2 text-right">Actions</div>
         </div>
 
-        {/* Table body */}
         {loading ? (
           <div className="p-4 text-gray-600 flex items-center gap-2">
             <Spinner /> Loading…
@@ -187,38 +262,34 @@ export default function PlayersPanel({
           <div className="p-4 text-gray-600">No players yet.</div>
         ) : (
           <ul className="divide-y">
-            {filtered.map((r) => (
-              <li
-                key={r.id ?? `${r.userId}-${r.createdAt}`}
-                className="px-4 py-3"
-              >
-                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-                  <div className="col-span-4 font-medium">
-                    {r.user?.name ?? '—'}
+            {filtered.map((r) => {
+              const divLabel =
+                divisions.find((d) => d.id === r.divisionId)?.name ?? '—'
+              return (
+                <li
+                  key={r.id ?? `${r.userId}-${r.createdAt}`}
+                  className="px-4 py-3"
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                    <div className="col-span-3 font-medium">{r.user?.name ?? '—'}</div>
+                    <div className="col-span-3 text-gray-700">{r.user?.email ?? '—'}</div>
+                    <div className="col-span-2 text-gray-700">{divLabel}</div>
+                    <div className="col-span-2 text-gray-700">
+                      {r.createdAt ? new Date(r.createdAt).toLocaleString() : '—'}
+                    </div>
+                    <div className="col-span-2 text-right">
+                      <button
+                        onClick={() => removePlayer(r)}
+                        disabled={removing === (r.id ?? r.userId)}
+                        className="rounded border px-3 py-1 text-sm hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        {removing === (r.id ?? r.userId) ? '...' : 'Remove'}
+                      </button>
+                    </div>
                   </div>
-                  <div className="col-span-4 text-gray-700">
-                    {r.user?.email ?? '—'}
-                  </div>
-                  <div className="col-span-2 text-gray-700">
-                    {r.createdAt
-                      ? new Date(r.createdAt).toLocaleString()
-                      : '—'}
-                  </div>
-                  <div className="col-span-1 text-right text-xs text-gray-500 truncate">
-                    {r.userId}
-                  </div>
-                  <div className="col-span-1 text-right">
-                    <button
-                      onClick={() => removePlayer(r)}
-                      disabled={removing === (r.id ?? r.userId)}
-                      className="rounded border px-3 py-1 text-sm hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      {removing === (r.id ?? r.userId) ? '...' : 'Remove'}
-                    </button>
-                  </div>
-                </div>
-              </li>
-            ))}
+                </li>
+              )
+            })}
           </ul>
         )}
       </div>
