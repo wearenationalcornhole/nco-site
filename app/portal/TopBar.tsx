@@ -14,7 +14,7 @@ export default function OrgTopBar() {
         <div className="flex items-center gap-2">
           <Link href="/portal/org" className="flex items-center gap-2">
             <Image
-              src="/images/nco-mark.svg"
+              src="/images/nco-mark.png"
               alt="NCO"
               width={28}
               height={28}
