@@ -3,6 +3,13 @@ import Link from 'next/link'
 import Button from '@/components/ui/Button'
 import productsData from '@/app/data/products.json'
 
+// Explicit local interface (avoids conflict with global PageProps)
+interface ProductPageProps {
+  params: {
+    slug: string
+  }
+}
+
 type Product = {
   id: string
   slug: string
@@ -10,7 +17,6 @@ type Product = {
   price?: number
   image?: string
   description?: string
-  // any other fields in your JSON are fine; we access only what we need
 }
 
 function formatPrice(n?: number) {
@@ -18,15 +24,9 @@ function formatPrice(n?: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 }
 
-export default async function ProductPage({
-  params,
-}: {
-  params: { slug: string }
-}) {
+export default function ProductPage({ params }: ProductPageProps) {
   const { slug } = params
-
-  // Pull from local JSON (static import)
-  const products = (productsData as unknown as Product[]) ?? []
+  const products = (productsData as Product[]) ?? []
   const product = products.find((p) => p.slug === slug)
 
   if (!product) {
@@ -47,7 +47,7 @@ export default async function ProductPage({
 
   return (
     <div className="bg-white">
-      {/* Top section */}
+      {/* Breadcrumb */}
       <div className="border-b">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-6">
           <nav className="text-sm">
@@ -62,10 +62,9 @@ export default async function ProductPage({
         </div>
       </div>
 
-      {/* Product body */}
+      {/* Product details */}
       <main className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Image */}
           <div className="lg:col-span-6">
             <div className="aspect-[4/3] w-full overflow-hidden rounded-2xl bg-usaGray">
               {product.image ? (
@@ -82,10 +81,8 @@ export default async function ProductPage({
             </div>
           </div>
 
-          {/* Details */}
           <div className="lg:col-span-6">
             <h1 className="text-3xl font-bold text-gray-900">{product.title}</h1>
-
             <div className="mt-3 text-2xl font-semibold text-usaBlue">
               {formatPrice(product.price)}
             </div>
@@ -97,14 +94,12 @@ export default async function ProductPage({
             )}
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              {/* Primary CTA — brand button */}
               <Button asChild>
                 <a href="#" aria-disabled>
                   Add to Cart
                 </a>
               </Button>
 
-              {/* Secondary link */}
               <Link
                 href="/shop"
                 className="text-sm text-usaBlue hover:underline"
@@ -113,7 +108,6 @@ export default async function ProductPage({
               </Link>
             </div>
 
-            {/* Info card */}
             <div className="mt-10 rounded-xl border bg-white p-5">
               <h2 className="text-sm font-semibold text-gray-700">Details</h2>
               <ul className="mt-3 list-disc pl-5 text-sm text-gray-700 space-y-1">
@@ -125,7 +119,7 @@ export default async function ProductPage({
           </div>
         </div>
 
-        {/* Brand strip */}
+        {/* Brand highlight */}
         <section className="mt-14 rounded-2xl bg-brand text-white p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
@@ -134,7 +128,11 @@ export default async function ProductPage({
                 Wear the colors. Support the community. Bring local cornhole together.
               </p>
             </div>
-            <Button asChild variant="outline" className="bg-transparent text-white border-white hover:bg-white/10">
+            <Button
+              asChild
+              variant="outline"
+              className="bg-transparent text-white border-white hover:bg-white/10"
+            >
               <Link href="/shop">Browse all products</Link>
             </Button>
           </div>
