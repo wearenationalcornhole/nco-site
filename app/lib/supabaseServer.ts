@@ -1,15 +1,12 @@
 // app/lib/supabaseServer.ts
-import { cookies } from 'next/headers'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
-import type { SupabaseClient } from '@supabase/supabase-js'
+import { cookies } from 'next/headers'
 
-export type ServerSupabase = SupabaseClient
-
-export function getSupabaseServer(): ServerSupabase {
+export function createSupabaseServerClient() {
+  // In Next.js 15+, cookies() is synchronous
   const cookieStore = cookies()
 
-  // NOTE: createServerClient handles reading/writing the auth cookies for SSR
-  const supabase = createServerClient(
+  return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -19,27 +16,20 @@ export function getSupabaseServer(): ServerSupabase {
           return c?.value
         },
         set(name: string, value: string, options: CookieOptions) {
-          // Next 15: headers() cookies are immutable at runtime in RSC;
-          // createServerClient gracefully no-ops set() on server.
+          try {
+            cookieStore.set({ name, value, ...options })
+          } catch {
+            // Ignore if headers already sent
+          }
         },
         remove(name: string, options: CookieOptions) {
-          // no-op on server
+          try {
+            cookieStore.set({ name, value: '', ...options })
+          } catch {
+            // Ignore if headers already sent
+          }
         },
       },
     }
   )
-
-  return supabase
-}
-
-export async function getSession() {
-  const supabase = getSupabaseServer()
-  const { data } = await supabase.auth.getSession()
-  return data.session ?? null
-}
-
-export async function getUser() {
-  const supabase = getSupabaseServer()
-  const { data } = await supabase.auth.getUser()
-  return data.user ?? null
 }
