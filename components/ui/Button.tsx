@@ -28,15 +28,20 @@ export default function Button({
 
   const base =
     'inline-flex items-center justify-center rounded-md font-medium transition focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed'
+
   const variants: Record<Variant, string> = {
-    primary: 'bg-usaBlue text-white hover:opacity-90 focus:ring-usaBlue/40',
-    secondary: 'bg-gray-900 text-white hover:opacity-90 focus:ring-gray-900/40',
-    outline: 'border text-gray-800 hover:bg-gray-50 focus:ring-gray-300',
+    primary:
+      'bg-usaBlue text-white hover:bg-brand-hover focus:ring-accent focus:ring-offset-[#0A3161]',
+    secondary:
+      'bg-white text-usaBlue hover:bg-gray-100 focus:ring-usaBlue focus:ring-offset-[#0A3161]',
+    outline:
+      'border border-white text-white hover:bg-white/10 focus:ring-accent focus:ring-offset-[#0A3161]',
   }
+
   const sizes: Record<Size, string> = {
-    sm: 'px-2.5 py-1.5 text-xs',
-    md: 'px-3 py-2 text-sm',
-    lg: 'px-4 py-2.5 text-base',
+    sm: 'px-3 py-1.5 text-sm',
+    md: 'px-4 py-2 text-base',
+    lg: 'px-6 py-3 text-lg',
   }
 
   return (
