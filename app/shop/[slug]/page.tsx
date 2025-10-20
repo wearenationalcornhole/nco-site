@@ -3,7 +3,7 @@ import Link from 'next/link'
 import Button from '@/components/ui/Button'
 import productsData from '@/app/data/products.json'
 
-// Your repo expects Promise-wrapped params — await them:
+// Next.js 15-style params handling
 export default async function ProductPage({
   params,
 }: {
@@ -11,7 +11,8 @@ export default async function ProductPage({
 }) {
   const { slug } = await params
 
-  type Product = {
+  // Define your local Product type
+  interface Product {
     id: string
     slug: string
     title: string
@@ -20,14 +21,30 @@ export default async function ProductPage({
     description?: string
   }
 
-  const products = (productsData as Product[]) ?? []
+  // Convert whatever’s in products.json to Product[]
+  const rawProducts = productsData as unknown as any[]
+  const products: Product[] = rawProducts.map((p) => ({
+    id: String(p.id ?? crypto.randomUUID()),
+    slug:
+      p.slug ??
+      p.link ??
+      (p.name
+        ? p.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+        : ''),
+    title: p.title ?? p.name ?? 'Untitled Product',
+    price: typeof p.price === 'number' ? p.price : undefined,
+    image: p.image ?? undefined,
+    description: p.description ?? undefined,
+  }))
+
   const product = products.find((p) => p.slug === slug)
 
-  function formatPrice(n?: number) {
-    if (typeof n !== 'number') return '—'
-    return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
-  }
+  const formatPrice = (n?: number) =>
+    typeof n === 'number'
+      ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+      : '—'
 
+  // ─── Not Found Case ────────────────────────────────
   if (!product) {
     return (
       <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-16">
@@ -44,6 +61,7 @@ export default async function ProductPage({
     )
   }
 
+  // ─── Product Page ──────────────────────────────────
   return (
     <div className="bg-white">
       {/* Breadcrumb */}
@@ -52,9 +70,13 @@ export default async function ProductPage({
           <nav className="text-sm">
             <ol className="flex items-center gap-1 text-gray-500">
               <li>
-                <Link href="/shop" className="hover:text-usaBlue">Shop</Link>
+                <Link href="/shop" className="hover:text-usaBlue">
+                  Shop
+                </Link>
               </li>
-              <li aria-hidden="true" className="px-1">/</li>
+              <li aria-hidden="true" className="px-1">
+                /
+              </li>
               <li className="text-gray-900">{product.title}</li>
             </ol>
           </nav>
@@ -64,6 +86,7 @@ export default async function ProductPage({
       {/* Product details */}
       <main className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          {/* Image */}
           <div className="lg:col-span-6">
             <div className="aspect-[4/3] w-full overflow-hidden rounded-2xl bg-usaGray">
               {product.image ? (
@@ -80,6 +103,7 @@ export default async function ProductPage({
             </div>
           </div>
 
+          {/* Details */}
           <div className="lg:col-span-6">
             <h1 className="text-3xl font-bold text-gray-900">{product.title}</h1>
             <div className="mt-3 text-2xl font-semibold text-usaBlue">
@@ -87,9 +111,7 @@ export default async function ProductPage({
             </div>
 
             {product.description && (
-              <p className="mt-4 text-gray-700 leading-relaxed">
-                {product.description}
-              </p>
+              <p className="mt-4 text-gray-700 leading-relaxed">{product.description}</p>
             )}
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -99,10 +121,7 @@ export default async function ProductPage({
                 </a>
               </Button>
 
-              <Link
-                href="/shop"
-                className="text-sm text-usaBlue hover:underline"
-              >
+              <Link href="/shop" className="text-sm text-usaBlue hover:underline">
                 Continue shopping
               </Link>
             </div>
