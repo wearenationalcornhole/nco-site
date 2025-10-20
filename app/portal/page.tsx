@@ -11,7 +11,7 @@ export default function PortalHome() {
 
       <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
         <section className="rounded-xl border bg-white p-6">
-          <h2 className="text-lg font-semibold">Players</h2>
+          <h2 className="text-lg font-semibold text-usaBlue">Players</h2>
           <p className="mt-2 text-sm text-gray-600">
             Browse public event pages and register (demo).
           </p>
@@ -23,7 +23,7 @@ export default function PortalHome() {
         </section>
 
         <section className="rounded-xl border bg-white p-6">
-          <h2 className="text-lg font-semibold">Organizers</h2>
+          <h2 className="text-lg font-semibold text-usaBlue">Organizers</h2>
           <p className="mt-2 text-sm text-gray-600">
             Manage events, add sponsors, upload logos, review bag submissions.
           </p>
@@ -35,7 +35,7 @@ export default function PortalHome() {
         </section>
 
         <section className="rounded-xl border bg-white p-6">
-          <h2 className="text-lg font-semibold">Admins</h2>
+          <h2 className="text-lg font-semibold text-usaBlue">Admins</h2>
           <p className="mt-2 text-sm text-gray-600">
             Admin features are coming soon.
           </p>
