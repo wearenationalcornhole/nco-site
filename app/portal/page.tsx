@@ -9,7 +9,7 @@ type Role = 'player' | 'organizer' | 'admin'
 
 export default async function PortalLanding() {
   // 1) Get session from Supabase (server-side)
-  const cookieStore = await cookies()
+  const cookieStore = cookies() // ✅ no await here
   const supabase = createServerComponentClient({ cookies: () => cookieStore })
   const { data: { session } } = await supabase.auth.getSession()
 
@@ -18,7 +18,7 @@ export default async function PortalLanding() {
     redirect('/portal/login')
   }
 
-  // 3) Look up the user's role (DB first, then dev fallback)
+  // 3) Look up user role
   const email = session.user.email ?? ''
   let role: Role = 'player'
 
@@ -38,12 +38,12 @@ export default async function PortalLanding() {
       }
     }
   } catch {
-    // If lookup fails, we’ll just treat as player.
+    // If lookup fails, just treat as player
   }
 
   // 4) Role-based redirect
   if (role === 'admin') {
-    redirect('/portal/admin')      // (you can add this section later; for now it can 404)
+    redirect('/portal/admin')
   } else if (role === 'organizer') {
     redirect('/portal/org')
   } else {
