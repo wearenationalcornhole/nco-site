@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { requireOrganizer } from '@/app/lib/auth'
 import OrgSidebar from './components/OrgSidebar'
 import OrgBreadcrumbs from './components/OrgBreadcrumbs'
+import OrgTopBar from '@/app/portal/OrgTopBar'
 
 export default async function OrgLayout({ children }: { children: ReactNode }) {
   await requireOrganizer() // 🔒 gate all nested pages
