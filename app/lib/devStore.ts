@@ -7,60 +7,48 @@ type AnyRecord = { id?: string; [k: string]: any }
 export type TableName =
   | 'users'
   | 'events'
-  | 'divisions'
+  | 'divisions'              // legacy (unused now, safe to keep)
   | 'sponsors'
-  | 'eventSponsors'         // legacy camelCase link table
+  | 'eventSponsors'          // legacy camelCase
   | 'bagModels'
   | 'bagSubmissions'
   | 'registrations'
-  // new(er) snake_case tables you actively use
   | 'sponsor_companies'
   | 'event_sponsors'
   | 'event_bag_submissions'
-  | 'event_divisions'
-  | 'event_division_members'
-  // organizer profile / clubs
-  | 'clubs'
-  | 'club_members'
+  | 'event_divisions'        // NEW
+  | 'division_assignments'   // NEW
 
 type StoreShape = Record<TableName, AnyRecord[]>
 
 const STORAGE_SYMBOL = '__NCO_DEV_STORE__'
 
-// Global, per-runtime (OK for Next dev / serverless fallbacks)
-function getGlobalStore(): StoreShape {
-  const g = globalThis as any
-  if (!g[STORAGE_SYMBOL]) {
-    g[STORAGE_SYMBOL] = createDefaultData()
-  }
-  return g[STORAGE_SYMBOL] as StoreShape
-}
-
 function createDefaultData(): StoreShape {
   return {
-    // legacy / existing
     users: [],
     events: [],
-    divisions: [],
+    divisions: [],              // legacy bucket (unused by new APIs)
     sponsors: [],
     eventSponsors: [],
     bagModels: [],
     bagSubmissions: [],
     registrations: [],
 
-    // sponsors (current)
     sponsor_companies: [],
     event_sponsors: [],
     event_bag_submissions: [],
 
-    // divisions (current)
+    // New Division mgmt
     event_divisions: [],
-    event_division_members: [],
-
-    // clubs (organizer profile)
-    clubs: [],
-    club_members: [],
+    division_assignments: [],
   }
+}
+
+// Global, per-runtime (OK for Next dev / serverless fallbacks)
+function getGlobalStore(): StoreShape {
+  const g = globalThis as any
+  if (!g[STORAGE_SYMBOL]) g[STORAGE_SYMBOL] = createDefaultData()
+  return g[STORAGE_SYMBOL] as StoreShape
 }
 
 function genId(prefix = 'id'): string {
@@ -106,8 +94,8 @@ export const devStore = {
   remove(table: TableName, id: string): boolean {
     const store = getGlobalStore()
     const rows = store[table]
-    const before = rows.length
+    const lenBefore = rows.length
     store[table] = rows.filter((r) => r.id !== id)
-    return store[table].length !== before
+    return store[table].length !== lenBefore
   },
 }
