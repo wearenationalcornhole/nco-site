@@ -1,38 +1,43 @@
 // app/lib/supabaseServer.ts
-import { cookies } from 'next/headers'
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
+'use server'
 
-export function createSupabaseServerClient() {
-  return createServerClient(
+import { cookies } from 'next/headers'
+import { createServerClient as createSupabaseServerClient } from '@supabase/ssr'
+
+// Create a Supabase server client (Next 15: cookies() is async)
+export async function createServerClient() {
+  const cookieStore = await cookies()
+
+  const supabase = createSupabaseServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        async get(name: string) {
-          const store = await cookies()
-          return store.get(name)?.value
+        get(name: string) {
+          return cookieStore.get(name)?.value
         },
-        async set(name: string, value: string, options: CookieOptions) {
-          const store = await cookies()
-          store.set(name, value, options)
+        set(name: string, value: string, options: Parameters<typeof cookieStore.set>[2]) {
+          cookieStore.set(name, value, options)
         },
-        async remove(name: string, options: CookieOptions) {
-          const store = await cookies()
-          store.set(name, '', { ...options, maxAge: 0 })
+        remove(name: string, options: Parameters<typeof cookieStore.set>[2]) {
+          cookieStore.set(name, '', { ...options, maxAge: 0 })
         },
       },
-    }
+    },
   )
+
+  return supabase
 }
 
+// Optional helpers if you want them
 export async function getSession() {
-  const supabase = createSupabaseServerClient()
+  const supabase = await createServerClient()
   const { data } = await supabase.auth.getSession()
-  return data.session ?? null
+  return data.session
 }
 
 export async function getUser() {
-  const supabase = createSupabaseServerClient()
+  const supabase = await createServerClient()
   const { data } = await supabase.auth.getUser()
-  return data.user ?? null
+  return data.user
 }

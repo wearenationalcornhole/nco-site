@@ -7,17 +7,17 @@ type AnyRecord = { id?: string; [k: string]: any }
 export type TableName =
   | 'users'
   | 'events'
-  | 'divisions'              // legacy (unused now, safe to keep)
+  | 'divisions'
   | 'sponsors'
-  | 'eventSponsors'          // legacy camelCase
+  | 'eventSponsors'           // legacy camelCase
   | 'bagModels'
   | 'bagSubmissions'
   | 'registrations'
-  | 'sponsor_companies'
-  | 'event_sponsors'
-  | 'event_bag_submissions'
-  | 'event_divisions'        // NEW
-  | 'division_assignments'   // NEW
+  | 'sponsor_companies'       // new snake_case
+  | 'event_sponsors'          // new snake_case
+  | 'event_bag_submissions'   // new snake_case
+  | 'event_divisions'         // divisions per event
+  | 'event_division_members'  // members per event division
 
 type StoreShape = Record<TableName, AnyRecord[]>
 
@@ -25,29 +25,32 @@ const STORAGE_SYMBOL = '__NCO_DEV_STORE__'
 
 function createDefaultData(): StoreShape {
   return {
+    // legacy / existing
     users: [],
     events: [],
-    divisions: [],              // legacy bucket (unused by new APIs)
+    divisions: [],
     sponsors: [],
     eventSponsors: [],
     bagModels: [],
     bagSubmissions: [],
     registrations: [],
 
+    // new / snake_case
     sponsor_companies: [],
     event_sponsors: [],
     event_bag_submissions: [],
 
-    // New Division mgmt
+    // divisions subsystem
     event_divisions: [],
-    division_assignments: [],
+    event_division_members: [],
   }
 }
 
-// Global, per-runtime (OK for Next dev / serverless fallbacks)
 function getGlobalStore(): StoreShape {
   const g = globalThis as any
-  if (!g[STORAGE_SYMBOL]) g[STORAGE_SYMBOL] = createDefaultData()
+  if (!g[STORAGE_SYMBOL]) {
+    g[STORAGE_SYMBOL] = createDefaultData()
+  }
   return g[STORAGE_SYMBOL] as StoreShape
 }
 
