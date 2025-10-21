@@ -104,13 +104,13 @@ export async function POST(req: Request, ctx: { params: { id: string } }) {
       }, { status: 201 })
     }
 
-    // dev fallback (no id provided; devStore will generate)
-    const created = devStore.upsert<DivisionRow>('event_divisions', {
-      event_id: eventId,
-      name,
-      cap: cap ?? null,
-      created_at: new Date(),
-    })
+  // dev fallback (no id provided; devStore will generate)
+const created = devStore.upsert<any>('event_divisions', {
+  event_id: eventId,
+  name,
+  cap: cap ?? null,
+  created_at: new Date(),
+})
 
     return NextResponse.json({
       id: created.id,

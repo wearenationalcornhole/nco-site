@@ -38,9 +38,11 @@ export async function requireOrganizer() {
 // ──────────────────────────────────────────────
 export async function getOptionalSession() {
   try {
-    const cookieStore = await cookies()
-    const supabase = createServerComponentClient({ cookies: () => cookieStore })
-    const { data: { session } } = await supabase.auth.getSession()
+    const { createServerClient } = await import('./supabaseServer')
+    const supabase = await createServerClient()
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
     return session ?? null
   } catch {
     return null

@@ -4,6 +4,7 @@ export const runtime = 'nodejs'
 import { NextResponse } from 'next/server'
 import { getPrisma } from '@/app/lib/safePrisma'
 import { devStore } from '@/app/lib/devStore'
+import { AnyARecord } from 'dns'
 
 type DivisionRow = {
   id: string
@@ -70,7 +71,7 @@ export async function POST(req: Request, ctx: { params: { id: string; divisionId
       }, { status: 201 })
     }
 
-    const created = devStore.upsert<AssignmentRow>('division_assignments', {
+    const created = devStore.upsert<any>('division_assignments', {
       event_id: eventId,
       division_id: divisionId,
       user_id: userId,
