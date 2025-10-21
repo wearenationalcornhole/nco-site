@@ -1,53 +1,38 @@
 // app/lib/supabaseServer.ts
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import type { Session } from '@supabase/supabase-js'
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
 
-/**
- * In some Next versions/configs, cookies() is async (returns a Promise).
- * We await it here and then provide synchronous get/set/remove to Supabase.
- */
-export async function createSupabaseServerClient() {
-  const cookieStore = await cookies() // <-- await for environments where it's async
-
+export function createSupabaseServerClient() {
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          const c = cookieStore.get(name)
-          return c?.value
+        async get(name: string) {
+          const store = await cookies()
+          return store.get(name)?.value
         },
-        set(name: string, value: string, options: CookieOptions) {
-          try {
-            cookieStore.set({ name, value, ...options })
-          } catch {
-            // ignore if headers already sent
-          }
+        async set(name: string, value: string, options: CookieOptions) {
+          const store = await cookies()
+          store.set(name, value, options)
         },
-        remove(name: string, options: CookieOptions) {
-          try {
-            cookieStore.set({ name, value: '', ...options })
-          } catch {
-            // ignore if headers already sent
-          }
+        async remove(name: string, options: CookieOptions) {
+          const store = await cookies()
+          store.set(name, '', { ...options, maxAge: 0 })
         },
       },
     }
   )
 }
 
-/**
- * Server helper to fetch the current Supabase session.
- * Returns `null` if not signed in.
- */
-export async function getSession(): Promise<Session | null> {
-  const supabase = await createSupabaseServerClient()
-  const { data, error } = await supabase.auth.getSession()
-  if (error) {
-    console.error('supabase.getSession error:', error.message)
-    return null
-  }
+export async function getSession() {
+  const supabase = createSupabaseServerClient()
+  const { data } = await supabase.auth.getSession()
   return data.session ?? null
+}
+
+export async function getUser() {
+  const supabase = createSupabaseServerClient()
+  const { data } = await supabase.auth.getUser()
+  return data.user ?? null
 }

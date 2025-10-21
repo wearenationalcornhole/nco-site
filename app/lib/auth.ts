@@ -5,31 +5,23 @@ import { getPrisma } from './safePrisma'
 
 export type Role = 'player' | 'organizer' | 'admin'
 
-export async function requireSession(opts?: { redirectTo?: string }) {
-  const session = await getSession()
-  if (!session) {
-    redirect(opts?.redirectTo ?? '/portal/login')
-  }
-  return session
-}
-
 export async function requireOrganizer() {
-  const session = await requireSession()
-  const prisma = await getPrisma()
+  const session = await getSession()
+  if (!session?.user) redirect('/portal/login') // not signed in
 
-  // If DB is connected, check the user's role in `users.role`.
-  if (prisma) {
-    const user = await prisma.users.findFirst({
-      where: { email: session.user.email ?? '' },
-      select: { role: true },
-    })
-    const role = (user?.role ?? 'player') as Role
-    if (role !== 'organizer' && role !== 'admin') {
-      redirect('/portal') // or show a 403 page
-    }
-    return { session, role }
+  const prisma = await getPrisma()
+  if (!prisma) {
+    // dev fallback: allow through
+    return
   }
 
-  // Dev fallback: allow everyone as organizer in local dev
-  return { session, role: 'organizer' as Role }
+  const user = await prisma.users.findUnique({
+    where: { id: session.user.id },
+    select: { role: true },
+  }).catch(() => null)
+
+  const role = (user?.role ?? 'player') as Role
+  if (role !== 'organizer' && role !== 'admin') {
+    redirect('/portal') // signed in but not organizer/admin
+  }
 }

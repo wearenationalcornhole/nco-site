@@ -1,12 +1,11 @@
 // app/portal/org/layout.tsx
 import type { ReactNode } from 'react'
+import { requireOrganizer } from '@/app/lib/auth'
 import OrgSidebar from './components/OrgSidebar'
 import OrgBreadcrumbs from './components/OrgBreadcrumbs'
-import { requireOrganizer } from '@/app/lib/auth'
 
 export default async function OrgLayout({ children }: { children: ReactNode }) {
-  // Gate: must be signed-in + organizer (or admin)
-  await requireOrganizer()
+  await requireOrganizer() // 🔒 gate all nested pages
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 lg:py-8">

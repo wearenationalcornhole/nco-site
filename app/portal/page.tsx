@@ -1,57 +1,52 @@
 // app/portal/page.tsx
-import Link from 'next/link'
+import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
+import { getPrisma } from '@/app/lib/safePrisma'
+import { devStore } from '@/app/lib/devStore'
 
-export default function PortalHome() {
-  return (
-    <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-12">
-      <h1 className="text-3xl font-bold text-gray-900">NCO Portal</h1>
-      <p className="mt-2 text-gray-600">
-        Welcome to the National Cornhole Organization Portal. We’re rolling features out in phases.
-      </p>
+type Role = 'player' | 'organizer' | 'admin'
 
-      <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-        <section className="rounded-xl border bg-white p-6">
-          <h2 className="text-lg font-semibold text-usaBlue">Players</h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Browse public event pages and register (demo).
-          </p>
-          <div className="mt-4">
-            <Link href="/events" className="inline-block rounded bg-usaBlue text-white px-4 py-2 text-sm hover:opacity-90">
-              Find Events
-            </Link>
-          </div>
-        </section>
+export default async function PortalLanding() {
+  // 1) Get session from Supabase (server-side)
+  const cookieStore = await cookies()
+  const supabase = createServerComponentClient({ cookies: () => cookieStore })
+  const { data: { session } } = await supabase.auth.getSession()
 
-        <section className="rounded-xl border bg-white p-6">
-          <h2 className="text-lg font-semibold text-usaBlue">Organizers</h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Manage events, add sponsors, upload logos, review bag submissions.
-          </p>
-          <div className="mt-4">
-            <Link href="/portal/org/events" className="inline-block rounded border px-4 py-2 text-sm hover:bg-gray-50">
-              Go to Organizer Console
-            </Link>
-          </div>
-        </section>
+  // 2) Not signed in? → Login
+  if (!session) {
+    redirect('/portal/login')
+  }
 
-        <section className="rounded-xl border bg-white p-6">
-          <h2 className="text-lg font-semibold text-usaBlue">Admins</h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Admin features are coming soon.
-          </p>
-          <div className="mt-4">
-            <span className="inline-block rounded bg-gray-200 px-4 py-2 text-sm text-gray-600">
-              Coming Soon
-            </span>
-          </div>
-        </section>
-      </div>
+  // 3) Look up the user's role (DB first, then dev fallback)
+  const email = session.user.email ?? ''
+  let role: Role = 'player'
 
-      <div className="mt-10">
-        <p className="text-xs text-gray-500">
-          Note: Certain areas may require organizer access. Bags are internal-use only and not public.
-        </p>
-      </div>
-    </div>
-  )
+  try {
+    const prisma = await getPrisma()
+    if (prisma && email) {
+      const user = await prisma.users.findFirst({ where: { email } }) as { role?: string } | null
+      if (user?.role === 'organizer' || user?.role === 'admin' || user?.role === 'player') {
+        role = user.role
+      }
+    } else {
+      // devStore fallback
+      const users = devStore.getAll<{ email?: string; role?: string }>('users')
+      const u = users.find(u => (u.email ?? '').toLowerCase() === email.toLowerCase())
+      if (u?.role === 'organizer' || u?.role === 'admin' || u?.role === 'player') {
+        role = u.role as Role
+      }
+    }
+  } catch {
+    // If lookup fails, we’ll just treat as player.
+  }
+
+  // 4) Role-based redirect
+  if (role === 'admin') {
+    redirect('/portal/admin')      // (you can add this section later; for now it can 404)
+  } else if (role === 'organizer') {
+    redirect('/portal/org')
+  } else {
+    redirect('/portal/events')
+  }
 }
