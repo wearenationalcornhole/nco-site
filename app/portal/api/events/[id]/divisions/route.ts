@@ -5,123 +5,131 @@ import { NextResponse } from 'next/server'
 import { getPrisma } from '@/app/lib/safePrisma'
 import { devStore } from '@/app/lib/devStore'
 
-type DivisionRow = {
+type Division = {
   id: string
+  eventId: string
+  name: string
+  cap: number | null
+  createdAt: string | null
+}
+
+type DivisionRow = {
+  id?: string
   event_id: string
   name: string
   cap: number | null
   created_at: string | Date | null
 }
 
-type AssignmentRow = {
-  id: string
-  event_id: string
-  division_id: string
-  user_id: string
-  status: 'assigned' | 'waitlisted'
-  created_at: string | Date | null
-}
-
-function asIso(d: string | Date | null) {
+function asIso(d: string | Date | null): string | null {
   if (!d) return null
   return d instanceof Date ? d.toISOString() : d
 }
 
-export async function GET(_req: Request, ctx: { params: { id: string } }) {
-  const eventId = ctx.params.id
-  const prisma = await getPrisma()
-
+// GET /portal/api/events/:id/divisions
+export async function GET(
+  _req: Request,
+  ctx: { params: Promise<{ id: string }> }
+) {
   try {
-    let divisions: DivisionRow[] = []
-    let assignments: AssignmentRow[] = []
+    const { id: eventId } = await ctx.params
+    const prisma = await getPrisma()
 
     if (prisma) {
-      divisions = (await prisma.event_divisions.findMany({
+      const rows = (await prisma.event_divisions.findMany({
         where: { event_id: eventId },
         orderBy: { created_at: 'desc' },
       })) as unknown as DivisionRow[]
 
-      assignments = (await prisma.division_assignments.findMany({
-        where: { event_id: eventId },
-      })) as unknown as AssignmentRow[]
-    } else {
-      divisions = devStore
-        .getAll<DivisionRow>('event_divisions')
-        .filter((d) => d.event_id === eventId)
-        .sort((a, b) => (asIso(b.created_at) ?? '').localeCompare(asIso(a.created_at) ?? ''))
-
-      assignments = devStore
-        .getAll<AssignmentRow>('division_assignments')
-        .filter((a) => a.event_id === eventId)
+      const out: Division[] = rows.map((r) => ({
+        id: r.id!, // Prisma rows have id
+        eventId: r.event_id,
+        name: r.name,
+        cap: r.cap,
+        createdAt: asIso(r.created_at),
+      }))
+      return NextResponse.json(out)
     }
 
-    // attach counts
-    const countsByDivision = new Map<string, number>()
-    for (const a of assignments) {
-      if (a.status !== 'assigned') continue
-      countsByDivision.set(a.division_id, (countsByDivision.get(a.division_id) ?? 0) + 1)
-    }
+    // dev fallback
+    const rows = devStore
+      .getAll<DivisionRow>('event_divisions' as any)
+      .filter((d) => d.event_id === eventId)
+      .sort((a, b) => (asIso(b.created_at) ?? '').localeCompare(asIso(a.created_at) ?? ''))
 
-    const payload = divisions.map((d) => ({
-      id: d.id,
-      eventId: d.event_id,
-      name: d.name,
-      cap: d.cap,
-      count: countsByDivision.get(d.id) ?? 0,
-      createdAt: asIso(d.created_at),
+    const out: Division[] = rows.map((r) => ({
+      id: r.id!,
+      eventId: r.event_id,
+      name: r.name,
+      cap: r.cap,
+      createdAt: asIso(r.created_at),
     }))
-
-    return NextResponse.json(payload)
-  } catch (e) {
+    return NextResponse.json(out)
+  } catch (e: any) {
     console.error('GET divisions error:', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
 
-export async function POST(req: Request, ctx: { params: { id: string } }) {
-  const eventId = ctx.params.id
-  const prisma = await getPrisma()
+// POST /portal/api/events/:id/divisions
+// body: { name: string; cap?: number | null }
+export async function POST(
+  req: Request,
+  ctx: { params: Promise<{ id: string }> }
+) {
   try {
+    const { id: eventId } = await ctx.params
     const body = await req.json().catch(() => ({}))
     const name = String(body?.name ?? '').trim()
-    const cap = body?.cap === null || body?.cap === '' ? null : Number(body?.cap)
+    const cap =
+      body?.cap === null
+        ? null
+        : typeof body?.cap === 'number'
+        ? body.cap
+        : undefined
 
-    if (!name) return NextResponse.json({ error: 'name required' }, { status: 400 })
-    if (cap !== null && Number.isNaN(cap)) return NextResponse.json({ error: 'cap must be a number' }, { status: 400 })
+    if (!name) {
+      return NextResponse.json({ error: 'name is required' }, { status: 400 })
+    }
 
+    const prisma = await getPrisma()
     if (prisma) {
       const created = (await prisma.event_divisions.create({
-        data: { event_id: eventId, name, cap },
+        data: {
+          event_id: eventId,
+          name,
+          cap: cap ?? null,
+        },
       })) as unknown as DivisionRow
 
-      return NextResponse.json({
-        id: created.id,
+      const out: Division = {
+        id: created.id!,
         eventId: created.event_id,
         name: created.name,
         cap: created.cap,
-        count: 0,
         createdAt: asIso(created.created_at),
-      }, { status: 201 })
+      }
+      return NextResponse.json(out, { status: 201 })
     }
 
-  // dev fallback (no id provided; devStore will generate)
-const created = devStore.upsert<any>('event_divisions', {
-  event_id: eventId,
-  name,
-  cap: cap ?? null,
-  created_at: new Date(),
-})
+    // dev fallback — omit id; devStore will generate it
+    const created = devStore.upsert<DivisionRow>('event_divisions' as any, {
+      event_id: eventId,
+      name,
+      cap: cap ?? null,
+      created_at: new Date(),
+    })
 
-    return NextResponse.json({
-      id: created.id,
+    const out: Division = {
+      id: created.id!, // generated by devStore
       eventId: created.event_id,
       name: created.name,
       cap: created.cap,
-      count: 0,
       createdAt: asIso(created.created_at),
-    }, { status: 201 })
+    }
+    return NextResponse.json(out, { status: 201 })
   } catch (e: any) {
     console.error('POST divisions error:', e)
-    return NextResponse.json({ error: e?.message ?? 'Bad request' }, { status: 400 })
+    return NextResponse.json({ error: e?.message ?? 'Invalid payload' }, { status: 400 })
   }
 }
