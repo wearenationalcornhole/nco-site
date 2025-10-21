@@ -9,9 +9,10 @@ type Role = 'player' | 'organizer' | 'admin'
 
 export default async function PortalLanding() {
   // 1) Get session from Supabase (server-side)
-  const cookieStore = cookies() // ✅ no await here
-  const supabase = createServerComponentClient({ cookies: () => cookieStore })
-  const { data: { session } } = await supabase.auth.getSession()
+  const supabase = createServerComponentClient({ cookies }) // ✅ pass the function, no await
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
 
   // 2) Not signed in? → Login
   if (!session) {
@@ -25,28 +26,28 @@ export default async function PortalLanding() {
   try {
     const prisma = await getPrisma()
     if (prisma && email) {
-      const user = await prisma.users.findFirst({ where: { email } }) as { role?: string } | null
+      const user = (await prisma.users.findFirst({
+        where: { email },
+        select: { role: true },
+      })) as { role?: string } | null
+
       if (user?.role === 'organizer' || user?.role === 'admin' || user?.role === 'player') {
         role = user.role
       }
     } else {
       // devStore fallback
       const users = devStore.getAll<{ email?: string; role?: string }>('users')
-      const u = users.find(u => (u.email ?? '').toLowerCase() === email.toLowerCase())
+      const u = users.find((u) => (u.email ?? '').toLowerCase() === email.toLowerCase())
       if (u?.role === 'organizer' || u?.role === 'admin' || u?.role === 'player') {
         role = u.role as Role
       }
     }
   } catch {
-    // If lookup fails, just treat as player
+    // If lookup fails, stick with 'player'
   }
 
   // 4) Role-based redirect
-  if (role === 'admin') {
-    redirect('/portal/admin')
-  } else if (role === 'organizer') {
-    redirect('/portal/org')
-  } else {
-    redirect('/portal/events')
-  }
+  if (role === 'admin') redirect('/portal/admin')
+  if (role === 'organizer') redirect('/portal/org')
+  redirect('/portal/events')
 }
