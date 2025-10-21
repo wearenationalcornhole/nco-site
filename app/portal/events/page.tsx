@@ -3,40 +3,11 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createServerClient } from '@/app/lib/supabaseServer'
 import { getPrisma } from '@/app/lib/safePrisma'
-import { devStore } from '@/app/lib/devStore'
-import Button from '@/components/ui/Button'
 
-type EventRow = {
-  id: string
-  slug: string | null
-  title: string
-  city?: string | null
-  date?: string | null
-  image?: string | null
-}
+export const runtime = 'nodejs'
 
-type RegistrationRow = {
-  id: string
-  event_id: string
-  user_id: string
-  created_at: string | Date | null
-}
-
-function fmtDate(iso?: string | null) {
-  if (!iso) return 'TBD'
-  const [y, m, d] = iso.split('-').map(Number)
-  const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1))
-  return dt.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
-}
-
-export default async function Page() {
-  // 1) Require login
-  const supabase = createServerClient()
+export default async function EventsPage() {
+  const supabase = await createServerClient() // ✅ FIXED
   const {
     data: { session },
   } = await supabase.auth.getSession()
@@ -45,110 +16,53 @@ export default async function Page() {
     redirect('/portal/login?next=/portal/events')
   }
 
-  const userId = session.user.id
-
-  // 2) Load registrations + events (Prisma if available, else devStore)
   const prisma = await getPrisma()
-
-  let regs: RegistrationRow[] = []
-  let eventsById = new Map<string, EventRow>()
+  let events: any[] = []
 
   if (prisma) {
-    regs = (await prisma.registrations.findMany({
-      where: { user_id: userId },
-      orderBy: { created_at: 'desc' },
-      // not relying on Prisma relations to keep schema loose
-    })) as unknown as RegistrationRow[]
-
-    const eventIds = Array.from(new Set(regs.map((r) => r.event_id)))
-    if (eventIds.length) {
-      const evs = (await prisma.events.findMany({
-        where: { id: { in: eventIds } },
-      })) as unknown as EventRow[]
-      eventsById = new Map(evs.map((e) => [e.id, e]))
-    }
-  } else {
-    // dev fallback
-    regs = devStore
-      .getAll<RegistrationRow>('registrations')
-      .filter((r) => r.user_id === userId)
-      .sort(
-        (a, b) =>
-          (new Date(b.created_at ?? 0).getTime() || 0) -
-          (new Date(a.created_at ?? 0).getTime() || 0),
-      )
-
-    const evs = devStore.getAll<EventRow>('events')
-    eventsById = new Map(evs.map((e) => [e.id, e]))
+    events = await prisma.events.findMany({
+      orderBy: { date: 'desc' },
+    })
   }
-
-  const rows = regs
-    .map((r) => ({ reg: r, event: eventsById.get(r.event_id) }))
-    .filter((x) => !!x.event) as { reg: RegistrationRow; event: EventRow }[]
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase tracking-wider text-gray-500">Player</p>
-        </div>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">All Events</h1>
+        <Link
+          href="/portal/org/events"
+          className="rounded bg-usaBlue text-white px-4 py-2 text-sm hover:opacity-90"
+        >
+          Organizer Console
+        </Link>
       </div>
 
-      {/* Title bar */}
-      <div className="mt-2 rounded-xl bg-[var(--nco-header-bg,#0A3161)] text-white px-5 py-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">My Events</h1>
-          <p className="text-white/80 text-sm">
-            Events you’re registered for with this account.
-          </p>
-        </div>
-        <Button asChild variant="outline" className="bg-transparent text-white border-white hover:bg-white/10">
-          <Link href="/events">Find more events</Link>
-        </Button>
-      </div>
-
-      {/* List */}
-      <section className="mt-6 rounded-2xl border bg-white overflow-hidden">
-        <div className="px-4 py-3 border-b bg-gray-50 text-sm font-semibold text-gray-700">
-          Your registrations
-        </div>
-
-        {rows.length === 0 ? (
-          <div className="p-6 text-gray-600">
-            You haven’t registered for any events yet.
-            <div className="mt-4">
-              <Button asChild>
-                <Link href="/events">Browse events</Link>
-              </Button>
+      {events.length === 0 ? (
+        <p className="text-gray-600">No events available yet.</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {events.map((e) => (
+            <div
+              key={e.id}
+              className="rounded-xl border bg-white p-4 shadow-sm hover:shadow-md transition"
+            >
+              <h2 className="text-lg font-semibold text-gray-900">
+                {e.title}
+              </h2>
+              <p className="text-sm text-gray-600">{e.city ?? 'TBD'}</p>
+              <p className="text-sm text-gray-600 mt-1">{e.date ?? 'TBD'}</p>
+              <div className="mt-3">
+                <Link
+                  href={`/portal/events/${e.slug ?? e.id}`}
+                  className="text-usaBlue text-sm font-medium hover:underline"
+                >
+                  View Event
+                </Link>
+              </div>
             </div>
-          </div>
-        ) : (
-          <ul className="divide-y">
-            {rows.map(({ reg, event }) => (
-              <li key={reg.id} className="px-4 py-4 grid grid-cols-1 sm:grid-cols-12 gap-3">
-                <div className="sm:col-span-7">
-                  <div className="font-medium text-gray-900">{event.title}</div>
-                  <div className="text-sm text-gray-600">{event.city ?? 'TBD'}</div>
-                </div>
-                <div className="sm:col-span-3 text-sm text-gray-700">
-                  {fmtDate(event.date)}
-                </div>
-                <div className="sm:col-span-2 flex sm:justify-end">
-                  <div className="flex gap-2">
-                    <Button asChild variant="outline">
-                      <Link href={`/portal/events/${event.slug ?? event.id}`}>View</Link>
-                    </Button>
-                    <Button asChild>
-                      <Link href={`/events/${event.slug ?? event.id}`}>Public</Link>
-                    </Button>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
