@@ -18,6 +18,7 @@ export type TableName =
   | 'event_bag_submissions'   // new snake_case
   | 'event_divisions'         // divisions per event
   | 'event_division_members'  // members per event division
+  | 'division_assignments'    // <-- NEW: used by assignments route
 
 type StoreShape = Record<TableName, AnyRecord[]>
 
@@ -43,6 +44,9 @@ function createDefaultData(): StoreShape {
     // divisions subsystem
     event_divisions: [],
     event_division_members: [],
+
+    // assignments for divisions (dev fallback)
+    division_assignments: [], // <-- NEW
   }
 }
 
