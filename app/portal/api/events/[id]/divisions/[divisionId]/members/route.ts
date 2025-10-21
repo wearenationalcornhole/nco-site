@@ -5,23 +5,22 @@ import { NextResponse } from 'next/server'
 import { getPrisma } from '@/app/lib/safePrisma'
 import { devStore } from '@/app/lib/devStore'
 
-type MemberRow = {
+/** Public shape returned to client */
+type Member = {
   id: string
   eventId: string
   divisionId: string
   userId: string
   createdAt: string | null
-  // Optional nested user if you wire it up later:
-  user?: { id: string; name?: string | null; email?: string | null } | null
 }
 
-type MemberRowDb = {
+/** DB/dev shape (snake_case) */
+type MemberRow = {
   id?: string
   event_id: string
   division_id: string
   user_id: string
   created_at: string | Date | null
-  user?: { id: string; name?: string | null; email?: string | null } | null
 }
 
 function asIso(d: string | Date | null): string | null {
@@ -29,7 +28,10 @@ function asIso(d: string | Date | null): string | null {
   return d instanceof Date ? d.toISOString() : d
 }
 
-// GET: list members for a division
+/**
+ * GET /portal/api/events/:id/divisions/:divisionId/members
+ * -> List members in a division
+ */
 export async function GET(
   _req: Request,
   ctx: { params: Promise<{ id: string; divisionId: string }> }
@@ -42,36 +44,31 @@ export async function GET(
       const rows = (await prisma.event_division_members.findMany({
         where: { event_id: eventId, division_id: divisionId },
         orderBy: { created_at: 'desc' },
-        // include: { user: true }, // enable later if relation exists in schema
-      })) as unknown as MemberRowDb[]
+      })) as unknown as MemberRow[]
 
-      const out: MemberRow[] = rows.map((r) => ({
-        id: r.id!, // prisma returns id
+      const out: Member[] = rows.map((r) => ({
+        id: r.id!,
         eventId: r.event_id,
         divisionId: r.division_id,
         userId: r.user_id,
         createdAt: asIso(r.created_at),
-        user: r.user ?? null,
       }))
-
       return NextResponse.json(out)
     }
 
     // dev fallback
     const rows = devStore
-      .getAll<MemberRowDb>('event_division_members' as any)
+      .getAll<MemberRow>('event_division_members' as any)
       .filter((r) => r.event_id === eventId && r.division_id === divisionId)
       .sort((a, b) => (asIso(b.created_at) ?? '').localeCompare(asIso(a.created_at) ?? ''))
 
-    const out: MemberRow[] = rows.map((r) => ({
-      id: r.id!, // devStore sets it on create
+    const out: Member[] = rows.map((r) => ({
+      id: r.id!,
       eventId: r.event_id,
       divisionId: r.division_id,
       userId: r.user_id,
       createdAt: asIso(r.created_at),
-      user: r.user ?? null,
     }))
-
     return NextResponse.json(out)
   } catch (e: any) {
     console.error('GET division members error:', e)
@@ -79,7 +76,11 @@ export async function GET(
   }
 }
 
-// POST: add a member (body: { userId })
+/**
+ * POST /portal/api/events/:id/divisions/:divisionId/members
+ * body: { userId: string }
+ * -> Add a user to a division
+ */
 export async function POST(
   req: Request,
   ctx: { params: Promise<{ id: string; divisionId: string }> }
@@ -88,44 +89,40 @@ export async function POST(
     const { id: eventId, divisionId } = await ctx.params
     const body = await req.json().catch(() => ({}))
     const userId = String(body?.userId ?? '').trim()
-    if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
+    if (!userId) {
+      return NextResponse.json({ error: 'userId is required' }, { status: 400 })
+    }
 
     const prisma = await getPrisma()
     if (prisma) {
       const created = (await prisma.event_division_members.create({
-        data: {
-          event_id: eventId,
-          division_id: divisionId,
-          user_id: userId,
-        },
-      })) as unknown as MemberRowDb
+        data: { event_id: eventId, division_id: divisionId, user_id: userId },
+      })) as unknown as MemberRow
 
-      const out: MemberRow = {
+      const out: Member = {
         id: created.id!,
         eventId: created.event_id,
         divisionId: created.division_id,
         userId: created.user_id,
         createdAt: asIso(created.created_at),
-        user: null,
       }
       return NextResponse.json(out, { status: 201 })
     }
 
-    // dev fallback (let store generate id)
-    const created = devStore.upsert<any>('event_division_members' as any, {
+    // dev fallback — omit id so devStore generates one
+    const created = devStore.upsert<MemberRow>('event_division_members' as any, {
       event_id: eventId,
       division_id: divisionId,
       user_id: userId,
       created_at: new Date(),
-    }) as MemberRowDb
+    })
 
-    const out: MemberRow = {
+    const out: Member = {
       id: created.id!,
       eventId: created.event_id,
       divisionId: created.division_id,
       userId: created.user_id,
       createdAt: asIso(created.created_at),
-      user: null,
     }
     return NextResponse.json(out, { status: 201 })
   } catch (e: any) {
@@ -134,7 +131,10 @@ export async function POST(
   }
 }
 
-// DELETE: remove a member (query: ?memberId=... or ?userId=...)
+/**
+ * DELETE /portal/api/events/:id/divisions/:divisionId/members?memberId=... | ?userId=...
+ * -> Remove a user from the division (prefer memberId; fallback to userId)
+ */
 export async function DELETE(
   req: Request,
   ctx: { params: Promise<{ id: string; divisionId: string }> }
@@ -146,7 +146,10 @@ export async function DELETE(
     const userId = url.searchParams.get('userId')
 
     if (!memberId && !userId) {
-      return NextResponse.json({ error: 'memberId or userId required' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'memberId or userId is required' },
+        { status: 400 }
+      )
     }
 
     const prisma = await getPrisma()
@@ -165,16 +168,18 @@ export async function DELETE(
     if (memberId) {
       devStore.remove('event_division_members' as any, memberId)
     } else {
-      const all = devStore.getAll<MemberRowDb>('event_division_members' as any)
-      const victim = all.find(
-        (r) => r.event_id === eventId && r.division_id === divisionId && r.user_id === userId
+      const all = devStore.getAll<MemberRow>('event_division_members' as any)
+      const toRemove = all.find(
+        (r) =>
+          r.event_id === eventId &&
+          r.division_id === divisionId &&
+          r.user_id === userId
       )
-      if (victim?.id) devStore.remove('event_division_members' as any, victim.id)
+      if (toRemove?.id) devStore.remove('event_division_members' as any, toRemove.id)
     }
-
     return NextResponse.json({ ok: true })
   } catch (e: any) {
-    console.error('DELETE division members error:', e)
+    console.error('DELETE division member error:', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
