@@ -81,7 +81,7 @@ export default function LoginClient() {
             </form>
 
             <p className="mt-6 text-xs text-gray-500">
-              By continuing, you agree to the NCO Terms. Need help? contact@wearenationalcornhole.com
+              By continuing, you agree to the NCO Terms. Need help? info@wearenationalcornhole.com
             </p>
           </div>
         </div>
