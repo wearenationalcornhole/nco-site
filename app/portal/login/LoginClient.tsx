@@ -1,46 +1,76 @@
-// app/portal/login/LoginClient.tsx
-'use client'
+'use client';
 
-import { useAuth } from '@/app/lib/devAuth'
-import Link from 'next/link'
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { supabase } from '@/app/lib/supabaseClient';
 
 export default function LoginClient() {
-  const { user, loginAs, logout } = useAuth()
+  const [email, setEmail] = useState('');
+  const [status, setStatus] = useState<'idle'|'sending'|'sent'|'error'>('idle');
+  const [msg, setMsg] = useState('');
+  const [redirect, setRedirect] = useState('/portal');
+  const router = useRouter();
+
+  useEffect(() => {
+    // Read ?redirect=... from the real URL safely on the client
+    const url = new URL(window.location.href);
+    setRedirect(url.searchParams.get('redirect') || '/portal');
+  }, []);
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStatus('sending'); setMsg('');
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirect)}`
+      }
+    });
+    if (error) {
+      setStatus('error');
+      setMsg(error.message || 'Sign-in failed. Please try again.');
+      return;
+    }
+    setStatus('sent');
+    setMsg('Magic link sent! Check your email.');
+  };
 
   return (
-    <div className="mx-auto max-w-md px-4 py-12">
-      <h1 className="text-2xl font-bold mb-6">Sign in (Dev Mode)</h1>
+    <main className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+      <div className="w-full max-w-md rounded-2xl bg-white shadow p-6">
+        <div className="text-center mb-6">
+          <img src="/images/nco-mark.svg" alt="NCO" className="h-14 mx-auto mb-2" />
+          <h1 className="text-xl font-semibold text-[#0A3161]">National Cornhole Portal</h1>
+          <p className="text-sm text-gray-600">Sign in with a one-time magic link</p>
+        </div>
 
-      {!user ? (
-        <div className="grid gap-3">
-          <button className="border rounded px-3 py-2" onClick={() => loginAs('PLAYER')}>
-            Continue as Player
+        <form onSubmit={onSubmit} className="space-y-4">
+          <input
+            type="email"
+            required
+            value={email}
+            onChange={(e)=>setEmail(e.target.value)}
+            placeholder="you@wearenationalcornhole.com"
+            className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring focus:ring-[#0A3161]/20"
+          />
+          <button
+            disabled={status==='sending'}
+            className="w-full rounded-lg px-4 py-2 font-semibold text-white bg-[#B31942] disabled:opacity-60"
+          >
+            {status==='sending' ? 'Sending…' : 'Email me a magic link'}
           </button>
-          <button className="border rounded px-3 py-2" onClick={() => loginAs('ORGANIZER')}>
-            Continue as Organizer
-          </button>
-          <button className="border rounded px-3 py-2" onClick={() => loginAs('ADMIN')}>
-            Continue as Admin
-          </button>
-          <p className="text-sm text-gray-600 mt-4">
-            This is a temporary dev login. Real auth (magic link) comes when we wire Supabase/NextAuth.
+        </form>
+
+        {!!msg && (
+          <p className={`mt-4 text-sm ${status==='error' ? 'text-red-600' : 'text-green-700'}`}>
+            {msg}
           </p>
-        </div>
-      ) : (
-        <div className="rounded-xl border bg-white p-4">
-          <p className="mb-3">
-            Signed in as <strong>{user.name}</strong> ({user.role})
-          </p>
-          <div className="flex gap-2">
-            <Link href="/portal" className="rounded-full bg-black text-white px-4 py-2">
-              Continue to Portal
-            </Link>
-            <button onClick={logout} className="rounded-full border px-4 py-2">
-              Sign out
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
+        )}
+
+        <p className="mt-6 text-xs text-gray-500 text-center">
+          Need help? contact@wearenationalcornhole.com
+        </p>
+      </div>
+    </main>
+  );
 }
