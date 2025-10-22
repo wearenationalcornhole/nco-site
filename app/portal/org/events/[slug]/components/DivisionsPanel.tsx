@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Button from '@/components/ui/Button'
 import Spinner from '@/components/ui/Spinner'
 import Badge from '@/components/ui/Badge'
-import Button from '@/components/ui/Button'
 
 type Division = {
   id: string
@@ -13,12 +13,22 @@ type Division = {
   created_at?: string | null
 }
 
-type Member = {
+type Assignment = {
   id: string
   eventId: string
   divisionId: string
   userId: string
+  status: 'assigned' | 'waitlisted'
   createdAt: string | null
+  user?: { id: string; name?: string | null; email?: string | null } | null
+}
+
+type Registration = {
+  id?: string
+  eventId: string
+  userId: string
+  createdAt?: string
+  user?: { id: string; email?: string | null; name?: string | null } | null
 }
 
 export default function DivisionsPanel({
@@ -28,311 +38,380 @@ export default function DivisionsPanel({
   eventId: string
   onToast: (t: { msg: string; kind: 'success' | 'error' }) => void
 }) {
+  const [divisions, setDivisions] = useState<Division[] | null>(null)
   const [loading, setLoading] = useState(true)
-  const [divisions, setDivisions] = useState<Division[]>([])
-  const [q, setQ] = useState('')
+  const [counts, setCounts] = useState<Record<string, { assigned: number; waitlisted: number }>>({})
+  const [open, setOpen] = useState<Record<string, boolean>>({})
+  const [assignments, setAssignments] = useState<Record<string, Assignment[]>>({})
+  const [busy, setBusy] = useState<string | null>(null)
+  const [emailByDiv, setEmailByDiv] = useState<Record<string, string>>({})
 
-  // create division form
-  const [creating, setCreating] = useState(false)
-  const [newName, setNewName] = useState('')
-  const [newCap, setNewCap] = useState<string>('')
-
-  // expanded division -> members
-  const [openId, setOpenId] = useState<string | null>(null)
-  const [members, setMembers] = useState<Record<string, Member[]>>({})
-  const [membersLoading, setMembersLoading] = useState<Record<string, boolean>>({})
-  const [addUserId, setAddUserId] = useState<Record<string, string>>({})
-  const [addingFor, setAddingFor] = useState<string | null>(null)
-  const [removingMember, setRemovingMember] = useState<string | null>(null)
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Fetch divisions
-  // ─────────────────────────────────────────────────────────────────────────────
+  // Fetch divisions + initial counts
   useEffect(() => {
     let alive = true
-    setLoading(true)
-    fetch(`/portal/api/events/${encodeURIComponent(eventId)}/divisions`, { cache: 'no-store' })
-      .then(async (r) => (r.ok ? r.json() : Promise.reject(await r.json())))
-      .then((rows: Division[]) => {
+    async function run() {
+      setLoading(true)
+      try {
+        const res = await fetch(`/portal/api/events/${encodeURIComponent(eventId)}/divisions`, {
+          cache: 'no-store',
+        })
+        if (!res.ok) throw new Error('Failed to load divisions')
+        const payload = await res.json()
+        const divs: Division[] = Array.isArray(payload?.divisions)
+          ? payload.divisions
+          : Array.isArray(payload)
+          ? payload
+          : []
         if (!alive) return
-        setDivisions(Array.isArray(rows) ? rows : [])
-        setLoading(false)
-      })
-      .catch(() => {
+        setDivisions(divs)
+
+        const pairs = await Promise.all(
+          divs.map(async (d) => {
+            const r = await fetch(
+              `/portal/api/events/${encodeURIComponent(eventId)}/divisions/${encodeURIComponent(d.id)}/assignments`,
+              { cache: 'no-store' }
+            )
+            if (!r.ok) return [d.id, { assigned: 0, waitlisted: 0 }] as const
+            const rows = (await r.json()) as Assignment[]
+            const assigned = rows.filter((a) => a.status === 'assigned').length
+            const waitlisted = rows.length - assigned
+            return [d.id, { assigned, waitlisted }] as const
+          })
+        )
+        const nextCounts: Record<string, { assigned: number; waitlisted: number }> = {}
+        for (const [id, c] of pairs) nextCounts[id] = c
+        setCounts(nextCounts)
+      } catch (e: any) {
+        console.error(e)
         if (!alive) return
         setDivisions([])
-        setLoading(false)
-      })
+      } finally {
+        if (alive) setLoading(false)
+      }
+    }
+    run()
     return () => {
       alive = false
     }
   }, [eventId])
 
-  const filteredDivisions = useMemo(() => {
-    const term = q.trim().toLowerCase()
-    return divisions.filter((d) => !term || d.name.toLowerCase().includes(term))
-  }, [divisions, q])
+  function fmtCap(cap: number | null | undefined) {
+    return cap == null ? '∞' : String(cap)
+  }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Expand division → lazy load members
-  // ─────────────────────────────────────────────────────────────────────────────
-  async function toggleOpen(div: Division) {
-    const id = div.id
-    if (openId === id) {
-      setOpenId(null)
+  async function loadAssignments(divisionId: string) {
+    const r = await fetch(
+      `/portal/api/events/${encodeURIComponent(eventId)}/divisions/${encodeURIComponent(divisionId)}/assignments`,
+      { cache: 'no-store' }
+    )
+    if (!r.ok) throw new Error('Failed to load assignments')
+    const rows = (await r.json()) as Assignment[]
+    setAssignments((prev) => ({ ...prev, [divisionId]: rows }))
+    const assigned = rows.filter((a) => a.status === 'assigned').length
+    const waitlisted = rows.length - assigned
+    setCounts((prev) => ({ ...prev, [divisionId]: { assigned, waitlisted } }))
+  }
+
+  async function toggleDivision(d: Division) {
+    const next = !open[d.id]
+    setOpen((prev) => ({ ...prev, [d.id]: next }))
+    if (next && !assignments[d.id]) {
+      try {
+        setBusy(`load-${d.id}`)
+        await loadAssignments(d.id)
+      } catch (e: any) {
+        onToast({ msg: e?.message ?? 'Failed to load assignments', kind: 'error' })
+      } finally {
+        setBusy(null)
+      }
+    }
+  }
+
+  async function setCap(d: Division) {
+    const v = prompt('Set cap (leave blank for no limit)', d.cap == null ? '' : String(d.cap))
+    if (v === null) return
+    const cap = v.trim() === '' ? null : Number(v)
+    if (cap !== null && Number.isNaN(cap)) {
+      onToast({ msg: 'Invalid cap', kind: 'error' })
       return
     }
-    setOpenId(id)
-    if (members[id]) return // already loaded
-    setMembersLoading((m) => ({ ...m, [id]: true }))
     try {
+      setBusy(`cap-${d.id}`)
       const res = await fetch(
-        `/portal/api/events/${encodeURIComponent(eventId)}/divisions/${encodeURIComponent(id)}/members`,
-        { cache: 'no-store' }
+        `/portal/api/events/${encodeURIComponent(eventId)}/divisions/${encodeURIComponent(d.id)}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cap }),
+        }
       )
-      const rows: Member[] = res.ok ? await res.json() : []
-      setMembers((m) => ({ ...m, [id]: rows }))
-    } catch {
-      setMembers((m) => ({ ...m, [id]: [] }))
+      if (!res.ok) throw new Error((await res.json())?.error ?? 'Failed to update cap')
+      const updated: Division = await res.json()
+      setDivisions((prev) => prev?.map((x) => (x.id === d.id ? updated : x)) ?? [])
+      onToast({ msg: 'Cap updated', kind: 'success' })
+      await loadAssignments(d.id)
+    } catch (e: any) {
+      onToast({ msg: e?.message ?? 'Update failed', kind: 'error' })
     } finally {
-      setMembersLoading((m) => ({ ...m, [id]: false }))
+      setBusy(null)
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Create division
-  // ─────────────────────────────────────────────────────────────────────────────
-  async function createDivision(e: React.FormEvent) {
-    e.preventDefault()
-    const name = newName.trim()
-    if (!name) return onToast({ msg: 'Division name is required', kind: 'error' })
-    const capVal = newCap.trim() === '' ? null : Number(newCap)
-    if (capVal !== null && Number.isNaN(capVal)) {
-      return onToast({ msg: 'Cap must be a number', kind: 'error' })
-    }
-    setCreating(true)
+  async function autoAssign(d: Division) {
     try {
-      const res = await fetch(`/portal/api/events/${encodeURIComponent(eventId)}/divisions`, {
+      setBusy(`auto-${d.id}`)
+      const res = await fetch(
+        `/portal/api/events/${encodeURIComponent(eventId)}/divisions/${encodeURIComponent(d.id)}/assignments`,
+        { method: 'POST' }
+      )
+      if (!res.ok) throw new Error((await res.json())?.error ?? 'No available registrations')
+      const created = (await res.json()) as Assignment
+      setAssignments((prev) => {
+        const list = prev[d.id] ?? []
+        return { ...prev, [d.id]: [created, ...list] }
+      })
+      const deltaAssigned = created.status === 'assigned' ? 1 : 0
+      const deltaWait = created.status === 'waitlisted' ? 1 : 0
+      setCounts((prev) => {
+        const c = prev[d.id] ?? { assigned: 0, waitlisted: 0 }
+        return { ...prev, [d.id]: { assigned: c.assigned + deltaAssigned, waitlisted: c.waitlisted + deltaWait } }
+      })
+      onToast({
+        msg: created.status === 'assigned' ? 'Assigned next player' : 'Division full — added to waitlist',
+        kind: 'success',
+      })
+    } catch (e: any) {
+      onToast({ msg: e?.message ?? 'Auto-assign failed', kind: 'error' })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function assignByEmail(d: Division) {
+    const email = (emailByDiv[d.id] ?? '').trim()
+    if (!email) {
+      onToast({ msg: 'Enter an email first', kind: 'error' })
+      return
+    }
+
+    try {
+      setBusy(`email-${d.id}`)
+
+      // ensure registration
+      const regRes = await fetch(`/portal/api/events/${encodeURIComponent(eventId)}/registrations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, cap: capVal }),
+        body: JSON.stringify({ email }),
       })
-      if (!res.ok) throw new Error((await res.json())?.error ?? 'Failed to create division')
-      const created: Division = await res.json()
-      setDivisions((prev) => [created, ...prev])
-      setNewName('')
-      setNewCap('')
-      onToast({ msg: 'Division created', kind: 'success' })
-    } catch (err: any) {
-      onToast({ msg: err?.message ?? 'Create failed', kind: 'error' })
-    } finally {
-      setCreating(false)
-    }
-  }
+      if (!regRes.ok) throw new Error((await regRes.json())?.error ?? 'Failed to register player')
+      const reg = (await regRes.json()) as Registration
+      const userId = reg.userId
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Add member to division (by userId)
-  // ─────────────────────────────────────────────────────────────────────────────
-  async function addMember(div: Division) {
-    const userId = (addUserId[div.id] ?? '').trim()
-    if (!userId) return onToast({ msg: 'userId required', kind: 'error' })
-    setAddingFor(div.id)
-    try {
-      const res = await fetch(
-        `/portal/api/events/${encodeURIComponent(eventId)}/divisions/${encodeURIComponent(div.id)}/members`,
+      // assign
+      const aRes = await fetch(
+        `/portal/api/events/${encodeURIComponent(eventId)}/divisions/${encodeURIComponent(d.id)}/assignments`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId }),
         }
       )
-      if (!res.ok) throw new Error((await res.json())?.error ?? 'Failed to add member')
-      const created: Member = await res.json()
-      setMembers((map) => ({ ...map, [div.id]: [created, ...(map[div.id] ?? [])] }))
-      setAddUserId((m) => ({ ...m, [div.id]: '' }))
-      onToast({ msg: 'Player added to division', kind: 'success' })
-    } catch (err: any) {
-      onToast({ msg: err?.message ?? 'Add failed', kind: 'error' })
+      if (!aRes.ok) throw new Error((await aRes.json())?.error ?? 'Failed to assign')
+      const created = (await aRes.json()) as Assignment
+
+      setAssignments((prev) => {
+        const list = prev[d.id] ?? []
+        return { ...prev, [d.id]: [created, ...list] }
+      })
+      const deltaAssigned = created.status === 'assigned' ? 1 : 0
+      const deltaWait = created.status === 'waitlisted' ? 1 : 0
+      setCounts((prev) => {
+        const c = prev[d.id] ?? { assigned: 0, waitlisted: 0 }
+        return { ...prev, [d.id]: { assigned: c.assigned + deltaAssigned, waitlisted: c.waitlisted + deltaWait } }
+      })
+
+      setEmailByDiv((prev) => ({ ...prev, [d.id]: '' }))
+      onToast({
+        msg: created.status === 'assigned' ? 'Player assigned' : 'Division full — added to waitlist',
+        kind: 'success',
+      })
+    } catch (e: any) {
+      onToast({ msg: e?.message ?? 'Assign failed', kind: 'error' })
     } finally {
-      setAddingFor(null)
+      setBusy(null)
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Remove member
-  // ─────────────────────────────────────────────────────────────────────────────
-  async function removeMember(div: Division, row: Member) {
-    if (!confirm('Remove player from this division?')) return
-    setRemovingMember(row.id)
+  async function removeAssignment(d: Division, a: Assignment) {
+    const ok = confirm(`Remove ${a.user?.name || a.user?.email || a.userId} from ${d.name}?`)
+    if (!ok) return
     try {
-      const url = new URL(
-        `/portal/api/events/${encodeURIComponent(eventId)}/divisions/${encodeURIComponent(div.id)}/members`,
-        window.location.origin
+      setBusy(`rem-${a.id}`)
+      const res = await fetch(
+        `/portal/api/events/${encodeURIComponent(eventId)}/divisions/${encodeURIComponent(d.id)}/assignments?assignmentId=${encodeURIComponent(
+          a.id
+        )}`,
+        { method: 'DELETE' }
       )
-      url.searchParams.set('memberId', row.id)
-
-      const res = await fetch(url.toString(), { method: 'DELETE' })
       if (!res.ok) throw new Error((await res.json())?.error ?? 'Failed to remove')
-      setMembers((map) => ({
-        ...map,
-        [div.id]: (map[div.id] ?? []).filter((m) => m.id !== row.id),
-      }))
-      onToast({ msg: 'Removed from division', kind: 'success' })
-    } catch (err: any) {
-      onToast({ msg: err?.message ?? 'Remove failed', kind: 'error' })
+      setAssignments((prev) => {
+        const list = (prev[d.id] ?? []).filter((x) => x.id !== a.id)
+        return { ...prev, [d.id]: list }
+      })
+      setCounts((prev) => {
+        const c = prev[d.id] ?? { assigned: 0, waitlisted: 0 }
+        return {
+          ...prev,
+          [d.id]: {
+            assigned: c.assigned - (a.status === 'assigned' ? 1 : 0),
+            waitlisted: c.waitlisted - (a.status === 'waitlisted' ? 1 : 0),
+          },
+        }
+      })
+      onToast({ msg: 'Removed', kind: 'success' })
+    } catch (e: any) {
+      onToast({ msg: e?.message ?? 'Remove failed', kind: 'error' })
     } finally {
-      setRemovingMember(null)
+      setBusy(null)
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Render
-  // ─────────────────────────────────────────────────────────────────────────────
+  const isBusy = (key: string) => busy === key
+
   return (
     <div className="rounded-xl border bg-white p-6">
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-semibold">Divisions</h2>
-          <Badge color="blue">{divisions.length}</Badge>
-        </div>
-        <div className="flex items-center gap-2">
-          <input
-            placeholder="Search divisions…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            className="w-full sm:w-72 rounded border px-3 py-2 text-sm"
-          />
+          <Badge color="blue">{divisions?.length ?? 0}</Badge>
         </div>
       </div>
 
-      {/* Create division */}
-      <form onSubmit={createDivision} className="mt-4 grid grid-cols-1 sm:grid-cols-6 gap-2">
-        <input
-          className="sm:col-span-3 rounded border px-3 py-2 text-sm"
-          placeholder="Division name *"
-          required
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-        />
-        <input
-          className="sm:col-span-2 rounded border px-3 py-2 text-sm"
-          placeholder="Cap (optional)"
-          inputMode="numeric"
-          value={newCap}
-          onChange={(e) => setNewCap(e.target.value)}
-        />
-        <div className="sm:col-span-1">
-          <Button disabled={creating}>{creating ? 'Creating…' : 'Create'}</Button>
+      {loading ? (
+        <div className="mt-4 text-gray-600 flex items-center gap-2">
+          <Spinner /> Loading…
         </div>
-      </form>
+      ) : (divisions ?? []).length === 0 ? (
+        <div className="mt-4 text-gray-600">No divisions yet.</div>
+      ) : (
+        <ul className="mt-4 space-y-3">
+          {divisions!.map((d) => {
+            const c = counts[d.id] ?? { assigned: 0, waitlisted: 0 }
+            const capTxt = fmtCap(d.cap)
+            const full = d.cap != null && c.assigned >= d.cap
+            return (
+              <li key={d.id} className="border rounded-lg">
+                {/* header row */}
+                <div className="px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => toggleDivision(d)}
+                      className="rounded border px-2 py-1 text-sm hover:bg-gray-50"
+                      aria-expanded={!!open[d.id]}
+                    >
+                      {open[d.id] ? 'Hide' : 'Show'}
+                    </button>
+                    <div className="font-medium">{d.name}</div>
+                    <Badge color={full ? 'red' : 'green'}>
+                      {c.assigned}/{capTxt}
+                    </Badge>
+                    {c.waitlisted > 0 && <Badge color="gray">WL {c.waitlisted}</Badge>}
+                  </div>
 
-      {/* List */}
-      <div className="mt-6 overflow-hidden rounded-lg border">
-        <div className="hidden sm:grid grid-cols-12 gap-3 px-4 py-3 border-b bg-gray-50 text-xs font-semibold text-gray-600">
-          <div className="col-span-6">Division</div>
-          <div className="col-span-2">Cap</div>
-          <div className="col-span-2">Members</div>
-          <div className="col-span-2 text-right">Actions</div>
-        </div>
-
-        {loading ? (
-          <div className="p-4 text-gray-600 flex items-center gap-2"><Spinner /> Loading…</div>
-        ) : filteredDivisions.length === 0 ? (
-          <div className="p-4 text-gray-600">No divisions yet.</div>
-        ) : (
-          <ul className="divide-y">
-            {filteredDivisions.map((d) => {
-              const list = members[d.id] ?? []
-              const count = list.length
-              return (
-                <li key={d.id} className="px-4 py-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
-                    <div className="sm:col-span-6">
-                      <div className="font-medium">{d.name}</div>
-                      <div className="text-xs text-gray-500">ID: {d.id}</div>
-                    </div>
-                    <div className="sm:col-span-2 text-sm text-gray-700">{d.cap ?? '—'}</div>
-                    <div className="sm:col-span-2 text-sm text-gray-700">{count}</div>
-                    <div className="sm:col-span-2 flex sm:justify-end">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      loading={isBusy(`cap-${d.id}`)}
+                      onClick={() => setCap(d)}
+                    >
+                      Edit Cap
+                    </Button>
+                    <Button
+                      size="sm"
+                      loading={isBusy(`auto-${d.id}`)}
+                      onClick={() => autoAssign(d)}
+                    >
+                      Auto-assign next
+                    </Button>
+                    <div className="flex items-center gap-2">
+                      <input
+                        className="rounded border px-3 py-1.5 text-sm"
+                        placeholder="email to assign"
+                        value={emailByDiv[d.id] ?? ''}
+                        onChange={(e) =>
+                          setEmailByDiv((prev) => ({ ...prev, [d.id]: e.target.value }))
+                        }
+                      />
                       <Button
-                        variant="outline"
                         size="sm"
-                        onClick={() => toggleOpen(d)}
+                        loading={isBusy(`email-${d.id}`)}
+                        onClick={() => assignByEmail(d)}
                       >
-                        {openId === d.id ? 'Hide' : 'Manage'}
+                        Assign by email
                       </Button>
                     </div>
                   </div>
+                </div>
 
-                  {/* Expanded: members + add */}
-                  {openId === d.id && (
-                    <div className="mt-4 rounded-lg border bg-white p-3">
-                      {/* Add member */}
-                      <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
-                        <div className="text-sm font-semibold text-gray-700">Members</div>
-                        <div className="flex gap-2">
-                          <input
-                            placeholder="userId to add"
-                            value={addUserId[d.id] ?? ''}
-                            onChange={(e) =>
-                              setAddUserId((m) => ({ ...m, [d.id]: e.target.value }))
-                            }
-                            className="w-56 rounded border px-3 py-2 text-sm"
-                          />
-                          <Button size="sm" onClick={() => addMember(d)} disabled={addingFor === d.id}>
-                            {addingFor === d.id ? 'Adding…' : 'Add'}
-                          </Button>
-                        </div>
+                {/* expanded */}
+                {open[d.id] && (
+                  <div className="px-4 pb-4">
+                    {isBusy(`load-${d.id}`) ? (
+                      <div className="text-gray-600 flex items-center gap-2">
+                        <Spinner /> Loading…
                       </div>
-
-                      {/* Members table */}
-                      <div className="mt-3 overflow-hidden rounded border">
-                        <div className="hidden sm:grid grid-cols-12 gap-3 px-3 py-2 border-b bg-gray-50 text-xs font-semibold text-gray-600">
-                          <div className="col-span-7">User ID</div>
-                          <div className="col-span-3">Added</div>
-                          <div className="col-span-2 text-right">Actions</div>
+                    ) : (assignments[d.id] ?? []).length === 0 ? (
+                      <div className="text-gray-600">No assignments yet.</div>
+                    ) : (
+                      <div className="mt-2 overflow-hidden rounded border">
+                        <div className="hidden sm:grid grid-cols-12 gap-3 px-3 py-2 bg-gray-50 text-xs font-semibold text-gray-600">
+                          <div className="col-span-5">Player</div>
+                          <div className="col-span-3">Status</div>
+                          <div className="col-span-3">Created</div>
+                          <div className="col-span-1 text-right">Actions</div>
                         </div>
-
-                        {membersLoading[d.id] ? (
-                          <div className="p-3 text-gray-600 flex items-center gap-2">
-                            <Spinner /> Loading members…
-                          </div>
-                        ) : list.length === 0 ? (
-                          <div className="p-3 text-gray-600">No members yet.</div>
-                        ) : (
-                          <ul className="divide-y">
-                            {list.map((m) => (
-                              <li key={m.id} className="px-3 py-2">
-                                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
-                                  <div className="sm:col-span-7 text-sm">{m.userId}</div>
-                                  <div className="sm:col-span-3 text-sm text-gray-700">
-                                    {m.createdAt ? new Date(m.createdAt).toLocaleString() : '—'}
-                                  </div>
-                                  <div className="sm:col-span-2 text-right">
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => removeMember(d, m)}
-                                      disabled={removingMember === m.id}
-                                    >
-                                      {removingMember === m.id ? 'Removing…' : 'Remove'}
-                                    </Button>
-                                  </div>
+                        <ul className="divide-y">
+                          {(assignments[d.id] ?? []).map((a) => (
+                            <li key={a.id} className="px-3 py-2 grid grid-cols-1 sm:grid-cols-12 gap-3">
+                              <div className="sm:col-span-5">
+                                <div className="text-sm text-gray-900 font-medium">
+                                  {a.user?.name || '—'}
                                 </div>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
+                                <div className="text-xs text-gray-600">
+                                  {a.user?.email || a.userId}
+                                </div>
+                              </div>
+                              <div className="sm:col-span-3">
+                                <Badge color={a.status === 'assigned' ? 'green' : 'gray'}>
+                                  {a.status}
+                                </Badge>
+                              </div>
+                              <div className="sm:col-span-3 text-sm text-gray-600">
+                                {a.createdAt ? new Date(a.createdAt).toLocaleString() : '—'}
+                              </div>
+                              <div className="sm:col-span-1 flex justify-end">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  loading={isBusy(`rem-${a.id}`)}
+                                  onClick={() => removeAssignment(d, a)}
+                                >
+                                  Remove
+                                </Button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
-                    </div>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </div>
+                    )}
+                  </div>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </div>
   )
 }
