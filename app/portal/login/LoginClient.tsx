@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/app/lib/supabaseClient';
 
 export default function LoginClient() {
@@ -9,10 +8,9 @@ export default function LoginClient() {
   const [status, setStatus] = useState<'idle'|'sending'|'sent'|'error'>('idle');
   const [msg, setMsg] = useState('');
   const [redirect, setRedirect] = useState('/portal');
-  const router = useRouter();
 
   useEffect(() => {
-    // Read ?redirect=... from the real URL safely on the client
+    // Read ?redirect safely on the client
     const url = new URL(window.location.href);
     setRedirect(url.searchParams.get('redirect') || '/portal');
   }, []);
@@ -36,41 +34,64 @@ export default function LoginClient() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
-      <div className="w-full max-w-md rounded-2xl bg-white shadow p-6">
-        <div className="text-center mb-6">
-          <img src="/images/nco-mark.svg" alt="NCO" className="h-14 mx-auto mb-2" />
-          <h1 className="text-xl font-semibold text-[#0A3161]">National Cornhole Portal</h1>
+    <main className="min-h-screen bg-gray-50">
+      {/* Top stripe in brand blue */}
+      <div className="h-2 w-full" style={{ backgroundColor: '#0A3161' }} />
+      <section className="mx-auto max-w-xl px-6 py-12">
+        <div className="flex flex-col items-center">
+          <img
+            src="/images/nco-mark.png"
+            alt="National Cornhole Organization"
+            className="h-16 mb-4"
+          />
+          <h1 className="text-2xl font-semibold" style={{ color: '#0A3161' }}>
+            National Cornhole Portal
+          </h1>
           <p className="text-sm text-gray-600">Sign in with a one-time magic link</p>
         </div>
 
-        <form onSubmit={onSubmit} className="space-y-4">
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e)=>setEmail(e.target.value)}
-            placeholder="you@wearenationalcornhole.com"
-            className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring focus:ring-[#0A3161]/20"
-          />
-          <button
-            disabled={status==='sending'}
-            className="w-full rounded-lg px-4 py-2 font-semibold text-white bg-[#B31942] disabled:opacity-60"
-          >
-            {status==='sending' ? 'Sending…' : 'Email me a magic link'}
-          </button>
-        </form>
+        <div className="mt-8 rounded-2xl bg-white shadow-lg ring-1 ring-gray-100">
+          <div className="p-6 sm:p-8">
+            <form onSubmit={onSubmit} className="space-y-4">
+              <label className="block">
+                <span className="text-sm font-medium text-gray-700">Email</span>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e)=>setEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0A3161]/30"
+                />
+              </label>
 
-        {!!msg && (
-          <p className={`mt-4 text-sm ${status==='error' ? 'text-red-600' : 'text-green-700'}`}>
-            {msg}
-          </p>
-        )}
+              <button
+                disabled={status==='sending'}
+                className="w-full rounded-lg px-4 py-2 font-semibold text-white disabled:opacity-60"
+                style={{ backgroundColor: '#B31942' }}
+              >
+                {status==='sending' ? 'Sending…' : 'Email me a magic link'}
+              </button>
 
-        <p className="mt-6 text-xs text-gray-500 text-center">
-          Need help? contact@wearenationalcornhole.com
-        </p>
-      </div>
+              {!!msg && (
+                <p className={`text-sm ${status==='error' ? 'text-red-600' : 'text-green-700'}`}>
+                  {msg}
+                </p>
+              )}
+            </form>
+
+            <p className="mt-6 text-xs text-gray-500">
+              By continuing, you agree to the NCO Terms. Need help? contact@wearenationalcornhole.com
+            </p>
+          </div>
+        </div>
+
+        {/* Subtle brand footer */}
+        <div className="mt-8 flex items-center justify-center gap-3">
+          <span className="inline-block h-2 w-8 rounded-full" style={{ backgroundColor: '#0A3161' }} />
+          <span className="inline-block h-2 w-8 rounded-full" style={{ backgroundColor: '#B31942' }} />
+        </div>
+      </section>
     </main>
   );
 }
