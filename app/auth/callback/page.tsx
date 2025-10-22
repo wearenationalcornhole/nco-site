@@ -1,25 +1,35 @@
 'use client'
 import { useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/app/lib/supabaseClient'
+
+// Prevent static prerendering; this page should only run client-side
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 export default function AuthCallback() {
   const router = useRouter()
-  const sp = useSearchParams()
-  const to = sp.get('redirect') || '/portal'
 
   useEffect(() => {
-    const go = async () => {
+    const run = async () => {
+      // Read redirect from window URL (no useSearchParams needed)
+      const url = new URL(window.location.href)
+      const to = url.searchParams.get('redirect') || '/portal'
+
       const { error } = await supabase.auth.exchangeCodeForSession(window.location.href)
       if (error) {
-        console.error('Auth exchange error:', error)
+        console.error('exchange error', error)
         router.replace(`/portal/login?e=${encodeURIComponent(error.message)}`)
         return
       }
       router.replace(to)
     }
-    go()
-  }, [router, to])
+    run()
+  }, [router])
 
-  return <main className="min-h-screen grid place-items-center"><p>Signing you in…</p></main>
+  return (
+    <main className="min-h-screen grid place-items-center">
+      <p>Signing you in…</p>
+    </main>
+  )
 }
