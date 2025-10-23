@@ -7,24 +7,39 @@ export default function LoginClient() {
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<'idle'|'sending'|'sent'|'error'>('idle');
   const [msg, setMsg] = useState('');
-  const [redirect, setRedirect] = useState('/portal');
+  const [redirect, setRedirect] = useState('/portal/dashboard'); // <- default target
 
   useEffect(() => {
+    // read ?redirect=… safely and normalize to a portal path
     const url = new URL(window.location.href);
-    setRedirect(url.searchParams.get('redirect') || '/portal');
+    const r = url.searchParams.get('redirect');
+    if (r && r.startsWith('/portal')) {
+      setRedirect(r);
+    } else {
+      setRedirect('/portal/dashboard');
+    }
   }, []);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatus('sending'); setMsg('');
+
+    // server callback route sets sb- cookies, then redirects to `redirect`
+    const emailRedirectTo =
+      `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirect)}`;
+
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirect)}`
-      }
+      options: { emailRedirectTo }
     });
-    if (error) { setStatus('error'); setMsg(error.message || 'Sign-in failed.'); return; }
-    setStatus('sent'); setMsg('Magic link sent! Check your email.');
+
+    if (error) {
+      setStatus('error');
+      setMsg(error.message || 'Sign-in failed. Please try again.');
+      return;
+    }
+    setStatus('sent');
+    setMsg('Magic link sent! Check your email.');
   };
 
   return (
@@ -33,7 +48,9 @@ export default function LoginClient() {
       <section className="mx-auto max-w-xl px-6 py-12">
         <div className="flex flex-col items-center">
           <img src="/images/nco-mark.svg" alt="National Cornhole Organization" className="h-16 mb-4" />
-          <h1 className="text-2xl font-semibold" style={{ color: '#0A3161' }}>National Cornhole Portal</h1>
+          <h1 className="text-2xl font-semibold" style={{ color: '#0A3161' }}>
+            National Cornhole Portal
+          </h1>
           <p className="text-sm text-gray-600">Sign in with a one-time magic link</p>
         </div>
 
