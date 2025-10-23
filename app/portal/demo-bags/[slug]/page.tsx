@@ -4,8 +4,14 @@ import Link from 'next/link';
 import { DEMO_GALLERIES } from '../config';
 import GalleryClient from './ui/GalleryClient';
 
-export default function DemoBagsEventPage({ params }: { params: { slug: string } }) {
-  const gallery = DEMO_GALLERIES[params.slug];
+// Your project's PageProps requires params: Promise<any>, so we await it.
+type Params = { slug: string };
+
+export default async function DemoBagsEventPage(
+  { params }: { params: Promise<Params> } // <- matches your PageProps constraint
+) {
+  const { slug } = await params;          // unwrap the promised params
+  const gallery = DEMO_GALLERIES[slug];
 
   if (!gallery) {
     return (
@@ -13,7 +19,7 @@ export default function DemoBagsEventPage({ params }: { params: { slug: string }
         <meta name="robots" content="noindex,nofollow" />
         <div className="text-center">
           <h1 className="text-2xl font-semibold text-gray-700 mb-3">Not found</h1>
-          <p className="text-gray-500 mb-6">This demo link may be expired or incorrect.</p>
+        <p className="text-gray-500 mb-6">This demo link may be expired or incorrect.</p>
           <Link href="/portal/demo-bags" className="text-white px-4 py-2 rounded" style={{ backgroundColor: '#0A3161' }}>
             ← Back to Demo Bags
           </Link>
@@ -41,3 +47,12 @@ export default function DemoBagsEventPage({ params }: { params: { slug: string }
     </main>
   );
 }
+
+/*
+If your project later expects sync params (the common Next.js typing), switch to:
+
+export default function DemoBagsEventPage({ params }: { params: Params }) {
+  const { slug } = params;
+  ...
+}
+*/
