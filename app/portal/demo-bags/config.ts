@@ -51,6 +51,16 @@ export const DEMO_GALLERIES: Record<string, DemoGallery> = {
     logo: '/demo-bags/Emerald2025/images/Logo.png',
     images: [
       { src: '/demo-bags/Emerald2025/images/Logo.png', caption: 'Emerald Logo' },
+      {src: "/demo-bags/Emerald2025images/Baird-G.png", caption: "Baird Tournament Bag Green"},
+	    {src: "/demo-bags/Emerald2025images/Baird.png", caption: "Baird Tournament Bag"},
+	    {src: "/demo-bags/Emerald2025images/Darby-G.png", caption: "Darby Tournament Bag Green"},
+	    {src: "/demo-bags/Emerald2025images/Darby.png", caption: "Darby Tournament Bag"},
+	    {src: "/demo-bags/Emerald2025images/Huff-G.png", caption: "Huff Tournament Bag Green"},
+	    {src: "/demo-bags/Emerald2025images/Huff.png", caption: "Huff Tournament Bag"},
+	    {src: "/demo-bags/Emerald2025images/IAFF-G.png", caption: "IAFF Tournament Bag Green"},
+	    {src: "/demo-bags/Emerald2025images/IAFF.png", caption: "IAFF Tournament Bag"},
+	    {src: "/demo-bags/Emerald2025images/RFFA-G.png", caption: "RFFA Tournament Bag Green"},
+	    {src: "/demo-bags/Emerald2025images/RFFA.png", caption: "RFFA Tournament Bag"},
     ],
   },
   Habitat2025: {
@@ -75,6 +85,10 @@ export const DEMO_GALLERIES: Record<string, DemoGallery> = {
     logo: '/demo-bags/Raventek2025/images/Logo.png',
     images: [
       { src: '/demo-bags/Raventek2025/images/Logo.png', caption: 'Raventek' },
+      {src: "/demo-bags/Raventek2025/images/Bag1.png", caption: "Black bag with Analyst1 Full Color Shield.png "},
+      {src: "/demo-bags/Raventek2025/images/Bag2.png", caption: "Yellow bag (#facd33) with Analyst1 Vertical Logo - Black.png"},
+      {src: "/demo-bags/Raventek2025/images/Bag3.png", caption: "Orange bags (#FFAD5B) with Censys Logo Tagline_7S_1C_Teal_Stacked.png"},
+      {src: "/demo-bags/Raventek2025/images/Bag4.png", caption: "Teal bags (#1E3C41) with Censys Logo Tagline_7S_1C_Orange_Stacked.png"}
     ],
   },
   SHMC2025: {
