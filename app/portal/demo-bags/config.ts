@@ -9,8 +9,8 @@ export const DEMO_GALLERIES: Record<string, DemoGallery> = {
     title: '2025 Rotary Club Tournament Demos',
     logo: '/demo-bags/Rotary2025/images/NCOLOGO.png',
     images: [
-      { src: '/demo-bags/Rotary2025/images/demo.png',  caption: 'SHMC Tournament Bag Orange' },
-      { src: '/demo-bags/Rotary2025/images/demo2.png', caption: 'SHMC Tournament Bag Blue'   },
+      { src: '/demo-bags/Rotary2025/images/demo.png',  caption: 'Rotary Tournament Bag Orange' },
+      { src: '/demo-bags/Rotary2025/images/demo2.png', caption: 'Rotary Tournament Bag Blue'   },
       // add more...
     ],
   },
@@ -33,6 +33,16 @@ export const DEMO_GALLERIES: Record<string, DemoGallery> = {
     logo: '/demo-bags/Raventek2025/images/Logo.png',
     images: [
       { src: '/demo-bags/Raventek2025/images/Logo.png', caption: 'Raventek' },
+    ],
+  },
+  SHMC2025: {
+    title: 'SHMC Tournament — 21 September 2025',
+    logo: '/demo-bags/SHMC2025/images/Logo.png',
+    images: [
+      { src: '/demo-bags/SHMC2025/images/Logo.png', caption: 'Emerald Logo' },
+      { src: '/demo-bags/SHMC2025/images/demo.png',  caption: 'SHMC Tournament Bag Orange' },
+      { src: '/demo-bags/SHMC2025/images/demo2.png', caption: 'SHMC Tournament Bag Blue'   },
+      
     ],
   },
 }
