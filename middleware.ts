@@ -1,19 +1,32 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 
 export function middleware(req: NextRequest) {
-  const path = req.nextUrl.pathname;
-  if (!path.startsWith('/portal')) return;
+  const { pathname, search } = req.nextUrl
 
-  // allow the login route itself
-  if (path === '/portal/login' || path.startsWith('/portal/login/')) return;
+  // Only guard /portal/* routes
+  if (!pathname.startsWith('/portal')) return
 
-  const hasSession = req.cookies.getAll().some(c => c.name.startsWith('sb-'));
+  // Always allow the login route
+  if (pathname === '/portal/login' || pathname.startsWith('/portal/login/')) return
+
+  // PUBLIC: demo bag gallery + its subpages
+  if (pathname === '/portal/demo-bags' || pathname.startsWith('/portal/demo-bags/')) return
+
+  // Everything else under /portal requires Supabase session
+  const hasSession = req.cookies.getAll().some((c) => c.name.startsWith('sb-'))
   if (!hasSession) {
-    const url = req.nextUrl.clone();
-    url.pathname = '/portal/login';
-    url.searchParams.set('redirect', path + req.nextUrl.search);
-    return NextResponse.redirect(url);
+    const url = req.nextUrl.clone()
+    url.pathname = '/portal/login'
+    url.searchParams.set('redirect', pathname + search)
+    return NextResponse.redirect(url)
   }
+
+  // Authenticated user — allow
+  return
 }
-export const config = { matcher: ['/portal/:path*'] };
+
+// Run only for /portal/*
+export const config = {
+  matcher: ['/portal/:path*'],
+}
