@@ -37,9 +37,9 @@ export const DEMO_GALLERIES: Record<string, DemoGallery> = {
   },
   SHMC2025: {
     title: 'SHMC Tournament — 21 September 2025',
-    logo: '/demo-bags/SHMC2025/images/Logo.png',
+    logo: '/demo-bags/SHMC2025/images/Logo.jpg',
     images: [
-      { src: '/demo-bags/SHMC2025/images/Logo.png', caption: 'Emerald Logo' },
+      { src: '/demo-bags/SHMC2025/images/Logo.jpg', caption: 'SHMC Logo' },
       { src: '/demo-bags/SHMC2025/images/demo.png',  caption: 'SHMC Tournament Bag Orange' },
       { src: '/demo-bags/SHMC2025/images/demo2.png', caption: 'SHMC Tournament Bag Blue'   },
       
