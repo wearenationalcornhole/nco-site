@@ -26,7 +26,7 @@ const tournaments = [
 {
     slug: 'SHMC2025',
     name: "Strength & Honor MC Tournament",
-    img: '/demo-bags/SHMC2025/images/Logo.jpg',
+    img: '/demo-bags/SHMC2025/images/logo.jpg',
   },
 ]
 
