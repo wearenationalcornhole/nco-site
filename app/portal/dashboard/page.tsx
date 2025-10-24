@@ -1,44 +1,15 @@
-'use client'
+'use client';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-
-type Role = 'organizer' | 'player' | null
-
-export default function DashboardPage() {
-  const router = useRouter()
-  const supabase = createClientComponentClient() // ← helpers client
-  const [loading, setLoading] = useState(true)
-  const [email, setEmail] = useState<string | null>(null)
-  const [role, setRole] = useState<Role>(null)
-
-  useEffect(() => {
-    const run = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.replace('/portal/login'); return }
-
-      setEmail(user.email ?? null)
-
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .maybeSingle()
-
-      if (error) {
-        router.replace('/portal/onboarding'); return
-      }
-
-      const r = (profile?.role as Role) ?? null
-      if (!r) { router.replace('/portal/onboarding'); return }
-
-      setRole(r)
-      setLoading(false)
-    }
-    run()
-  }, [router, supabase])
-
-  /* …rest of your component unchanged… */
+export default function DashboardSmoke() {
+  return (
+    <main style={{minHeight:'100vh',display:'grid',placeItems:'center',background:'#f6f7f9'}}>
+      <div style={{background:'#fff',padding:'24px 32px',borderRadius:12,boxShadow:'0 8px 24px rgba(0,0,0,0.08)'}}>
+        <img src="/images/nco-logo.png" alt="NCO" style={{height:64,display:'block',margin:'0 auto 12px'}} />
+        <h1 style={{textAlign:'center',color:'#0A3161'}}>Dashboard (Smoke Test)</h1>
+        <p style={{textAlign:'center',color:'#555'}}>If you see this, the callback & routing are good.</p>
+      </div>
+    </main>
+  );
 }
