@@ -1,53 +1,20 @@
 // app/portal/page.tsx
-import { redirect } from 'next/navigation'
-import { cookies } from 'next/headers'
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
-import { getPrisma } from '@/app/lib/safePrisma'
-import { devStore } from '@/app/lib/devStore'
+export const revalidate = 0;
+export const dynamic = 'force-dynamic';
 
-type Role = 'player' | 'organizer' | 'admin'
+import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 
-export default async function PortalLanding() {
-  // 1) Get session from Supabase (server-side)
-  const supabase = createServerComponentClient({ cookies }) // ✅ pass the function, no await
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+export default async function PortalIndex() {
+  const supabase = createServerComponentClient({ cookies });
+  const { data: { user } } = await supabase.auth.getUser();
 
-  // 2) Not signed in? → Login
-  if (!session) {
-    redirect('/portal/login')
+  // Not logged in → magic-link page (and bounce to dashboard after auth)
+  if (!user) {
+    redirect('/portal/login?redirect=%2Fportal%2Fdashboard');
   }
 
-  // 3) Look up user role
-  const email = session.user.email ?? ''
-  let role: Role = 'player'
-
-  try {
-    const prisma = await getPrisma()
-    if (prisma && email) {
-      const user = (await prisma.users.findFirst({
-        where: { email },
-        select: { role: true },
-      })) as { role?: string } | null
-
-      if (user?.role === 'organizer' || user?.role === 'admin' || user?.role === 'player') {
-        role = user.role
-      }
-    } else {
-      // devStore fallback
-      const users = devStore.getAll<{ email?: string; role?: string }>('users')
-      const u = users.find((u) => (u.email ?? '').toLowerCase() === email.toLowerCase())
-      if (u?.role === 'organizer' || u?.role === 'admin' || u?.role === 'player') {
-        role = u.role as Role
-      }
-    }
-  } catch {
-    // If lookup fails, stick with 'player'
-  }
-
-  // 4) Role-based redirect
-  if (role === 'admin') redirect('/portal/admin')
-  if (role === 'organizer') redirect('/portal/org')
-  redirect('/portal/events')
+  // Logged in → dashboard (which will route to onboarding/profile if needed)
+  redirect('/portal/dashboard');
 }

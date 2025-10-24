@@ -81,7 +81,7 @@ export default async function Home() {
               <Link href="/events">Find Events</Link>
             </Button>
             <Button asChild size="lg" variant="outline" className="bg-white/10 backdrop-blur hover:bg-white/20">
-              <Link href="/portal">Organizer Portal</Link>
+              <Link href="/portal">Community Portal</Link>
             </Button>
           </div>
         </div>
