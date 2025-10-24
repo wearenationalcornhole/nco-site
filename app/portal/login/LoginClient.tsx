@@ -48,7 +48,7 @@ export default function LoginClient() {
       <div className="h-2 w-full" style={{ backgroundColor: '#0A3161' }} />
       <section className="mx-auto max-w-xl px-6 py-12">
         <div className="flex flex-col items-center">
-          <img src="/images/nco-logo.png" alt="National Cornhole Organization" className="h-16 mb-4" />
+          <img src="/images/nco-mark.png" alt="National Cornhole Organization" className="h-16 mb-4" />
           <h1 className="text-2xl font-semibold" style={{ color: '#0A3161' }}>National Cornhole Portal</h1>
           <p className="text-sm text-gray-600">No password needed — we’ll email you a secure one-time link.</p>
         </div>
