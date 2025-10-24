@@ -39,7 +39,7 @@ type MyRegistration = {
   checked_in: boolean | null;
 };
 
-export default function PlayersClient() {
+export default function Client() {
   const supabase = createClientComponentClient();
 
   const [email, setEmail] = useState<string | null>(null);
@@ -78,18 +78,27 @@ export default function PlayersClient() {
           if (c) setClub(c);
         }
 
-        // My registrations (RLS limits to me by user_id)
+        // My registrations (RLS should limit to me via user_id)
         const { data: r, error: rerr } = await supabase
           .from('registrations')
           .select('id,event_id,division_id,created_at,user_id,status,checked_in,notes')
           .order('created_at', { ascending: false });
-        if (rerr) throw rerr;
 
-        const mine = (r ?? []) as RegistrationRow[];
+        let mine: RegistrationRow[] = [];
+        if (rerr) {
+          // Don’t crash the page on permission errors; show empty state instead
+          console.warn('Registrations query issue:', rerr);
+        } else {
+          mine = (r ?? []) as RegistrationRow[];
+        }
 
         // Hydrate with event & division names
-        const eventIds = Array.from(new Set(mine.map(x => x.event_id).filter(Boolean))) as string[];
-        const divisionIds = Array.from(new Set(mine.map(x => x.division_id).filter(Boolean))) as string[];
+        const eventIds = Array.from(
+          new Set(mine.map(x => x.event_id).filter(Boolean))
+        ) as string[];
+        const divisionIds = Array.from(
+          new Set(mine.map(x => x.division_id).filter(Boolean))
+        ) as string[];
 
         const eventsById = new Map<string, EventRow>();
         const divisionsById = new Map<string, DivisionRow>();
@@ -129,7 +138,7 @@ export default function PlayersClient() {
         setLoading(false);
       } catch (e: any) {
         console.error(e);
-        setErr(e?.message || 'Failed to load your player data');
+        setErr(e?.message || 'Failed to load your player page');
         setLoading(false);
       }
     })();
@@ -150,14 +159,17 @@ export default function PlayersClient() {
           <h2 className="text-lg font-semibold text-red-600">Couldn’t load</h2>
           <p className="text-sm text-gray-700 mt-2">{err}</p>
           <p className="text-sm mt-4">
-            <Link href="/portal/dashboard" className="text-usaBlue hover:underline">Back to dashboard</Link>
+            <Link href="/portal/dashboard" className="text-usaBlue hover:underline">
+              Back to dashboard
+            </Link>
           </p>
         </div>
       </main>
     );
   }
 
-  const fullName = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'Player';
+  const fullName =
+    [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'Player';
 
   return (
     <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
@@ -184,7 +196,7 @@ export default function PlayersClient() {
         </div>
         <div className="flex gap-2">
           <Link
-            href="/portal/onboarding/profile"
+            href="/portal/onboarding"  // ← correct route
             className="rounded border px-3 py-1.5 text-sm hover:bg-gray-50"
           >
             Edit profile
@@ -221,9 +233,11 @@ export default function PlayersClient() {
                     <p className="mt-1 text-xs text-gray-500">
                       Status: <span className="font-medium">{r.status ?? '—'}</span>
                       {typeof r.checked_in === 'boolean' ? (
-                        <span className={`ml-2 inline-block rounded-full px-2 py-0.5 text-[11px] ${
-                          r.checked_in ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
-                        }`}>
+                        <span
+                          className={`ml-2 inline-block rounded-full px-2 py-0.5 text-[11px] ${
+                            r.checked_in ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                          }`}
+                        >
                           {r.checked_in ? 'Checked in' : 'Not checked in'}
                         </span>
                       ) : null}
@@ -242,7 +256,9 @@ export default function PlayersClient() {
 
       {/* Helpful nav */}
       <div className="mt-8 text-sm">
-        <Link href="/portal/dashboard" className="text-usaBlue hover:underline">← Back to Dashboard</Link>
+        <Link href="/portal/dashboard" className="text-usaBlue hover:underline">
+          ← Back to Dashboard
+        </Link>
       </div>
     </main>
   );
