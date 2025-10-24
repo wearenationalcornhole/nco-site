@@ -174,7 +174,7 @@ export default function OnboardingClient() {
     <main className="min-h-screen bg-gray-50 p-8">
       <div className="mx-auto max-w-2xl bg-white rounded-2xl shadow p-8">
         <div className="text-center mb-6">
-          <img src="/images/nco-logo.png" alt="NCO" className="h-14 mx-auto mb-3" />
+          <img src="/images/nco-mark.png" alt="NCO" className="h-14 mx-auto mb-3" />
           <h1 className="text-2xl font-semibold text-[#0A3161]">Complete your profile</h1>
           {email ? <p className="text-gray-600">{email}</p> : null}
         </div>
