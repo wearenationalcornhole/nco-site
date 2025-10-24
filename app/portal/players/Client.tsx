@@ -1,164 +1,249 @@
-'use client'
+// app/portal/players/Client.tsx
+'use client';
 
-import { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
-type Player = { id: string; email: string; name?: string | null; createdAt?: string | null }
+type Profile = {
+  first_name: string | null;
+  last_name: string | null;
+  avatar_url: string | null;
+  primary_club_id: string | null;
+};
 
-export default function Client() {
-  const [q, setQ] = useState('')
-  const [page, setPage] = useState(1)
-  const [pageSize] = useState(20)
-  const [rows, setRows] = useState<Player[]>([])
-  const [total, setTotal] = useState(0)
-  const [email, setEmail] = useState('')
-  const [name, setName] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const pages = Math.max(1, Math.ceil(total / pageSize))
+type Club = { id: string; name: string; logo_url: string | null };
+
+type RegistrationRow = {
+  id: string;
+  event_id: string | null;
+  division_id: string | null;
+  created_at: string | null;
+  user_id: string;
+  status: string | null;
+  checked_in: boolean | null;
+  notes: string | null;
+};
+
+type EventRow = { id: string; title: string; date: string | null; city: string | null };
+type DivisionRow = { id: string; name: string };
+
+type MyRegistration = {
+  id: string;
+  event_title: string;
+  division_name: string | null;
+  date: string | null;
+  city: string | null;
+  created_at: string | null;
+  status: string | null;
+  checked_in: boolean | null;
+};
+
+export default function PlayersClient() {
+  const supabase = createClientComponentClient();
+
+  const [email, setEmail] = useState<string | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [club, setClub] = useState<Club | null>(null);
+
+  const [regs, setRegs] = useState<MyRegistration[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    let alive = true
-    setLoading(true)
-    const url = `/portal/api/players?q=${encodeURIComponent(q)}&page=${page}&pageSize=${pageSize}`
-    fetch(url)
-      .then(r => r.json())
-      .then(data => { if (!alive) return; setRows(data.items || []); setTotal(data.total || 0); setLoading(false) })
-      .catch(() => { if (!alive) return; setRows([]); setTotal(0); setLoading(false) })
-    return () => { alive = false }
-  }, [q, page, pageSize])
+    (async () => {
+      try {
+        setLoading(true);
 
-  const canCreate = email.trim().length > 3
+        // Who am I?
+        const { data: { user }, error: uerr } = await supabase.auth.getUser();
+        if (uerr) throw uerr;
+        setEmail(user?.email ?? null);
 
-  async function createPlayer(e: React.FormEvent) {
-    e.preventDefault()
-    if (!canCreate) return
-    setSaving(true)
-    try {
-      const res = await fetch('/portal/api/players', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), name: name.trim() || undefined }),
-      })
-      if (!res.ok) throw new Error((await res.json())?.error ?? 'Failed to create player')
-      setEmail(''); setName('')
-      // refetch first page to show newest
-      setPage(1)
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setSaving(false)
-    }
+        // Profile header
+        const { data: p, error: perr } = await supabase
+          .from('profiles')
+          .select('first_name,last_name,avatar_url,primary_club_id')
+          .maybeSingle<Profile>();
+        if (perr) throw perr;
+        setProfile(p);
+
+        // Club (normalized)
+        if (p?.primary_club_id) {
+          const { data: c } = await supabase
+            .from('clubs')
+            .select('id,name,logo_url')
+            .eq('id', p.primary_club_id)
+            .maybeSingle<Club>();
+          if (c) setClub(c);
+        }
+
+        // My registrations (RLS limits to me by user_id)
+        const { data: r, error: rerr } = await supabase
+          .from('registrations')
+          .select('id,event_id,division_id,created_at,user_id,status,checked_in,notes')
+          .order('created_at', { ascending: false });
+        if (rerr) throw rerr;
+
+        const mine = (r ?? []) as RegistrationRow[];
+
+        // Hydrate with event & division names
+        const eventIds = Array.from(new Set(mine.map(x => x.event_id).filter(Boolean))) as string[];
+        const divisionIds = Array.from(new Set(mine.map(x => x.division_id).filter(Boolean))) as string[];
+
+        const eventsById = new Map<string, EventRow>();
+        const divisionsById = new Map<string, DivisionRow>();
+
+        if (eventIds.length) {
+          const { data: ev } = await supabase
+            .from('events')
+            .select('id,title,date,city')
+            .in('id', eventIds);
+          (ev ?? []).forEach(e => eventsById.set(e.id, e));
+        }
+
+        if (divisionIds.length) {
+          const { data: dv } = await supabase
+            .from('event_divisions')
+            .select('id,name')
+            .in('id', divisionIds);
+          (dv ?? []).forEach(d => divisionsById.set(d.id, d));
+        }
+
+        const pretty: MyRegistration[] = mine.map(row => {
+          const ev = row.event_id ? eventsById.get(row.event_id) : undefined;
+          const dv = row.division_id ? divisionsById.get(row.division_id) : undefined;
+          return {
+            id: row.id,
+            event_title: ev?.title ?? 'Untitled Event',
+            division_name: dv?.name ?? null,
+            date: ev?.date ?? null,
+            city: ev?.city ?? null,
+            created_at: row.created_at ?? null,
+            status: row.status ?? null,
+            checked_in: row.checked_in ?? null,
+          };
+        });
+
+        setRegs(pretty);
+        setLoading(false);
+      } catch (e: any) {
+        console.error(e);
+        setErr(e?.message || 'Failed to load your player data');
+        setLoading(false);
+      }
+    })();
+  }, [supabase]);
+
+  if (loading) {
+    return (
+      <main className="min-h-screen grid place-items-center p-10">
+        <p>Loading your player page…</p>
+      </main>
+    );
   }
 
-  const empty = !loading && rows.length === 0
+  if (err) {
+    return (
+      <main className="min-h-screen grid place-items-center p-10">
+        <div className="bg-white rounded-2xl shadow p-6 max-w-md">
+          <h2 className="text-lg font-semibold text-red-600">Couldn’t load</h2>
+          <p className="text-sm text-gray-700 mt-2">{err}</p>
+          <p className="text-sm mt-4">
+            <Link href="/portal/dashboard" className="text-usaBlue hover:underline">Back to dashboard</Link>
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  const fullName = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'Player';
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Players</h1>
-          <p className="text-gray-600 text-sm">Search, add, and manage player accounts.</p>
-        </div>
-      </div>
-
-      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Create */}
-        <form onSubmit={createPlayer} className="rounded-xl border bg-white p-6">
-          <h2 className="text-lg font-semibold">Add Player</h2>
-          <p className="text-sm text-gray-600">Create a player account by email. Name is optional.</p>
-          <div className="mt-3 grid gap-2">
-            <input
-              className="rounded border px-3 py-2 text-sm"
-              placeholder="Email *"
-              value={email}
-              onChange={(e)=>setEmail(e.target.value)}
-              type="email"
-              required
-            />
-            <input
-              className="rounded border px-3 py-2 text-sm"
-              placeholder="Name (optional)"
-              value={name}
-              onChange={(e)=>setName(e.target.value)}
-            />
-            <button
-              disabled={!canCreate || saving}
-              className="rounded bg-usaBlue text-white px-3 py-2 text-sm hover:opacity-90 disabled:opacity-60"
-            >
-              {saving ? 'Saving…' : 'Create Player'}
-            </button>
-          </div>
-        </form>
-
-        {/* Search + List */}
-        <div className="lg:col-span-2 rounded-xl border bg-white p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <h2 className="text-lg font-semibold">Directory</h2>
-            <input
-              className="rounded border px-3 py-2 text-sm w-full sm:w-72"
-              placeholder="Search email or name…"
-              value={q}
-              onChange={(e)=>{ setPage(1); setQ(e.target.value) }}
-            />
-          </div>
-
-          <div className="mt-4 overflow-hidden rounded-lg border">
-            <div className="hidden sm:grid grid-cols-12 gap-3 px-4 py-3 border-b bg-gray-50 text-xs font-semibold text-gray-600">
-              <div className="col-span-5">Player</div>
-              <div className="col-span-5">Email</div>
-              <div className="col-span-2">Created</div>
-            </div>
-            {loading ? (
-              <div className="p-4 text-gray-600">Loading…</div>
-            ) : empty ? (
-              <div className="p-4 text-gray-600">No players found.</div>
-            ) : (
-              <ul className="divide-y">
-                {rows.map(p => (
-                  <li key={p.id} className="px-4 py-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-                      <div className="col-span-5 font-medium">{p.name ?? '—'}</div>
-                      <div className="col-span-5 text-gray-700">{p.email}</div>
-                      <div className="col-span-2 text-sm text-gray-600">
-                        {p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—'}
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+    <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-4">
+          <img
+            src={profile?.avatar_url || '/images/nco-mark.webp'}
+            alt=""
+            className="h-14 w-14 rounded-full object-cover border"
+          />
+          <div>
+            <h1 className="text-2xl font-semibold">{fullName}</h1>
+            <p className="text-sm text-gray-600">{email}</p>
+            {club && (
+              <p className="text-sm text-gray-600 flex items-center gap-2 mt-1">
+                {club.logo_url ? (
+                  <img src={club.logo_url} alt="" className="h-4 w-4 object-contain rounded border" />
+                ) : null}
+                Club: <strong>{club.name}</strong>
+              </p>
             )}
           </div>
-
-          {/* Pager */}
-          {pages > 1 && (
-            <div className="mt-4 flex items-center justify-end gap-2 text-sm">
-              <button
-                onClick={()=> setPage(p => Math.max(1, p-1))}
-                disabled={page<=1}
-                className="rounded border px-3 py-1 disabled:opacity-50"
-              >
-                Prev
-              </button>
-              <span>Page {page} / {pages}</span>
-              <button
-                onClick={()=> setPage(p => Math.min(pages, p+1))}
-                disabled={page>=pages}
-                className="rounded border px-3 py-1 disabled:opacity-50"
-              >
-                Next
-              </button>
-            </div>
-          )}
+        </div>
+        <div className="flex gap-2">
+          <Link
+            href="/portal/onboarding/profile"
+            className="rounded border px-3 py-1.5 text-sm hover:bg-gray-50"
+          >
+            Edit profile
+          </Link>
+          <Link
+            href="/portal/events"
+            className="rounded bg-usaBlue text-white px-3 py-1.5 text-sm hover:opacity-90"
+          >
+            Find events
+          </Link>
         </div>
       </div>
 
-      {/* Helpful link for now */}
+      {/* Registrations */}
+      <section className="mt-8">
+        <h2 className="text-lg font-semibold">My registrations</h2>
+
+        {regs.length === 0 ? (
+          <div className="mt-3 rounded-xl border bg-white p-6 text-gray-600">
+            You have no registrations yet. Browse{' '}
+            <Link href="/portal/events" className="text-usaBlue hover:underline">events</Link>{' '}
+            to get started.
+          </div>
+        ) : (
+          <ul className="mt-3 grid gap-3">
+            {regs.map((r) => (
+              <li key={r.id} className="rounded-xl border bg-white p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">{r.event_title}</p>
+                    <p className="text-sm text-gray-600">
+                      {r.division_name ? `Division: ${r.division_name}` : '—'}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Status: <span className="font-medium">{r.status ?? '—'}</span>
+                      {typeof r.checked_in === 'boolean' ? (
+                        <span className={`ml-2 inline-block rounded-full px-2 py-0.5 text-[11px] ${
+                          r.checked_in ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                        }`}>
+                          {r.checked_in ? 'Checked in' : 'Not checked in'}
+                        </span>
+                      ) : null}
+                    </p>
+                  </div>
+                  <div className="text-right text-sm text-gray-600">
+                    <p>{r.date ? new Date(r.date).toLocaleDateString() : 'TBD'}</p>
+                    {r.city ? <p>{r.city}</p> : null}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* Helpful nav */}
       <div className="mt-8 text-sm">
-        <Link href="/portal/org/events" className="text-usaBlue hover:underline">
-          ← Back to Organizer Events
-        </Link>
+        <Link href="/portal/dashboard" className="text-usaBlue hover:underline">← Back to Dashboard</Link>
       </div>
-    </div>
-  )
+    </main>
+  );
 }

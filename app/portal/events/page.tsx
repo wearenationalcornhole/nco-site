@@ -1,40 +1,82 @@
 // app/portal/events/page.tsx
-import Link from 'next/link'
-import { redirect } from 'next/navigation'
-import { createServerClient } from '@/app/lib/supabaseServer'
-import { getPrisma } from '@/app/lib/safePrisma'
+export const revalidate = 0;
+export const dynamic = 'force-dynamic';
 
-export const runtime = 'nodejs'
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+
+type Role = 'organizer' | 'player' | 'admin';
+
+type EventRow = {
+  id: string;
+  slug: string | null;
+  title: string;
+  city: string | null;
+  date: string | null; // ISO 'YYYY-MM-DD' in your schema
+  image: string | null;
+};
+
+function fmtDate(iso?: string | null) {
+  if (!iso) return 'TBD';
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y ?? 1970, (m ?? 1) - 1, d ?? 1));
+  return dt.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
 
 export default async function EventsPage() {
-  const supabase = await createServerClient() // ✅ FIXED
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  const supabase = createServerComponentClient({ cookies });
 
-  if (!session || !session.user) {
-    redirect('/portal/login?next=/portal/events')
+  // Session required
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    redirect('/portal/login?redirect=%2Fportal%2Fevents');
   }
 
-  const prisma = await getPrisma()
-  let events: any[] = []
+  // Role (for showing Organizer Console link)
+  let role: Role = 'player';
+  {
+    const { data: p } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle();
+    if (p?.role === 'organizer' || p?.role === 'admin') role = p.role;
+  }
 
-  if (prisma) {
-    events = await prisma.events.findMany({
-      orderBy: { date: 'desc' },
-    })
+  // Fetch events from Supabase (fall back to local JSON if table empty/locked)
+  let events: EventRow[] = [];
+  const { data, error } = await supabase
+    .from('events')
+    .select('id, slug, title, city, date, image')
+    .order('date', { ascending: false });
+
+  if (!error && data) {
+    events = data as EventRow[];
+  } else {
+    const local = (await import('@/app/data/events.json')).default as EventRow[];
+    events = local;
   }
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">All Events</h1>
-        <Link
-          href="/portal/org/events"
-          className="rounded bg-usaBlue text-white px-4 py-2 text-sm hover:opacity-90"
-        >
-          Organizer Console
-        </Link>
+
+        {(role === 'organizer' || role === 'admin') && (
+          <Link
+            href="/portal/org"
+            className="rounded bg-usaBlue text-white px-4 py-2 text-sm hover:opacity-90"
+          >
+            Organizer Console
+          </Link>
+        )}
       </div>
 
       {events.length === 0 ? (
@@ -46,11 +88,9 @@ export default async function EventsPage() {
               key={e.id}
               className="rounded-xl border bg-white p-4 shadow-sm hover:shadow-md transition"
             >
-              <h2 className="text-lg font-semibold text-gray-900">
-                {e.title}
-              </h2>
+              <h2 className="text-lg font-semibold text-gray-900">{e.title}</h2>
               <p className="text-sm text-gray-600">{e.city ?? 'TBD'}</p>
-              <p className="text-sm text-gray-600 mt-1">{e.date ?? 'TBD'}</p>
+              <p className="text-sm text-gray-600 mt-1">{fmtDate(e.date)}</p>
               <div className="mt-3">
                 <Link
                   href={`/portal/events/${e.slug ?? e.id}`}
@@ -64,5 +104,5 @@ export default async function EventsPage() {
         </div>
       )}
     </div>
-  )
+  );
 }

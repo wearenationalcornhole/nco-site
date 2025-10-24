@@ -72,7 +72,7 @@ export default function OnboardingClient() {
 
         if (p?.role) setRole(p.role);
         if (p?.is_profile_complete) {
-          router.replace(p.role === 'organizer' ? '/portal/events' : '/portal/players');
+          router.replace('/portal/dashboard');
           return;
         }
 
@@ -140,7 +140,7 @@ export default function OnboardingClient() {
 
       if (error) throw error;
 
-      router.replace(role === 'organizer' ? '/portal/events' : '/portal/players');
+      router.replace('/portal/dashboard');
     } catch (e: any) {
       console.error('onboarding save error:', e);
       setErr(e?.message || 'Could not save your profile');

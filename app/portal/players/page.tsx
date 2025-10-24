@@ -1,7 +1,26 @@
 // app/portal/players/page.tsx
-import Client from './Client'
+export const revalidate = 0;
+export const dynamic = 'force-dynamic';
 
-export default async function Page({}: { params?: Promise<any>; searchParams?: Promise<any> }) {
-  // Keep it simple; the Client does all loading via fetch to /portal/api/players
-  return <Client />
+import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import Client from './Client';
+
+export default async function Page() {
+  const supabase = createServerComponentClient({ cookies });
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect('/portal/login?redirect=%2Fportal%2Fplayers');
+
+  const { data: p } = await supabase
+    .from('profiles')
+    .select('role, is_profile_complete')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (!p?.role) redirect('/portal/onboarding');
+  if (!p?.is_profile_complete) redirect('/portal/onboarding/profile');
+
+  return <Client />;
 }
