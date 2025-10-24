@@ -20,7 +20,7 @@ export default function DashboardClient() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    const run = async () => {
+    (async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { router.replace('/portal/login'); return; }
@@ -34,20 +34,23 @@ export default function DashboardClient() {
 
         if (perr) throw perr;
 
-        if (!p?.role) { router.replace('/portal/onboarding'); return; }
-        if (!p?.is_profile_complete) { router.replace('/portal/onboarding/profile'); return; }
+        // Gate: must have role and completed profile
+        if (!p?.role || !p?.is_profile_complete) {
+          router.replace('/portal/onboarding');
+          return;
+        }
 
         setRole(p.role as Role);
         setFirst(p.first_name ?? null);
         setAvatar(p.avatar_url ?? null);
 
         if (p.primary_club_id) {
-          const { data: club, error: cerr } = await supabase
+          const { data: club } = await supabase
             .from('clubs')
             .select('name')
             .eq('id', p.primary_club_id)
             .maybeSingle();
-          if (!cerr) setClubName(club?.name ?? null);
+          if (club) setClubName(club.name ?? null);
         }
 
         setLoading(false);
@@ -56,8 +59,7 @@ export default function DashboardClient() {
         setErr(e?.message || 'Failed to load dashboard');
         setLoading(false);
       }
-    };
-    run();
+    })();
   }, [router, supabase]);
 
   const signOut = async () => {
@@ -66,6 +68,7 @@ export default function DashboardClient() {
   };
 
   if (loading) return <main className="min-h-screen grid place-items-center">Loading…</main>;
+
   if (err) {
     return (
       <main className="min-h-screen grid place-items-center p-6">
@@ -94,7 +97,7 @@ export default function DashboardClient() {
         )}
 
         <div className="mt-4">
-          <Link href="/portal/onboarding/profile" className="text-sm text-[#0A3161] underline underline-offset-2">
+          <Link href="/portal/onboarding" className="text-sm text-[#0A3161] underline underline-offset-2">
             Edit profile
           </Link>
         </div>
@@ -106,7 +109,8 @@ export default function DashboardClient() {
         {role === 'organizer' ? (
           <>
             <Card title="My Events" desc="Create & manage tournaments." cta="Go to events" href="/portal/events" color="#0A3161" />
-            <Card title="Players & Assignments" desc="Divisions, waitlists, promotions." cta="Manage players" href="/portal/players" color="#0A3161" />
+            {/* Keep this pointing to the player-focused page if organizers don't manage other players */}
+            <Card title="My Registrations" desc="Divisions, statuses & bags." cta="View registrations" href="/portal/players" color="#0A3161" />
           </>
         ) : (
           <>
@@ -129,7 +133,7 @@ function Card({ title, desc, cta, href, color }:{
   title:string; desc:string; cta:string; href:string; color:string
 }) {
   return (
-    <a href={href} className="group block rounded-2xl bg-white p-6 shadow ring-1 ring-gray-100 transition hover:-translate-y-0.5 hover:shadow-lg">
+    <Link href={href} className="group block rounded-2xl bg-white p-6 shadow ring-1 ring-gray-100 transition hover:-translate-y-0.5 hover:shadow-lg">
       <h2 className="text-xl font-semibold mb-1" style={{ color }}>{title}</h2>
       <p className="text-gray-600 mb-4">{desc}</p>
       <span className="inline-flex items-center font-medium text-white px-4 py-2 rounded" style={{ backgroundColor: color }}>
@@ -138,6 +142,6 @@ function Card({ title, desc, cta, href, color }:{
           <path d="M12.293 4.293a1 1 0 011.414 0L18 8.586a2 2 0 010 2.828l-4.293 4.293a1 1 0 11-1.414-1.414L14.586 12H5a1 1 0 110-2h9.586l-2.293-2.293a1 1 0 010-1.414z" />
         </svg>
       </span>
-    </a>
+    </Link>
   );
 }

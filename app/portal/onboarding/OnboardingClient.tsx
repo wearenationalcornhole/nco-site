@@ -75,12 +75,6 @@ export default function OnboardingClient() {
           .maybeSingle<ProfileRow>();
         if (perr) throw perr;
 
-        // If already complete + role set → bounce to dashboard
-        if (p?.role && p.is_profile_complete) {
-          router.replace('/portal/dashboard');
-          return;
-        }
-
         // Seed form
         if (p?.role) setRole(p.role);
         setFirst(p?.first_name ?? '');
