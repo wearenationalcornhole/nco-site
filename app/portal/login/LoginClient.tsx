@@ -21,12 +21,12 @@ export default function LoginClient() {
     e.preventDefault();
     setStatus('sending'); setMsg('');
 
-    //const emailRedirectTo =
-     // `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirect)}`;
+    const emailRedirectTo =
+     `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirect)}`;
 
     // temporary redirect
-    const emailRedirectTo =
-        `${window.location.origin}/auth/callback?redirect=${encodeURIComponent('/whoami')}`
+    //const emailRedirectTo =
+        //`${window.location.origin}/auth/callback?redirect=${encodeURIComponent('/whoami')}`
 
     const { error } = await supabase.auth.signInWithOtp({
       email,
