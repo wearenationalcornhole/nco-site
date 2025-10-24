@@ -5,96 +5,139 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
-type Role = 'organizer' | 'player' | null;
+type Role = 'organizer' | 'player';
 
 export default function DashboardClient() {
   const router = useRouter();
   const supabase = createClientComponentClient();
+
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState<string | null>(null);
-  const [role, setRole] = useState<Role>(null);
+  const [role, setRole] = useState<Role>('player');
+  const [avatar, setAvatar] = useState<string | null>(null);
+  const [first, setFirst] = useState<string | null>(null);
+  const [clubName, setClubName] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     const run = async () => {
       try {
-        const { data: { user }, error: uerr } = await supabase.auth.getUser();
-        if (uerr) throw uerr;
+        const { data: { user } } = await supabase.auth.getUser();
         if (!user) { router.replace('/portal/login'); return; }
         setEmail(user.email ?? null);
 
-        const { data: profile, error: perr } = await supabase
+        const { data: p, error: perr } = await supabase
           .from('profiles')
-          .select('role')
+          .select('role,is_profile_complete,first_name,avatar_url,primary_club_id')
           .eq('id', user.id)
           .maybeSingle();
 
         if (perr) throw perr;
 
-        const r = (profile?.role as Role) ?? null;
-        if (!r) { router.replace('/portal/onboarding'); return; }
+        if (!p?.role) { router.replace('/portal/onboarding'); return; }
+        if (!p?.is_profile_complete) { router.replace('/portal/onboarding/profile'); return; }
 
-        setRole(r);
+        setRole(p.role as Role);
+        setFirst(p.first_name ?? null);
+        setAvatar(p.avatar_url ?? null);
+
+        if (p.primary_club_id) {
+          const { data: club, error: cerr } = await supabase
+            .from('clubs')
+            .select('name')
+            .eq('id', p.primary_club_id)
+            .maybeSingle();
+          if (!cerr) setClubName(club?.name ?? null);
+        }
+
         setLoading(false);
       } catch (e: any) {
-        console.error('dashboard load error', e);
-        setErr(e?.message || 'Unknown error');
+        console.error('dashboard error', e);
+        setErr(e?.message || 'Failed to load dashboard');
         setLoading(false);
       }
     };
     run();
   }, [router, supabase]);
 
-  if (loading) return <main style={{minHeight:'100vh',display:'grid',placeItems:'center'}}>Loading…</main>;
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    router.replace('/portal/login');
+  };
+
+  if (loading) return <main className="min-h-screen grid place-items-center">Loading…</main>;
   if (err) {
     return (
-      <main style={{minHeight:'100vh',display:'grid',placeItems:'center',padding:24}}>
-        <div style={{maxWidth:520,background:'#fff',padding:16,borderRadius:12,boxShadow:'0 8px 24px rgba(0,0,0,0.08)'}}>
-          <h2 style={{color:'#B31942',margin:0}}>Dashboard error</h2>
-          <p style={{marginTop:8}}>{err}</p>
-          <p style={{fontSize:12,color:'#666'}}>Open DevTools → Console for details.</p>
-          <p style={{marginTop:12}}>
-            <Link href="/portal/onboarding">Onboarding</Link> · <Link href="/portal/login">Login</Link>
-          </p>
+      <main className="min-h-screen grid place-items-center p-6">
+        <div className="max-w-md bg-white rounded shadow p-4">
+          <p className="text-red-600 font-semibold">Dashboard error</p>
+          <p className="text-sm mt-2">{err}</p>
         </div>
       </main>
     );
   }
 
   return (
-    <main style={{minHeight:'100vh',padding:24,background:'#f6f7f9'}}>
-      <header style={{textAlign:'center',marginBottom:24}}>
-        <img src="/images/nco-logo.png" alt="NCO" style={{height:64,display:'block',margin:'0 auto 12px'}} />
-        <h1 style={{color:'#0A3161',margin:0}}>National Cornhole Portal</h1>
-        <p style={{color:'#555'}}>Welcome{email ? `, ${email}` : ''}! <strong>{role}</strong></p>
+    <main className="min-h-screen bg-[linear-gradient(135deg,#f9f9f9,#e9ecef)] p-8">
+      <header className="text-center mb-10">
+        <img src="/images/nco-mark.png" alt="NCO" className="mx-auto mb-4 h-16" />
+        <h1 className="text-3xl font-semibold text-[#0A3161]">National Cornhole Portal</h1>
+        <p className="mt-2 text-gray-600">
+          Welcome{first ? `, ${first}` : email ? `, ${email}` : ''}!{' '}
+          <span className="ml-2 inline-flex items-center gap-2 rounded-full bg-[#0A3161]/10 px-3 py-0.5 text-sm text-[#0A3161]">
+            {avatar ? <img src={avatar} alt="" className="h-5 w-5 rounded-full border" /> : null}
+            {role}
+          </span>
+        </p>
+        {clubName && role === 'player' && (
+          <p className="text-sm text-gray-600 mt-1">Club: <strong>{clubName}</strong></p>
+        )}
+
+        <div className="mt-4">
+          <Link href="/portal/onboarding/profile" className="text-sm text-[#0A3161] underline underline-offset-2">
+            Edit profile
+          </Link>
+        </div>
       </header>
 
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:16,maxWidth:960,margin:'0 auto'}}>
-        <Card title="Demo Bags" desc="View and share event bag mockups." href="/portal/demo-bags" color="#B31942" />
+      <section className="mx-auto grid max-w-5xl gap-6 sm:grid-cols-2">
+        <Card title="Demo Bags" desc="View and share event bag mockups." cta="Open gallery" href="/portal/demo-bags" color="#B31942" />
+
         {role === 'organizer' ? (
           <>
-            <Card title="My Events" desc="Manage tournaments & divisions." href="/portal/events" color="#0A3161" />
-            <Card title="Players" desc="Assignments & waitlists." href="/portal/players" color="#0A3161" />
+            <Card title="My Events" desc="Create & manage tournaments." cta="Go to events" href="/portal/events" color="#0A3161" />
+            <Card title="Players & Assignments" desc="Divisions, waitlists, promotions." cta="Manage players" href="/portal/players" color="#0A3161" />
           </>
         ) : (
           <>
-            <Card title="Find Events" desc="Browse and join." href="/portal/events" color="#0A3161" />
-            <Card title="My Registrations" desc="Your divisions & bags." href="/portal/players" color="#0A3161" />
+            <Card title="Find & Join Events" desc="Browse upcoming tournaments." cta="Browse events" href="/portal/events" color="#0A3161" />
+            <Card title="My Registrations" desc="Divisions, statuses & bags." cta="View registrations" href="/portal/players" color="#0A3161" />
           </>
         )}
+      </section>
+
+      <div className="mt-10 text-center">
+        <button onClick={signOut} className="text-sm text-gray-600 hover:text-[#B31942] underline underline-offset-2">
+          Sign out
+        </button>
       </div>
     </main>
   );
 }
 
-function Card({ title, desc, href, color }:{title:string;desc:string;href:string;color:string}) {
+function Card({ title, desc, cta, href, color }:{
+  title:string; desc:string; cta:string; href:string; color:string
+}) {
   return (
-    <a href={href} style={{
-      display:'block',background:'#fff',padding:16,borderRadius:16,boxShadow:'0 8px 24px rgba(0,0,0,0.08)',
-      textDecoration:'none',color:'#222'
-    }}>
-      <h3 style={{margin:'0 0 6px',color}}>{title}</h3>
-      <p style={{margin:0,color:'#555'}}>{desc}</p>
+    <a href={href} className="group block rounded-2xl bg-white p-6 shadow ring-1 ring-gray-100 transition hover:-translate-y-0.5 hover:shadow-lg">
+      <h2 className="text-xl font-semibold mb-1" style={{ color }}>{title}</h2>
+      <p className="text-gray-600 mb-4">{desc}</p>
+      <span className="inline-flex items-center font-medium text-white px-4 py-2 rounded" style={{ backgroundColor: color }}>
+        {cta}
+        <svg className="ml-2 h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path d="M12.293 4.293a1 1 0 011.414 0L18 8.586a2 2 0 010 2.828l-4.293 4.293a1 1 0 11-1.414-1.414L14.586 12H5a1 1 0 110-2h9.586l-2.293-2.293a1 1 0 010-1.414z" />
+        </svg>
+      </span>
     </a>
   );
 }
