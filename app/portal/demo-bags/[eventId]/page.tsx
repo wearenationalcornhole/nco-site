@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic';
 import { cookies } from 'next/headers';
 import { redirect, notFound } from 'next/navigation';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import Uploader from './Uploader';
 
 type Params = { eventId: string }; // may be a UUID or a slug
 
@@ -24,12 +25,10 @@ export default async function DemoBagsEventPage(
     const { data: ev } = await supabase
       .from('events')
       .select('id, slug')
-      .ilike('slug', raw) // case-insensitive match
+      .ilike('slug', raw) // case-insensitive
       .maybeSingle();
 
-    if (!ev?.id) {
-      notFound(); // clean 404 if bad slug
-    }
+    if (!ev?.id) notFound();
     eventId = ev.id as string;
   }
 
@@ -46,7 +45,9 @@ export default async function DemoBagsEventPage(
     .eq('id', user.id)
     .maybeSingle();
 
-  let authorized = me?.role === 'admin';
+  const isAdmin = me?.role === 'admin';
+
+  let authorized = isAdmin;
   if (!authorized) {
     const [{ data: org }, { data: viewer }] = await Promise.all([
       supabase
@@ -64,6 +65,7 @@ export default async function DemoBagsEventPage(
     ]);
     authorized = !!org || !!viewer;
   }
+
   if (!authorized) {
     redirect('/portal/dashboard');
   }
@@ -109,13 +111,20 @@ export default async function DemoBagsEventPage(
         <p className="text-sm text-gray-600">Event: <code>{raw}</code></p>
       </div>
 
+      {/* Admins only: show uploader */}
+      {isAdmin && (
+        <div className="mb-6">
+          <Uploader eventId={eventId} />
+        </div>
+      )}
+
       {signed.length === 0 ? (
         <div className="rounded-xl border bg-white p-6 text-gray-600">
           No demo images yet for this event.
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {signed.map(s => (
+          {signed.map((s) => (
             <figure key={s.path} className="rounded-lg border bg-white p-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={s.signedUrl} alt="" className="w-full h-auto rounded" />
