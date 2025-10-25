@@ -92,7 +92,7 @@ export const DEMO_GALLERIES: Record<string, DemoGallery> = {
   },
   SHMC2025: {
     title: 'SHMC 2025 — Bag Demos',
-    logo: '/demo-bags/Habitat2025/images/logo.png',
+    logo: '/demo-bags/SHMC2025/images/logo.png',
     images: [
       {src: "/demo-bags/SHMC2025/images/CM-0.png", caption: "Collective Matrix, Inc Bag Orange"},
       {src: "/demo-bags/SHMC2025/images/CM-B.png", caption: "Collective Matrix, Inc Bag Blue"},
