@@ -1,5 +1,5 @@
 [
   { "id": "flashpoint", "category": "Bags", "name": "Flashpoint Pro", "price": 70, "image": "/images/shop/flashpoint.png", "link": "/shop/flashpoint" },
   { "id": "operator",   "category": "Bags", "name": "Operator",      "price": 80, "image": "/images/shop/operator.jpg",   "link": "/shop/operator" },
-  { "id": "tee",       "category": "Apparel","name": "NCO Classic Tee","price": 24.00,"image": "/images/shop/tee.jpg",      "link": "/shop/tee" }
+  { "id": "tee",       "category": "Apparel","name": "NCO Classic Tee","price": 24.00,"image": "/images/shop/tee.png",      "link": "/shop/tee" }
 ]

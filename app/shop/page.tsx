@@ -7,7 +7,7 @@ type Product = {
   category: string;
   name: string;
   price: number;
-  image: string; // e.g. /images/shop/flashpoint.jpg
+  image: string; // e.g. /images/shop/flashpoint.png
   link: string;  // e.g. /shop/flashpoint
 };
 
