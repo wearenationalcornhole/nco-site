@@ -3,25 +3,43 @@ export const revalidate = 0;
 export const dynamic = 'force-dynamic';
 
 import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
+import { redirect, notFound } from 'next/navigation';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 
-type Params = { eventId: string };
+type Params = { eventId: string }; // may be a UUID or a slug
+
+function isUuidV4ish(s: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s);
+}
 
 export default async function DemoBagsEventPage(
-  { params }: { params: Promise<Params> } // your project’s PageProps constraint
+  { params }: { params: Promise<Params> }
 ) {
-  const { eventId } = await params;
-
+  const { eventId: raw } = await params;
   const supabase = createServerComponentClient({ cookies });
+
+  // 0) Resolve slug → event id (if needed)
+  let eventId = raw;
+  if (!isUuidV4ish(raw)) {
+    const { data: ev } = await supabase
+      .from('events')
+      .select('id, slug')
+      .ilike('slug', raw) // case-insensitive match
+      .maybeSingle();
+
+    if (!ev?.id) {
+      notFound(); // clean 404 if bad slug
+    }
+    eventId = ev.id as string;
+  }
 
   // 1) Require auth
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    redirect(`/portal/login?redirect=${encodeURIComponent(`/portal/demo-bags/${eventId}`)}`);
+    redirect(`/portal/login?redirect=${encodeURIComponent(`/portal/demo-bags/${raw}`)}`);
   }
 
-  // 2) Gate: admin OR organizer for this event
+  // 2) Gate: admin OR organizer-of-event OR explicit viewer
   const { data: me } = await supabase
     .from('profiles')
     .select('role')
@@ -30,19 +48,27 @@ export default async function DemoBagsEventPage(
 
   let authorized = me?.role === 'admin';
   if (!authorized) {
-    const { data: link } = await supabase
-      .from('event_admins')
-      .select('event_id')
-      .eq('event_id', eventId)
-      .eq('user_id', user.id)
-      .maybeSingle();
-    authorized = !!link;
+    const [{ data: org }, { data: viewer }] = await Promise.all([
+      supabase
+        .from('event_admins')
+        .select('event_id')
+        .eq('event_id', eventId)
+        .eq('user_id', user.id)
+        .maybeSingle(),
+      supabase
+        .from('demo_bag_viewers')
+        .select('event_id')
+        .eq('event_id', eventId)
+        .eq('user_id', user.id)
+        .maybeSingle(),
+    ]);
+    authorized = !!org || !!viewer;
   }
   if (!authorized) {
-    redirect('/portal/dashboard'); // or render a 403 page
+    redirect('/portal/dashboard');
   }
 
-  // 3) List files in private bucket "demo-bags" under <eventId>/
+  // 3) List files in Storage: demo-bags/<eventId>/*
   const { data: listing, error: listErr } = await supabase.storage
     .from('demo-bags')
     .list(eventId, { limit: 200, sortBy: { column: 'name', order: 'asc' } });
@@ -50,8 +76,8 @@ export default async function DemoBagsEventPage(
   if (listErr) {
     return (
       <main className="p-8">
-        <h1 className="text-2xl font-semibold mb-2">Demo Bags</h1>
-        <p className="text-sm text-gray-600">Event: <code>{eventId}</code></p>
+        <h1 className="text-2xl font-semibold text-[#0A3161]">Demo Bags</h1>
+        <p className="text-sm text-gray-600">Event: <code>{raw}</code></p>
         <div className="mt-6 rounded-xl border bg-white p-6">
           <p className="text-red-600 font-medium">Could not list demo images.</p>
           <p className="text-sm text-gray-600 mt-1">{listErr.message}</p>
@@ -60,7 +86,6 @@ export default async function DemoBagsEventPage(
     );
   }
 
-  // 4) Create signed URLs safely (filter nulls)
   const files = (listing ?? []).filter(f => !f.name.endsWith('/'));
   let signed: { path: string; signedUrl: string }[] = [];
 
@@ -77,12 +102,11 @@ export default async function DemoBagsEventPage(
       }));
   }
 
-  // 5) Render
   return (
     <main className="p-8">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-[#0A3161]">Demo Bags</h1>
-        <p className="text-sm text-gray-600">Event: <code>{eventId}</code></p>
+        <p className="text-sm text-gray-600">Event: <code>{raw}</code></p>
       </div>
 
       {signed.length === 0 ? (
@@ -91,7 +115,7 @@ export default async function DemoBagsEventPage(
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {signed.map((s) => (
+          {signed.map(s => (
             <figure key={s.path} className="rounded-lg border bg-white p-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={s.signedUrl} alt="" className="w-full h-auto rounded" />
