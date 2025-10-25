@@ -1,154 +1,65 @@
 // app/shop/page.tsx
-import Link from 'next/link'
-import Button from '@/components/ui/Button'
-import productsData from '@/app/data/products.json'
+import Link from 'next/link';
+import Image from 'next/image';
 
 type Product = {
-  id: string
-  slug: string
-  title: string
-  price?: number
-  image?: string
-  description?: string
-}
+  id: string;
+  category: string;
+  name: string;
+  price: number;
+  image: string; // e.g. /images/shop/flashpoint.jpg
+  link: string;  // e.g. /shop/flashpoint
+};
 
-function formatPrice(n?: number) {
-  if (typeof n !== 'number') return '—'
-  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+async function getProducts(): Promise<Product[]> {
+  const data = (await import('../data/products.json')).default as Product[];
+  return data;
 }
 
 export default async function ShopPage() {
-  // Normalize JSON → Product[]
-  const rawProducts = productsData as unknown as any[]
-  const products: Product[] = rawProducts.map((p) => ({
-    id: String(p.id ?? crypto.randomUUID()),
-    slug:
-      p.slug ??
-      p.link ??
-      (p.name
-        ? String(p.name)
-            .toLowerCase()
-            .replace(/\s+/g, '-')
-            .replace(/[^a-z0-9-]/g, '')
-        : ''),
-    title: p.title ?? p.name ?? 'Untitled Product',
-    price: typeof p.price === 'number' ? p.price : undefined,
-    image: p.image ?? undefined,
-    description: p.description ?? undefined,
-  }))
+  const products = await getProducts();
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Hero */}
-      <section className="relative isolate bg-brand text-white">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 sm:py-20">
-          <p className="uppercase tracking-widest text-white/80 text-xs sm:text-sm">
-            National Cornhole Organization
-          </p>
-          <h1 className="mt-2 text-4xl sm:text-5xl font-extrabold tracking-tight">
-            Shop NCO Official Gear
-          </h1>
-          <p className="mt-3 text-white/90 max-w-2xl">
-            Wear the colors. Support the community. Bring local cornhole together.
-          </p>
-          <div className="mt-6 flex gap-3">
-            <Button asChild>
-              <a href="#products">Browse Products</a>
-            </Button>
-            <Button
-              asChild
-              variant="outline"
-              className="bg-transparent text-white border-white hover:bg-white/10"
-            >
-              <a href="/portal/events">Find Events</a>
-            </Button>
-          </div>
-        </div>
-      </section>
+    <main className="min-h-screen bg-[linear-gradient(135deg,#f9f9f9,#e9ecef)] p-8">
+      <header className="text-center mb-10">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/images/nco-mark.png" alt="NCO" className="mx-auto mb-4 h-12" />
+        <h1 className="text-3xl font-semibold text-[#0A3161]">Shop</h1>
+        <p className="text-gray-600 mt-1">Bags, apparel, and more.</p>
+      </header>
 
-      {/* Product Grid */}
-      <main id="products" className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
-        {products.length === 0 ? (
-          <div className="rounded-xl border bg-white p-8 text-center">
-            <h2 className="text-lg font-semibold">No products yet</h2>
-            <p className="mt-2 text-gray-600">
-              Check back soon for official NCO merchandise.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {products.map((p) => (
-              <article
-                key={p.id}
-                className="group overflow-hidden rounded-2xl border bg-white hover:shadow-md transition"
-              >
-                <Link href={`/shop/${p.slug}`}>
-                  <div className="aspect-[4/3] w-full bg-usaGray overflow-hidden">
-                    {p.image ? (
-                      <img
-                        src={p.image}
-                        alt={p.title}
-                        className="h-full w-full object-cover group-hover:scale-[1.02] transition"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="grid h-full place-content-center text-neutral text-sm">
-                        Image coming soon
-                      </div>
-                    )}
-                  </div>
-                </Link>
-
-                <div className="p-4">
-                  <Link href={`/shop/${p.slug}`} className="block">
-                    <h3 className="text-base font-semibold text-gray-900 line-clamp-2">
-                      {p.title}
-                    </h3>
-                  </Link>
-                  <div className="mt-2 text-usaBlue font-semibold">
-                    {formatPrice(p.price)}
-                  </div>
-
-                  <div className="mt-4 flex items-center gap-3">
-                    <Button asChild size="sm">
-                      <a href="#" aria-disabled>
-                        Add to Cart
-                      </a>
-                    </Button>
-                    <Link
-                      href={`/shop/${p.slug}`}
-                      className="text-sm text-usaBlue hover:underline"
-                    >
-                      View details
-                    </Link>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </main>
-
-      {/* Brand Banner */}
-      <section className="mt-12 bg-brand text-white">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h2 className="text-xl font-semibold">Official NCO Store</h2>
-              <p className="text-white/80 mt-1">
-                Quality gear, fast shipping, and every purchase supports our mission.
-              </p>
+      <div
+        className="mx-auto grid gap-6"
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', maxWidth: 1100 }}
+      >
+        {products.map((p) => (
+          <Link
+            key={p.id}
+            href={p.link || `/shop/${p.id}`}
+            className="group block rounded-2xl bg-white shadow ring-1 ring-gray-100 hover:-translate-y-0.5 hover:shadow-lg transition"
+          >
+            <div className="relative h-56 w-full">
+              <Image
+                src={p.image}
+                alt={p.name}
+                fill
+                sizes="(max-width: 768px) 100vw, 33vw"
+                className="object-contain p-4"
+              />
             </div>
-            <Button
-              asChild
-              variant="outline"
-              className="bg-transparent text-white border-white hover:bg-white/10"
-            >
-              <Link href="/shop">Shop all products</Link>
-            </Button>
-          </div>
-        </div>
-      </section>
-    </div>
-  )
+            <div className="px-4 pb-5">
+              <div className="text-[11px] uppercase tracking-wide text-gray-500">{p.category}</div>
+              <h2 className="mt-1 text-base font-semibold text-gray-900 group-hover:text-[#0A3161]">
+                {p.name}
+              </h2>
+              <div className="mt-2 text-lg font-semibold text-gray-900">${p.price.toFixed(2)}</div>
+            </div>
+          </Link>
+        ))}
+        {products.length === 0 && (
+          <div className="text-center text-gray-600 col-span-full">No products available yet.</div>
+        )}
+      </div>
+    </main>
+  );
 }

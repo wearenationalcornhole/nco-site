@@ -1,161 +1,100 @@
 // app/shop/[slug]/page.tsx
-import Link from 'next/link'
-import Button from '@/components/ui/Button'
-import productsData from '@/app/data/products.json'
+import Image from 'next/image';
+import Link from 'next/link';
 
-// Next.js 15-style params handling
-export default async function ProductPage({
-  params,
-}: {
-  params: Promise<{ slug: string }>
-}) {
-  const { slug } = await params
+type Product = {
+  id: string;
+  category: string;
+  name: string;
+  price: number;
+  image: string;
+  link: string;
+};
 
-  // Define your local Product type
-  interface Product {
-    id: string
-    slug: string
-    title: string
-    price?: number
-    image?: string
-    description?: string
+async function getProducts(): Promise<Product[]> {
+  const data = (await import('../../data/products.json')).default as Product[];
+  return data;
+}
+
+function tail(href: string) {
+  try {
+    // '/shop/flashpoint' -> 'flashpoint'
+    const parts = href.split('/').filter(Boolean);
+    return parts[parts.length - 1] || '';
+  } catch {
+    return '';
   }
+}
 
-  // Convert whatever’s in products.json to Product[]
-  const rawProducts = productsData as unknown as any[]
-  const products: Product[] = rawProducts.map((p) => ({
-    id: String(p.id ?? crypto.randomUUID()),
-    slug:
-      p.slug ??
-      p.link ??
-      (p.name
-        ? p.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-        : ''),
-    title: p.title ?? p.name ?? 'Untitled Product',
-    price: typeof p.price === 'number' ? p.price : undefined,
-    image: p.image ?? undefined,
-    description: p.description ?? undefined,
-  }))
+export default async function ProductPage(props: { params: { slug: string } } | { params: Promise<{ slug: string }> }) {
+  const { slug } = await Promise.resolve((props as any).params);
+  const all = await getProducts();
 
-  const product = products.find((p) => p.slug === slug)
+  // Match by id or by link tail
+  const product =
+    all.find((p) => p.id === slug) ||
+    all.find((p) => tail(p.link) === slug) ||
+    null;
 
-  const formatPrice = (n?: number) =>
-    typeof n === 'number'
-      ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
-      : '—'
-
-  // ─── Not Found Case ────────────────────────────────
   if (!product) {
     return (
-      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-16">
-        <h1 className="text-2xl font-semibold text-gray-900">Product not found</h1>
-        <p className="mt-2 text-gray-600">
-          We couldn’t find that item. It may have been moved or is unavailable.
-        </p>
-        <div className="mt-6">
-          <Link href="/shop" className="underline text-usaBlue hover:opacity-90">
-            Back to Shop
+      <main className="min-h-screen grid place-items-center p-8">
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold text-gray-800">Product not found</h1>
+          <Link href="/shop" className="mt-4 inline-block text-white px-4 py-2 rounded" style={{ backgroundColor: '#0A3161' }}>
+            ← Back to Shop
           </Link>
         </div>
-      </div>
-    )
+      </main>
+    );
   }
 
-  // ─── Product Page ──────────────────────────────────
   return (
-    <div className="bg-white">
-      {/* Breadcrumb */}
-      <div className="border-b">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-6">
-          <nav className="text-sm">
-            <ol className="flex items-center gap-1 text-gray-500">
-              <li>
-                <Link href="/shop" className="hover:text-usaBlue">
-                  Shop
-                </Link>
-              </li>
-              <li aria-hidden="true" className="px-1">
-                /
-              </li>
-              <li className="text-gray-900">{product.title}</li>
-            </ol>
-          </nav>
+    <main className="min-h-screen bg-[linear-gradient(135deg,#f9f9f9,#e9ecef)] p-6">
+      <div className="mx-auto max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Gallery */}
+        <div className="rounded-2xl bg-white shadow ring-1 ring-gray-100 p-4">
+          <div className="relative w-full aspect-[4/3]">
+            <Image
+              src={product.image}
+              alt={product.name}
+              fill
+              sizes="(max-width: 1024px) 100vw, 50vw"
+              className="object-contain"
+            />
+          </div>
+        </div>
+
+        {/* Details */}
+        <div>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-semibold text-gray-900">{product.name}</h1>
+              <p className="text-sm text-gray-600 mt-0.5">{product.category}</p>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-semibold text-gray-900">${product.price.toFixed(2)}</div>
+            </div>
+          </div>
+
+          {/* Placeholder marketing copy — adjust per product if you like */}
+          <p className="mt-4 text-gray-700">
+            Tournament-ready construction and consistent hand-feel. Built for control on the slow side and push power on the fast side.
+          </p>
+
+          <div className="mt-8 flex items-center gap-3">
+            <button
+              className="rounded bg-[#0A3161] text-white px-5 py-2 font-medium"
+              onClick={() => alert('Cart coming soon')}
+            >
+              Add to Cart
+            </button>
+            <Link href="/shop" className="text-[#0A3161] underline underline-offset-2">
+              Continue shopping
+            </Link>
+          </div>
         </div>
       </div>
-
-      {/* Product details */}
-      <main className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-10">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Image */}
-          <div className="lg:col-span-6">
-            <div className="aspect-[4/3] w-full overflow-hidden rounded-2xl bg-usaGray">
-              {product.image ? (
-                <img
-                  src={product.image}
-                  alt={product.title}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <div className="grid h-full place-content-center text-neutral text-sm">
-                  Image coming soon
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Details */}
-          <div className="lg:col-span-6">
-            <h1 className="text-3xl font-bold text-gray-900">{product.title}</h1>
-            <div className="mt-3 text-2xl font-semibold text-usaBlue">
-              {formatPrice(product.price)}
-            </div>
-
-            {product.description && (
-              <p className="mt-4 text-gray-700 leading-relaxed">{product.description}</p>
-            )}
-
-            <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Button asChild>
-                <a href="#" aria-disabled>
-                  Add to Cart
-                </a>
-              </Button>
-
-              <Link href="/shop" className="text-sm text-usaBlue hover:underline">
-                Continue shopping
-              </Link>
-            </div>
-
-            <div className="mt-10 rounded-xl border bg-white p-5">
-              <h2 className="text-sm font-semibold text-gray-700">Details</h2>
-              <ul className="mt-3 list-disc pl-5 text-sm text-gray-700 space-y-1">
-                <li>Official National Cornhole Organization merchandise</li>
-                <li>Fast shipping within the U.S.</li>
-                <li>Secure checkout</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        {/* Brand highlight */}
-        <section className="mt-14 rounded-2xl bg-brand text-white p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h3 className="text-lg font-semibold">NCO Official Shop</h3>
-              <p className="text-white/80 text-sm mt-1">
-                Wear the colors. Support the community. Bring local cornhole together.
-              </p>
-            </div>
-            <Button
-              asChild
-              variant="outline"
-              className="bg-transparent text-white border-white hover:bg-white/10"
-            >
-              <Link href="/shop">Browse all products</Link>
-            </Button>
-          </div>
-        </section>
-      </main>
-    </div>
-  )
+    </main>
+  );
 }
