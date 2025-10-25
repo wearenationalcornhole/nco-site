@@ -1,83 +1,53 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
-type Role = 'organizer' | 'player';
+type Role = 'player' | 'organizer' | 'admin';
 
 export default function DashboardClient() {
   const router = useRouter();
   const supabase = createClientComponentClient();
 
   const [loading, setLoading] = useState(true);
-  const [email, setEmail] = useState<string | null>(null);
   const [role, setRole] = useState<Role>('player');
-  const [avatar, setAvatar] = useState<string | null>(null);
   const [first, setFirst] = useState<string | null>(null);
-  const [clubName, setClubName] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
+  const [avatar, setAvatar] = useState<string | null>(null);
+  const [email, setEmail] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) { router.replace('/portal/login'); return; }
-        setEmail(user.email ?? null);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { router.replace('/portal/login?redirect=%2Fportal%2Fdashboard'); return; }
+      setEmail(user.email ?? null);
 
-        const { data: p, error: perr } = await supabase
-          .from('profiles')
-          .select('role,is_profile_complete,first_name,avatar_url,primary_club_id')
-          .eq('id', user.id)
-          .maybeSingle();
+      const { data: p, error } = await supabase
+        .from('profiles')
+        .select('role,first_name,avatar_url,is_profile_complete')
+        .eq('id', user.id)
+        .maybeSingle();
 
-        if (perr) throw perr;
+      if (error) { setLoading(false); return; }
 
-        // Gate: must have role and completed profile
-        if (!p?.role || !p?.is_profile_complete) {
-          router.replace('/portal/onboarding');
-          return;
-        }
+      const r = (p?.role as Role) ?? 'player';
+      setRole(r);
+      setFirst(p?.first_name ?? null);
+      setAvatar(p?.avatar_url ?? null);
 
-        setRole(p.role as Role);
-        setFirst(p.first_name ?? null);
-        setAvatar(p.avatar_url ?? null);
-
-        if (p.primary_club_id) {
-          const { data: club } = await supabase
-            .from('clubs')
-            .select('name')
-            .eq('id', p.primary_club_id)
-            .maybeSingle();
-          if (club) setClubName(club.name ?? null);
-        }
-
-        setLoading(false);
-      } catch (e: any) {
-        console.error('dashboard error', e);
-        setErr(e?.message || 'Failed to load dashboard');
-        setLoading(false);
+      if (p && !p.is_profile_complete) {
+        router.replace('/portal/onboarding/profile');
+        return;
       }
+
+      setLoading(false);
     })();
-  }, [router, supabase]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
-    router.replace('/portal/login');
-  };
-
-  if (loading) return <main className="min-h-screen grid place-items-center">Loading…</main>;
-
-  if (err) {
-    return (
-      <main className="min-h-screen grid place-items-center p-6">
-        <div className="max-w-md bg-white rounded shadow p-4">
-          <p className="text-red-600 font-semibold">Dashboard error</p>
-          <p className="text-sm mt-2">{err}</p>
-        </div>
-      </main>
-    );
+  if (loading) {
+    return <main className="min-h-screen grid place-items-center">Loading…</main>;
   }
 
   return (
@@ -92,39 +62,25 @@ export default function DashboardClient() {
             {role}
           </span>
         </p>
-        {clubName && role === 'player' && (
-          <p className="text-sm text-gray-600 mt-1">Club: <strong>{clubName}</strong></p>
-        )}
-
-        <div className="mt-4">
-          <Link href="/portal/onboarding" className="text-sm text-[#0A3161] underline underline-offset-2">
-            Edit profile
-          </Link>
-        </div>
       </header>
 
       <section className="mx-auto grid max-w-5xl gap-6 sm:grid-cols-2">
-        <Card title="Demo Bags" desc="View and share event bag mockups." cta="Open gallery" href="/portal/demo-bags" color="#B31942" />
-
-        {role === 'organizer' ? (
+        {(role === 'organizer' || role === 'admin') ? (
           <>
             <Card title="My Events" desc="Create & manage tournaments." cta="Go to events" href="/portal/events" color="#0A3161" />
-            {/* Keep this pointing to the player-focused page if organizers don't manage other players */}
+            <Card title="Demo Bags" desc="View and share event mockups." cta="Open gallery" href="/portal/demo-bags" color="#B31942" />
+            {role === 'admin' && (
+              <Card title="Admin Console" desc="Manage access & organizers." cta="Open admin" href="/portal/admin" color="#0A3161" />
+            )}
             <Card title="My Registrations" desc="Divisions, statuses & bags." cta="View registrations" href="/portal/players" color="#0A3161" />
           </>
         ) : (
           <>
             <Card title="Find & Join Events" desc="Browse upcoming tournaments." cta="Browse events" href="/portal/events" color="#0A3161" />
-            <Card title="My Registrations" desc="Divisions, statuses & bags." cta="View registrations" href="/portal/players" color="#0A3161" />
+            <Card title="My Registrations" desc="Your entries & statuses." cta="View registrations" href="/portal/players" color="#0A3161" />
           </>
         )}
       </section>
-
-      <div className="mt-10 text-center">
-        <button onClick={signOut} className="text-sm text-gray-600 hover:text-[#B31942] underline underline-offset-2">
-          Sign out
-        </button>
-      </div>
     </main>
   );
 }
