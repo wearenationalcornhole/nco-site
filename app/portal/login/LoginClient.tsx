@@ -98,10 +98,10 @@ export default function LoginClient() {
                 </p>
               )}
 
-              {/* Tiny helper so you can see the current redirect target while testing */}
+              {/* Tiny helper so you can see the current redirect target while testing 
               <p className="text-xs text-gray-500">
                 After confirming, you’ll be redirected to: <code>{redirect}</code>
-              </p>
+              </p>*/}
             </form>
           </div>
         </div>
