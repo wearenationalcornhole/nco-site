@@ -6,57 +6,52 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 
-type Props = { params: { eventId: string } };
+type Params = { eventId: string };
 
-export default async function DemoBagsEventPage({ params }: Props) {
-  const { eventId } = params;
+export default async function DemoBagsEventPage(
+  { params }: { params: Promise<Params> } // 👈 your project requires Promise here
+) {
+  const { eventId } = await params;
 
   const supabase = createServerComponentClient({ cookies });
 
   // 1) Require auth
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     redirect(`/portal/login?redirect=${encodeURIComponent(`/portal/demo-bags/${eventId}`)}`);
   }
 
-  // 2) Gate: admin can see all; otherwise user must be an admin of this event
+  // 2) Gate: admin OR organizer for this event
   const { data: me } = await supabase
     .from('profiles')
     .select('role')
-    .eq('id', user!.id)
+    .eq('id', user.id)
     .maybeSingle();
 
   let authorized = me?.role === 'admin';
-
   if (!authorized) {
     const { data: link } = await supabase
       .from('event_admins')
       .select('event_id')
       .eq('event_id', eventId)
-      .eq('user_id', user!.id)
+      .eq('user_id', user.id)
       .maybeSingle();
-
     authorized = !!link;
   }
-
   if (!authorized) {
-    redirect('/portal/dashboard');
+    redirect('/portal/dashboard'); // or render a 403 page
   }
 
-  // 3) List files from the private bucket "demo-bags" under <eventId>/
+  // 3) List files in private bucket "demo-bags" under <eventId>/
   const { data: listing, error: listErr } = await supabase.storage
     .from('demo-bags')
     .list(eventId, { limit: 200, sortBy: { column: 'name', order: 'asc' } });
 
   if (listErr) {
-    // If storage policies block, show a gentle message (you’re still authorized for the page).
     return (
       <main className="p-8">
         <h1 className="text-2xl font-semibold mb-2">Demo Bags</h1>
-        <p className="text-sm text-gray-600">Event: <code className="text-gray-800">{eventId}</code></p>
+        <p className="text-sm text-gray-600">Event: <code>{eventId}</code></p>
         <div className="mt-6 rounded-xl border bg-white p-6">
           <p className="text-red-600 font-medium">Could not list demo images.</p>
           <p className="text-sm text-gray-600 mt-1">{listErr.message}</p>
@@ -65,16 +60,12 @@ export default async function DemoBagsEventPage({ params }: Props) {
     );
   }
 
-  const files = (listing ?? []).filter((f) => !f.name.endsWith('/'));
+  const files = (listing ?? []).filter(f => !f.name.endsWith('/'));
   let signed: { path: string; signedUrl: string }[] = [];
-
   if (files.length > 0) {
     const { data: signedUrls } = await supabase.storage
       .from('demo-bags')
-      .createSignedUrls(
-        files.map((f) => `${eventId}/${f.name}`),
-        3600 // 1 hour
-      );
+      .createSignedUrls(files.map(f => `${eventId}/${f.name}`), 3600);
     signed = signedUrls ?? [];
   }
 
@@ -82,7 +73,7 @@ export default async function DemoBagsEventPage({ params }: Props) {
     <main className="p-8">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold">Demo Bags</h1>
-        <p className="text-sm text-gray-600">Event: <code className="text-gray-800">{eventId}</code></p>
+        <p className="text-sm text-gray-600">Event: <code>{eventId}</code></p>
       </div>
 
       {signed.length === 0 ? (
@@ -91,7 +82,7 @@ export default async function DemoBagsEventPage({ params }: Props) {
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {signed.map((s) => (
+          {signed.map(s => (
             <figure key={s.path} className="rounded-lg border bg-white p-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={s.signedUrl} alt="" className="w-full h-auto rounded" />
