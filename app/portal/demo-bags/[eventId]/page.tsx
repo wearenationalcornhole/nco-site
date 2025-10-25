@@ -6,6 +6,7 @@ import { cookies } from 'next/headers';
 import { redirect, notFound } from 'next/navigation';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import Uploader from './Uploader';
+import ReviewGrid from './ReviewGrid';
 
 type Params = { eventId: string }; // may be a UUID or a slug
 
@@ -25,7 +26,7 @@ export default async function DemoBagsEventPage(
     const { data: ev } = await supabase
       .from('events')
       .select('id, slug')
-      .ilike('slug', raw) // case-insensitive
+      .ilike('slug', raw) // case-insensitive match
       .maybeSingle();
 
     if (!ev?.id) notFound();
@@ -38,7 +39,7 @@ export default async function DemoBagsEventPage(
     redirect(`/portal/login?redirect=${encodeURIComponent(`/portal/demo-bags/${raw}`)}`);
   }
 
-  // 2) Gate: admin OR organizer-of-event OR explicit viewer
+  // 2) Who am I?
   const { data: me } = await supabase
     .from('profiles')
     .select('role')
@@ -47,30 +48,31 @@ export default async function DemoBagsEventPage(
 
   const isAdmin = me?.role === 'admin';
 
-  let authorized = isAdmin;
-  if (!authorized) {
-    const [{ data: org }, { data: viewer }] = await Promise.all([
-      supabase
-        .from('event_admins')
-        .select('event_id')
-        .eq('event_id', eventId)
-        .eq('user_id', user.id)
-        .maybeSingle(),
-      supabase
-        .from('demo_bag_viewers')
-        .select('event_id')
-        .eq('event_id', eventId)
-        .eq('user_id', user.id)
-        .maybeSingle(),
-    ]);
-    authorized = !!org || !!viewer;
-  }
+  // 3) Authorization: admin OR organizer-of-event OR explicit viewer
+  const [{ data: orgRow }, { data: viewerRow }] = await Promise.all([
+    supabase
+      .from('event_admins')
+      .select('event_id')
+      .eq('event_id', eventId)
+      .eq('user_id', user.id)
+      .maybeSingle(),
+    supabase
+      .from('demo_bag_viewers')
+      .select('event_id')
+      .eq('event_id', eventId)
+      .eq('user_id', user.id)
+      .maybeSingle(),
+  ]);
 
+  const isOrganizer = !!orgRow;
+  const isViewer = !!viewerRow;
+
+  const authorized = isAdmin || isOrganizer || isViewer;
   if (!authorized) {
     redirect('/portal/dashboard');
   }
 
-  // 3) List files in Storage: demo-bags/<eventId>/*
+  // 4) List files in Storage: demo-bags/<eventId>/*
   const { data: listing, error: listErr } = await supabase.storage
     .from('demo-bags')
     .list(eventId, { limit: 200, sortBy: { column: 'name', order: 'asc' } });
@@ -104,6 +106,10 @@ export default async function DemoBagsEventPage(
       }));
   }
 
+  // Only admins can upload; admins OR organizers can approve/request changes
+  const canUpload = isAdmin;
+  const canApprove = isAdmin || isOrganizer;
+
   return (
     <main className="p-8">
       <div className="mb-6">
@@ -111,8 +117,7 @@ export default async function DemoBagsEventPage(
         <p className="text-sm text-gray-600">Event: <code>{raw}</code></p>
       </div>
 
-      {/* Admins only: show uploader */}
-      {isAdmin && (
+      {canUpload && (
         <div className="mb-6">
           <Uploader eventId={eventId} />
         </div>
@@ -123,17 +128,11 @@ export default async function DemoBagsEventPage(
           No demo images yet for this event.
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {signed.map((s) => (
-            <figure key={s.path} className="rounded-lg border bg-white p-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={s.signedUrl} alt="" className="w-full h-auto rounded" />
-              <figcaption className="mt-2 text-xs text-gray-600 break-all">
-                {s.path.split('/').slice(1).join('/')}
-              </figcaption>
-            </figure>
-          ))}
-        </div>
+        <ReviewGrid
+          eventId={eventId}
+          files={signed /* { path, signedUrl }[] */}
+          canApprove={canApprove}
+        />
       )}
     </main>
   );
