@@ -1,3 +1,4 @@
+// app/portal/login/LoginClient.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -10,52 +11,39 @@ export default function LoginClient() {
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [msg, setMsg] = useState('');
   const [redirect, setRedirect] = useState('/portal');
-  const [passkeySupported, setPasskeySupported] = useState(false);
 
   useEffect(() => {
-    // capture ?redirect=/some/path
-    const url = new URL(window.location.href);
-    setRedirect(url.searchParams.get('redirect') || '/portal');
+    // Capture ?redirect=/some/path from the URL
+    try {
+      const url = new URL(window.location.href);
+      setRedirect(url.searchParams.get('redirect') || '/portal');
+    } catch {
+      setRedirect('/portal');
+    }
+  }, []);
 
-    // feature-detect passkeys (WebAuthn) availability
-    const hasAPI = typeof (navigator as any).credentials !== 'undefined';
-    const hasSupabase = typeof (supabase.auth as any).webauthn !== 'undefined';
-    setPasskeySupported(hasAPI && hasSupabase);
-  }, [supabase]);
-
-  const onSubmit = async (e: React.FormEvent) => {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setStatus('sending');
     setMsg('');
+
     try {
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
+          // IMPORTANT: this must be allowlisted in Supabase → Auth → Redirect URLs
           emailRedirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(
             redirect
           )}`,
         },
       });
       if (error) throw error;
+
       setStatus('sent');
       setMsg('Magic link sent! Check your email.');
     } catch (err: any) {
       setStatus('error');
       setMsg(err?.message || 'Sign-in failed.');
-    }
-  };
-
-  async function signInWithPasskey() {
-    setStatus('sending');
-    setMsg('');
-    try {
-      // @ts-ignore - gated at runtime
-      const res = await (supabase.auth as any).webauthn.signIn();
-      if (res?.error) throw res.error;
-      window.location.href = redirect || '/portal';
-    } catch (e: any) {
-      setStatus('error');
-      setMsg(e?.message || 'Passkey sign-in failed.');
     }
   }
 
@@ -65,7 +53,11 @@ export default function LoginClient() {
       <section className="mx-auto max-w-xl px-6 py-12">
         <div className="flex flex-col items-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/nco-mark.png" alt="National Cornhole Organization" className="h-16 mb-4" />
+          <img
+            src="/images/nco-mark.png"
+            alt="National Cornhole Organization"
+            className="h-16 mb-4"
+          />
           <h1 className="text-2xl font-semibold" style={{ color: '#0A3161' }}>
             National Cornhole Portal
           </h1>
@@ -96,21 +88,20 @@ export default function LoginClient() {
                 {status === 'sending' ? 'Sending…' : 'Email me a magic link'}
               </button>
 
-              {passkeySupported && (
-                <button
-                  type="button"
-                  onClick={signInWithPasskey}
-                  disabled={status === 'sending'}
-                  className="w-full rounded-lg px-4 py-2 font-semibold text-white disabled:opacity-60"
-                  style={{ backgroundColor: '#0A3161' }}
+              {!!msg && (
+                <p
+                  className={`text-sm ${
+                    status === 'error' ? 'text-red-600' : 'text-green-700'
+                  }`}
                 >
-                  Sign in with passkey
-                </button>
+                  {msg}
+                </p>
               )}
 
-              {!!msg && (
-                <p className={`text-sm ${status === 'error' ? 'text-red-600' : 'text-green-700'}`}>{msg}</p>
-              )}
+              {/* Tiny helper so you can see the current redirect target while testing */}
+              <p className="text-xs text-gray-500">
+                After confirming, you’ll be redirected to: <code>{redirect}</code>
+              </p>
             </form>
           </div>
         </div>
