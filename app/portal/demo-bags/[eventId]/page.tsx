@@ -9,7 +9,7 @@ import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 type Params = { eventId: string };
 
 export default async function DemoBagsEventPage(
-  { params }: { params: Promise<Params> } // 👈 your project requires Promise here
+  { params }: { params: Promise<Params> } // your project’s PageProps constraint
 ) {
   const { eventId } = await params;
 
@@ -60,19 +60,28 @@ export default async function DemoBagsEventPage(
     );
   }
 
+  // 4) Create signed URLs safely (filter nulls)
   const files = (listing ?? []).filter(f => !f.name.endsWith('/'));
   let signed: { path: string; signedUrl: string }[] = [];
+
   if (files.length > 0) {
     const { data: signedUrls } = await supabase.storage
       .from('demo-bags')
       .createSignedUrls(files.map(f => `${eventId}/${f.name}`), 3600);
-    signed = signedUrls ?? [];
+
+    signed = (signedUrls ?? [])
+      .filter(s => s.path && s.signedUrl)
+      .map(s => ({
+        path: s.path as string,
+        signedUrl: s.signedUrl as string,
+      }));
   }
 
+  // 5) Render
   return (
     <main className="p-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold">Demo Bags</h1>
+        <h1 className="text-2xl font-semibold text-[#0A3161]">Demo Bags</h1>
         <p className="text-sm text-gray-600">Event: <code>{eventId}</code></p>
       </div>
 
@@ -82,7 +91,7 @@ export default async function DemoBagsEventPage(
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {signed.map(s => (
+          {signed.map((s) => (
             <figure key={s.path} className="rounded-lg border bg-white p-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={s.signedUrl} alt="" className="w-full h-auto rounded" />
