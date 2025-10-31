@@ -5,83 +5,61 @@ export const dynamic = 'force-dynamic';
 import { cookies } from 'next/headers';
 import { redirect, notFound } from 'next/navigation';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import Uploader from './Uploader';
-import ReviewGrid from './ReviewGrid';
+import ApprovalClient from './ui/ApprovalClient';
 
-type Params = { eventId: string }; // may be a UUID or a slug
+type Params = { eventId: string };
 
 function isUuidV4ish(s: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s);
 }
 
-export default async function DemoBagsEventPage(
-  { params }: { params: Promise<Params> }
-) {
+export default async function DemoBagsEventPage({ params }: { params: Promise<Params> }) {
   const { eventId: raw } = await params;
   const supabase = createServerComponentClient({ cookies });
 
-  // 0) Resolve slug → event id (if needed)
+  // Resolve slug -> UUID if needed
   let eventId = raw;
   if (!isUuidV4ish(raw)) {
     const { data: ev } = await supabase
       .from('events')
-      .select('id, slug')
-      .ilike('slug', raw) // case-insensitive match
+      .select('id,slug,title')
+      .ilike('slug', raw)
       .maybeSingle();
-
     if (!ev?.id) notFound();
     eventId = ev.id as string;
   }
 
-  // 1) Require auth
+  // Auth required
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     redirect(`/portal/login?redirect=${encodeURIComponent(`/portal/demo-bags/${raw}`)}`);
   }
 
-  // 2) Who am I?
-  const { data: me } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .maybeSingle();
-
-  const isAdmin = me?.role === 'admin';
-
-  // 3) Authorization: admin OR organizer-of-event OR explicit viewer
-  const [{ data: orgRow }, { data: viewerRow }] = await Promise.all([
-    supabase
-      .from('event_admins')
-      .select('event_id')
-      .eq('event_id', eventId)
-      .eq('user_id', user.id)
-      .maybeSingle(),
-    supabase
-      .from('demo_bag_viewers')
-      .select('event_id')
-      .eq('event_id', eventId)
-      .eq('user_id', user.id)
-      .maybeSingle(),
+  // Role + permissions (admin / organizer / explicit viewer)
+  const [{ data: me }, { data: org }, { data: viewer }] = await Promise.all([
+    supabase.from('profiles').select('role').eq('id', user.id).maybeSingle(),
+    supabase.from('event_admins').select('event_id').eq('event_id', eventId).eq('user_id', user.id).maybeSingle(),
+    supabase.from('demo_bag_viewers').select('event_id').eq('event_id', eventId).eq('user_id', user.id).maybeSingle(),
   ]);
 
-  const isOrganizer = !!orgRow;
-  const isViewer = !!viewerRow;
+  const isAdmin = me?.role === 'admin';
+  const isOrganizer = !!org;
+  const isViewer = !!viewer;
+  const canSee = isAdmin || isOrganizer || isViewer;
+  const canModerate = isAdmin || isOrganizer; // only these see Approve / Request Changes
 
-  const authorized = isAdmin || isOrganizer || isViewer;
-  if (!authorized) {
-    redirect('/portal/dashboard');
-  }
+  if (!canSee) redirect('/portal/dashboard');
 
-  // 4) List files in Storage: demo-bags/<eventId>/*
+  // List files in Storage: demo-bags/<eventId>/*
   const { data: listing, error: listErr } = await supabase.storage
     .from('demo-bags')
-    .list(eventId, { limit: 200, sortBy: { column: 'name', order: 'asc' } });
+    .list(eventId, { limit: 500, sortBy: { column: 'name', order: 'asc' } });
 
   if (listErr) {
     return (
       <main className="p-8">
         <h1 className="text-2xl font-semibold text-[#0A3161]">Demo Bags</h1>
-        <p className="text-sm text-gray-600">Event: <code>{raw}</code></p>
+        <p className="text-sm text-gray-600">Event <code>{raw}</code></p>
         <div className="mt-6 rounded-xl border bg-white p-6">
           <p className="text-red-600 font-medium">Could not list demo images.</p>
           <p className="text-sm text-gray-600 mt-1">{listErr.message}</p>
@@ -92,47 +70,53 @@ export default async function DemoBagsEventPage(
 
   const files = (listing ?? []).filter(f => !f.name.endsWith('/'));
   let signed: { path: string; signedUrl: string }[] = [];
-
   if (files.length > 0) {
     const { data: signedUrls } = await supabase.storage
       .from('demo-bags')
       .createSignedUrls(files.map(f => `${eventId}/${f.name}`), 3600);
-
     signed = (signedUrls ?? [])
       .filter(s => s.path && s.signedUrl)
-      .map(s => ({
-        path: s.path as string,
-        signedUrl: s.signedUrl as string,
-      }));
+      .map(s => ({ path: s.path as string, signedUrl: s.signedUrl as string }));
   }
 
-  // Only admins can upload; admins OR organizers can approve/request changes
-  const canUpload = isAdmin;
-  const canApprove = isAdmin || isOrganizer;
+  // Fetch existing approval statuses for these files
+  let approvals: Record<string, { status: 'pending'|'approved'|'changes_requested'; note: string | null }> = {};
+  if (signed.length > 0) {
+    const { data: rows } = await supabase
+      .from('demo_bag_approvals')
+      .select('file_path,status,note')
+      .eq('event_id', eventId)
+      .in('file_path', signed.map(s => s.path));
+
+    (rows ?? []).forEach(r => {
+      approvals[r.file_path] = { status: r.status as any, note: r.note ?? null };
+    });
+  }
+
+  // Build items for client
+  const items = signed.map(s => ({
+    path: s.path,
+    signedUrl: s.signedUrl,
+    status: approvals[s.path]?.status ?? 'pending',
+    note: approvals[s.path]?.note ?? null,
+  }));
 
   return (
     <main className="p-8">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-[#0A3161]">Demo Bags</h1>
-        <p className="text-sm text-gray-600">Event: <code>{raw}</code></p>
+        <p className="text-sm text-gray-600">
+          Event: <code>{raw}</code>
+          {canModerate && <span className="ml-3 rounded bg-[#0A3161]/10 px-2 py-0.5 text-xs text-[#0A3161]">Moderator</span>}
+        </p>
       </div>
 
-      {canUpload && (
-        <div className="mb-6">
-          <Uploader eventId={eventId} />
-        </div>
-      )}
-
-      {signed.length === 0 ? (
+      {items.length === 0 ? (
         <div className="rounded-xl border bg-white p-6 text-gray-600">
           No demo images yet for this event.
         </div>
       ) : (
-        <ReviewGrid
-          eventId={eventId}
-          files={signed /* { path, signedUrl }[] */}
-          canApprove={canApprove}
-        />
+        <ApprovalClient eventId={eventId} canModerate={canModerate} initialItems={items} />
       )}
     </main>
   );
