@@ -1,10 +1,12 @@
-export type DemoGallery = {
-  title: string
-  logo?: string
-  images: { src: string; caption: string }[]
-}
+export type GalleryImage = { src: string; caption?: string };
 
-export const DEMO_GALLERIES: Record<string, DemoGallery> = {
+export type GalleryConfig = {
+  title: string;
+  logo?: string;
+  images: GalleryImage[];
+};
+
+export const GALLERIES: Record<string, GalleryConfig> = {
   Rotary2025: {
     title: '2025 Rotary Club Tournament Demos',
     logo: '/demo-bags/Rotary2025/images/NCOLOGO.png',
