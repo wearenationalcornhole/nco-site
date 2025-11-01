@@ -102,6 +102,8 @@ export const DEMO_GALLERIES: Record<string, DemoGallery> = {
       {src: "/demo-bags/SHMC2025/images/P1-B.png", caption: "Practical Intelligence Bag Blue"},
       {src: "/demo-bags/SHMC2025/images/Prob-O.png", caption: "Probity Inc Bag Orange"},
       {src: "/demo-bags/SHMC2025/images/Prob-B.png", caption: "Probity Inc Bag Blue"},
+      {src: "/demo-bags/SHMC2025/images/summit-o.png", caption: "Summit IG Bag Orange"},
+      {src: "/demo-bags/SHMC2025/images/summit-b.png", caption: "Summit IG Bag Blue"},
     ],
   },
 };
