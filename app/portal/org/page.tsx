@@ -1,93 +1,157 @@
 // app/portal/org/page.tsx
-import Link from 'next/link'
-import { headers } from 'next/headers'
-import CreateEventButton from './components/CreateEventButton'
+export const revalidate = 0;
+export const dynamic = 'force-dynamic';
 
+import Link from 'next/link';
+import { headers, cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+import CreateEventButton from './components/CreateEventButton';
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 
 type Event = {
-  id: string
-  slug: string | null
-  title: string
-  city?: string | null
-  date?: string | null
-  image?: string | null
-  createdAt?: string | null
-}
+  id: string;
+  slug: string | null;
+  title: string;
+  city?: string | null;
+  date?: string | null;
+  image?: string | null;
+  createdAt?: string | null;
+};
 
 type Registration = {
-  id?: string
-  eventId: string
-  userId: string
-  createdAt?: string
-}
+  id?: string;
+  eventId: string;
+  userId: string;
+  createdAt?: string;
+};
 
 function fmtDate(iso?: string | null) {
-  if (!iso) return 'TBD'
-  const [y, m, d] = iso.split('-').map(Number)
-  const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1))
-  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+  if (!iso) return 'TBD';
+  const [y, m, d] = (iso ?? '').split('-').map(Number);
+  const dt = new Date(Date.UTC(y || 1970, (m || 1) - 1, d || 1));
+  return dt.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
 }
 
 async function getBaseUrl() {
-  // Next 15 headers() may be async in your setup—await to be safe
-  const h = await headers()
-  const proto = h.get('x-forwarded-proto') ?? (process.env.NODE_ENV === 'development' ? 'http' : 'https')
-  const host =
-    h.get('host') ??
-    process.env.VERCEL_URL ??
-    'localhost:3000'
-  return `${proto}://${host}`
-}
-
-async function fetchEvents(): Promise<Event[]> {
-  const base = await getBaseUrl()
-  const res = await fetch(`${base}/portal/api/events`, { cache: 'no-store' })
-  if (!res.ok) return []
-  const json = await res.json()
-  // Your /portal/api/events sometimes returns { source, events: [] }
-  return Array.isArray(json) ? json : (json.events ?? [])
+  const h = await headers();
+  const proto =
+    h.get('x-forwarded-proto') ??
+    (process.env.NODE_ENV === 'development' ? 'http' : 'https');
+  const host = h.get('host') ?? process.env.VERCEL_URL ?? 'localhost:3000';
+  return `${proto}://${host}`;
 }
 
 async function fetchRegCount(base: string, eventId: string): Promise<number> {
   try {
-    const res = await fetch(`${base}/portal/api/events/${encodeURIComponent(eventId)}/registrations`, { cache: 'no-store' })
-    if (!res.ok) return 0
-    const rows = (await res.json()) as Registration[]
-    return Array.isArray(rows) ? rows.length : 0
+    const res = await fetch(
+      `${base}/portal/api/events/${encodeURIComponent(eventId)}/registrations`,
+      { cache: 'no-store' }
+    );
+    if (!res.ok) return 0;
+    const rows = (await res.json()) as Registration[];
+    return Array.isArray(rows) ? rows.length : 0;
   } catch {
-    return 0
+    return 0;
   }
 }
 
 export default async function Page() {
-  const base = await getBaseUrl()
-  const events = await fetchEvents()
+  const supabase = createServerComponentClient({ cookies });
 
-  // Basic stats
-  const now = new Date()
-  const toDate = (e: Event) => (e.date ? new Date(e.date + 'T00:00:00Z') : null)
+  // 1) Auth required
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/portal/login?redirect=%2Fportal%2Forg');
+
+  // 2) Role required: organizer or admin
+  const { data: me, error: meErr } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (meErr || !me?.role || !['organizer', 'admin'].includes(me.role)) {
+    redirect('/portal/dashboard');
+  }
+
+  const isAdmin = me.role === 'admin';
+
+  // 3) Load events for this user (admin: all; organizer: just mine)
+  let events: Event[] = [];
+  if (isAdmin) {
+    const { data: all } = await supabase
+      .from('events')
+      .select('id,slug,title,city,date,created_at')
+      .order('date', { ascending: false });
+    events = (all ?? []).map((e: any) => ({
+      id: e.id,
+      slug: e.slug ?? null,
+      title: e.title ?? 'Untitled',
+      city: e.city ?? null,
+      date: e.date ?? null,
+      createdAt: e.created_at ?? null,
+    }));
+  } else {
+    const { data: adminLinks } = await supabase
+      .from('event_admins')
+      .select('event_id')
+      .eq('user_id', user.id);
+
+    const ids = (adminLinks ?? []).map((r) => r.event_id).filter(Boolean);
+    if (ids.length) {
+      const { data: mine } = await supabase
+        .from('events')
+        .select('id,slug,title,city,date,created_at')
+        .in('id', ids)
+        .order('date', { ascending: false });
+      events = (mine ?? []).map((e: any) => ({
+        id: e.id,
+        slug: e.slug ?? null,
+        title: e.title ?? 'Untitled',
+        city: e.city ?? null,
+        date: e.date ?? null,
+        createdAt: e.created_at ?? null,
+      }));
+    }
+  }
+
+  // 4) Basic stats
+  const now = new Date();
+  const toDate = (e: Event) => (e.date ? new Date(e.date + 'T00:00:00Z') : null);
   const upcoming = events.filter((e) => {
-    const dt = toDate(e)
-    return dt ? dt >= now : true
-  })
+    const dt = toDate(e);
+    return dt ? dt >= now : true;
+  });
   const past = events.filter((e) => {
-    const dt = toDate(e)
-    return dt ? dt < now : false
-  })
+    const dt = toDate(e);
+    return dt ? dt < now : false;
+  });
 
-  // Registration counts for first 10 events (keeps it fast)
-  const top = events.slice(0, 10)
-  const counts = await Promise.all(top.map((e) => fetchRegCount(base, e.id)))
-  const regById = new Map(top.map((e, i) => [e.id, counts[i]]))
+  // 5) Registration counts for first 10 (keeps page snappy)
+  const base = await getBaseUrl();
+  const top = events.slice(0, 10);
+  const counts = await Promise.all(top.map((e) => fetchRegCount(base, e.id)));
+  const regById = new Map(top.map((e, i) => [e.id, counts[i]]));
 
-    return (
+  // 6) Render (keeps your existing UI)
+  return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-wider text-gray-500">Organizer</p>
+          <p className="text-xs uppercase tracking-wider text-gray-500">
+            Organizer
+          </p>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="mt-1 text-gray-600">Quick view of your events and activity.</p>
+          <p className="mt-1 text-gray-600">
+            Quick view of your events and activity.
+          </p>
         </div>
         <div className="flex gap-2">
           <CreateEventButton />
@@ -103,15 +167,21 @@ export default async function Page() {
       {/* Metrics */}
       <section className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="rounded-xl border bg-white p-4">
-          <div className="text-xs uppercase tracking-wide text-gray-500">Total Events</div>
+          <div className="text-xs uppercase tracking-wide text-gray-500">
+            Total Events
+          </div>
           <div className="mt-1 text-3xl font-semibold">{events.length}</div>
         </div>
         <div className="rounded-xl border bg-white p-4">
-          <div className="text-xs uppercase tracking-wide text-gray-500">Upcoming</div>
+          <div className="text-xs uppercase tracking-wide text-gray-500">
+            Upcoming
+          </div>
           <div className="mt-1 text-3xl font-semibold">{upcoming.length}</div>
         </div>
         <div className="rounded-xl border bg-white p-4">
-          <div className="text-xs uppercase tracking-wide text-gray-500">Past</div>
+          <div className="text-xs uppercase tracking-wide text-gray-500">
+            Past
+          </div>
           <div className="mt-1 text-3xl font-semibold">{past.length}</div>
         </div>
       </section>
@@ -126,38 +196,50 @@ export default async function Page() {
         </div>
 
         {events.length === 0 ? (
-  <div className="p-6 text-gray-600 flex items-center justify-between">
-    <span>No events yet. Create your first event.</span>
-    <CreateEventButton />
-  </div>
-) : (
-  /* keep your existing table */
+          <div className="p-6 text-gray-600 flex items-center justify-between">
+            <span>No events yet. Create your first event.</span>
+            <CreateEventButton />
+          </div>
+        ) : (
           <div className="divide-y">
             {top.map((e) => (
-              <div key={e.id} className="px-4 py-4 grid grid-cols-1 sm:grid-cols-12 gap-3">
+              <div
+                key={e.id}
+                className="px-4 py-4 grid grid-cols-1 sm:grid-cols-12 gap-3"
+              >
                 <div className="sm:col-span-6">
-                  <div className="font-medium text-gray-900">{e.title}</div>
-                  <div className="text-sm text-gray-600">{e.city ?? 'TBD'}</div>
+                  <div className="font-medium text-gray-900">
+                    {e.title}
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    {e.city ?? 'TBD'}
+                  </div>
                 </div>
-                <div className="sm:col-span-3 text-sm text-gray-700">{fmtDate(e.date)}</div>
+                <div className="sm:col-span-3 text-sm text-gray-700">
+                  {fmtDate(e.date)}
+                </div>
                 <div className="sm:col-span-1 text-sm text-gray-700 text-right sm:text-left">
                   {(regById.get(e.id) ?? 0).toString()}
                 </div>
-                <div className="sm:col-span-2 flex sm:justify-end">
-                  <div className="flex gap-2">
-                    <Link
-                      href={`/portal/org/events/${e.slug ?? e.id}`}
-                      className="rounded border px-3 py-1 text-sm hover:bg-gray-50"
-                    >
-                      Manage
-                    </Link>
-                    <Link
-                      href={`/portal/events/${e.slug ?? e.id}`}
-                      className="rounded bg-usaBlue text-white px-3 py-1 text-sm hover:opacity-90"
-                    >
-                      Public
-                    </Link>
-                  </div>
+                <div className="sm:col-span-2 flex sm:justify-end gap-2">
+                  <Link
+                    href={`/portal/org/events/${e.slug ?? e.id}`}
+                    className="rounded border px-3 py-1 text-sm hover:bg-gray-50"
+                  >
+                    Manage
+                  </Link>
+                  <Link
+                    href={`/portal/events/${e.slug ?? e.id}`}
+                    className="rounded bg-usaBlue text-white px-3 py-1 text-sm hover:opacity-90"
+                  >
+                    Public
+                  </Link>
+                  <Link
+                    href={`/portal/demo-bags/${e.slug ?? e.id}`}
+                    className="rounded border px-3 py-1 text-sm hover:bg-gray-50"
+                  >
+                    Demo Bags
+                  </Link>
                 </div>
               </div>
             ))}
@@ -165,5 +247,5 @@ export default async function Page() {
         )}
       </section>
     </div>
-  )
+  );
 }
