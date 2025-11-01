@@ -26,7 +26,7 @@ export default function OrgTopBar({ isAuthed = false, userName = null }: Props) 
               className="h-7 w-7"
             />
             <span className="text-sm sm:text-base font-semibold tracking-tight text-white">
-              Organizer Dashboard
+              Community Portal
             </span>
           </Link>
         </div>

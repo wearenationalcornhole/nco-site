@@ -1,129 +1,161 @@
+// app/portal/demo-bags/[slug]/page.tsx
 export const revalidate = 0;
 export const dynamic = 'force-dynamic';
 
-import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { redirect, notFound } from 'next/navigation';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import GalleryClient from '../ui/GalleryClient';
-import { GALLERIES } from '../config';
+
+// Try to read either GALLERIES or DEMO_GALLERIES without forcing you to rename your config export.
+import * as CFG from '../config';
+
+// Local copy of the config type (keeps this file stand-alone)
+type DemoGallery = {
+  title: string;
+  logo?: string;
+  images: { src: string; caption?: string; filename?: string }[];
+};
+
+// Choose whichever export exists
+const GALLERIES: Record<string, DemoGallery> =
+  // @ts-ignore
+  (CFG as any).GALLERIES ??
+  // @ts-ignore
+  (CFG as any).DEMO_GALLERIES ??
+  {};
 
 type Params = { slug: string };
 
-export default async function DemoBagsEventPage(
-  { params }: { params: Promise<Params> } // matches your project typing
-) {
-  const { slug } = await params;
-  const supabase = createServerComponentClient({ cookies });
-
-  // 1) Require auth
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    redirect(`/portal/login?redirect=${encodeURIComponent(`/portal/demo-bags/${slug}`)}`);
-  }
-
-  // 2) Resolve event by slug
-  const { data: ev, error: evErr } = await supabase
-    .from('events')
-    .select('id, title, slug')
-    .eq('slug', slug)
-    .maybeSingle();
-
-  if (evErr || !ev?.id) {
-    // No event row? If there is a static config, we can still show it (admin-only by default).
-    const cfg = GALLERIES[slug];
-    if (!cfg) notFound();
-
-    // Basic guard: only admins can view static fallback without event row
-    const { data: me } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
-    if (me?.role !== 'admin') {
-      redirect('/portal/dashboard');
-    }
-
-    return (
-      <MainShell title={cfg.title} slug={slug} logo={cfg.logo}>
-        <GalleryClient images={cfg.images} />
-      </MainShell>
-    );
-  }
-
-  const eventId = ev.id as string;
-
-  // 3) Authorization: admin OR organizer-of-event OR explicit viewer
-  let authorized = false;
-
-  const [{ data: me }, { data: org }, { data: viewer }] = await Promise.all([
-    supabase.from('profiles').select('role').eq('id', user.id).maybeSingle(),
-    supabase.from('event_admins').select('event_id').eq('event_id', eventId).eq('user_id', user.id).maybeSingle(),
-    supabase.from('demo_bag_viewers').select('event_id').eq('event_id', eventId).eq('user_id', user.id).maybeSingle(),
-  ]);
-
-  authorized = (me?.role === 'admin') || !!org || !!viewer;
-  if (!authorized) {
-    redirect('/portal/dashboard');
-  }
-
-  // 4) Try Supabase Storage first
-  const { data: listing, error: listErr } = await supabase.storage
-    .from('demo-bags')
-    .list(eventId, { limit: 200, sortBy: { column: 'name', order: 'asc' } });
-
-  let images: { src: string; caption?: string }[] = [];
-
-  if (!listErr && (listing ?? []).length > 0) {
-    const files = (listing ?? []).filter(f => !f.name.endsWith('/'));
-    const { data: signed } = await supabase.storage
-      .from('demo-bags')
-      .createSignedUrls(files.map(f => `${eventId}/${f.name}`), 3600);
-
-    images = (signed ?? [])
-      .filter(s => s?.signedUrl)
-      .map(s => ({ src: s.signedUrl as string, caption: s.path?.split('/').pop() ?? '' }));
-  } else {
-    // 5) Fallback to static gallery (exactly like demo-gallery)
-    const cfg = GALLERIES[slug];
-    if (cfg && cfg.images.length > 0) {
-      images = cfg.images;
-    }
-  }
-
-  if (images.length === 0) {
-    return (
-      <MainShell title={ev.title ?? slug} slug={slug}>
-        <div className="rounded-xl border bg-white p-6 text-gray-600">
-          No demo images yet for this event.
-        </div>
-      </MainShell>
-    );
-  }
-
-  return (
-    <MainShell title={ev.title ?? slug} slug={slug}>
-      <GalleryClient images={images} />
-    </MainShell>
-  );
+function isUuidV4ish(s: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s);
 }
 
-// --- layout wrapper to keep styles/branding tidy ---
-function MainShell({ title, slug, logo, children }:{
-  title: string;
-  slug: string;
-  logo?: string;
-  children: React.ReactNode;
-}) {
+export default async function DemoBagsHybridPage(
+  { params }: { params: Promise<Params> } // matches your project's PageProps constraint
+) {
+  const { slug: raw } = await params;
+  const supabase = createServerComponentClient({ cookies });
+
+  // 1) Resolve eventId (UUID or slug)
+  let eventId = raw;
+  if (!isUuidV4ish(raw)) {
+    const { data: ev } = await supabase
+      .from('events')
+      .select('id')
+      .ilike('slug', raw)
+      .maybeSingle();
+    if (ev?.id) {
+      eventId = ev.id as string;
+    } else {
+      // If no event row, we'll likely fall back to static config below
+      eventId = ''; // keep empty so storage listing just returns empty
+    }
+  }
+
+  // 2) Try listing Supabase Storage first if we have an eventId
+  let storageImages:
+    | { src: string; caption?: string; filename?: string }[]
+    | null = null;
+
+  if (eventId) {
+    const { data: listing, error: listErr } = await supabase.storage
+      .from('demo-bags')
+      .list(eventId, { limit: 500, sortBy: { column: 'name', order: 'asc' } });
+
+    if (!listErr && Array.isArray(listing) && listing.length > 0) {
+      // 2a) STORAGE HAS FILES → gate with auth/authorization
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        redirect(`/portal/login?redirect=${encodeURIComponent(`/portal/demo-bags/${raw}`)}`);
+      }
+
+      // role/admin check or event_admins or demo_bag_viewers
+      let authorized = false;
+      const { data: me } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user!.id)
+        .maybeSingle();
+
+      if (me?.role === 'admin') {
+        authorized = true;
+      } else {
+        const [{ data: org }, { data: viewer }] = await Promise.all([
+          supabase
+            .from('event_admins')
+            .select('event_id')
+            .eq('event_id', eventId)
+            .eq('user_id', user!.id)
+            .maybeSingle(),
+          supabase
+            .from('demo_bag_viewers')
+            .select('event_id')
+            .eq('event_id', eventId)
+            .eq('user_id', user!.id)
+            .maybeSingle(),
+        ]);
+        authorized = !!org || !!viewer;
+      }
+
+      if (!authorized) {
+        redirect('/portal/dashboard');
+      }
+
+      // 2b) Sign and map files for GalleryClient
+      const files = listing.filter((f) => !f.name.endsWith('/'));
+      let signed: { path: string; signedUrl: string }[] = [];
+      if (files.length > 0) {
+        const { data: signedUrls } = await supabase.storage
+          .from('demo-bags')
+          .createSignedUrls(files.map((f) => `${eventId}/${f.name}`), 3600);
+
+        signed =
+          (signedUrls ?? [])
+            .filter((s) => s?.path && s?.signedUrl)
+            .map((s) => ({ path: s.path as string, signedUrl: s.signedUrl as string })) ?? [];
+      }
+
+      storageImages = signed.map((s) => {
+        const name = s.path.split('/').pop() ?? 'image.png';
+        return { src: s.signedUrl, caption: name, filename: name };
+      });
+    }
+  }
+
+  // 3) Fallback to static config by slug (public)
+  const staticGallery = GALLERIES[raw];
+
+  // If neither storage nor static has anything, 404
+  if ((!storageImages || storageImages.length === 0) && !staticGallery) {
+    notFound();
+  }
+
+  const title =
+    staticGallery?.title ??
+    `Demo Bags${isUuidV4ish(raw) ? '' : ` — ${raw}`}`;
+  const logo = staticGallery?.logo;
+
+  const images =
+    storageImages && storageImages.length > 0
+      ? storageImages
+      : (staticGallery?.images ?? []);
+
   return (
     <main className="min-h-screen bg-[linear-gradient(135deg,#f9f9f9,#e9ecef)] p-6">
       <meta name="robots" content="noindex,nofollow" />
       <header className="text-center mb-8">
-        {logo && <img src={logo} alt="Event Logo" className="mx-auto mb-4 max-h-16" />}
+        {logo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={logo} alt="Event Logo" className="mx-auto mb-4 max-h-16" />
+        ) : null}
         <h1 className="text-2xl font-semibold text-[#0A3161]">{title}</h1>
-        <div className="mt-3">
-          <Link href="/portal/demo-bags" className="inline-block text-sm font-medium text-white px-3 py-1.5 rounded" style={{ backgroundColor: '#0A3161' }}>
-            ← Back to All Demos
-          </Link>
-        </div>
       </header>
-      {children}
+
+      {/* Uses your download-enabled GalleryClient */}
+      <GalleryClient images={images} slug={raw} />
     </main>
   );
 }
