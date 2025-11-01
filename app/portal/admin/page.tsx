@@ -1,15 +1,21 @@
+// app/portal/admin/page.tsx
 export const revalidate = 0;
 export const dynamic = 'force-dynamic';
 
-import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { getSupabaseServer } from '@/app/lib/supabaseServer';
 import AdminClient from './AdminClient';
 
 export default async function AdminPage() {
-  const supabase = createServerComponentClient({ cookies });
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/portal/login?redirect=%2Fportal%2Fadmin');
+  const supabase = await getSupabaseServer(); // ✅ await the client
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect('/portal/login?redirect=%2Fportal%2Fadmin');
+  }
 
   const { data: me } = await supabase
     .from('profiles')
@@ -17,7 +23,9 @@ export default async function AdminPage() {
     .eq('id', user.id)
     .maybeSingle();
 
-  if (me?.role !== 'admin') redirect('/portal/dashboard');
+  if (me?.role !== 'admin') {
+    redirect('/portal/dashboard');
+  }
 
   return (
     <main className="p-8">

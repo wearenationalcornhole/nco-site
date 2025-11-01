@@ -3,12 +3,13 @@ export const revalidate = 0;
 export const dynamic = 'force-dynamic';
 
 import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { getSupabaseServer } from '@/app/lib/auth';
 
 export default async function PortalIndex() {
-  const supabase = createServerComponentClient({ cookies });
-  const { data: { user } } = await supabase.auth.getUser();
+  const supabase = await getSupabaseServer(); // ✅ await the client
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   // Not logged in → magic-link page (and bounce to dashboard after auth)
   if (!user) {

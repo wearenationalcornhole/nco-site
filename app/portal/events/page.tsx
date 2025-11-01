@@ -4,8 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { getSupabaseServer } from '@/app/lib/supabaseServer';
 
 type Role = 'organizer' | 'player' | 'admin';
 
@@ -14,7 +13,7 @@ type EventRow = {
   slug: string | null;
   title: string;
   city: string | null;
-  date: string | null; // ISO 'YYYY-MM-DD' in your schema
+  date: string | null; // ISO 'YYYY-MM-DD'
   image: string | null;
 };
 
@@ -31,26 +30,26 @@ function fmtDate(iso?: string | null) {
 }
 
 export default async function EventsPage() {
-  const supabase = createServerComponentClient({ cookies });
+  const supabase = await getSupabaseServer(); // ✅ await the client
 
   // Session required
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) {
     redirect('/portal/login?redirect=%2Fportal%2Fevents');
   }
 
   // Role (for showing Organizer Console link)
   let role: Role = 'player';
-  {
-    const { data: p } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .maybeSingle();
-    if (p?.role === 'organizer' || p?.role === 'admin') role = p.role;
-  }
+  const { data: p } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (p?.role === 'organizer' || p?.role === 'admin') role = p.role as Role;
 
-  // Fetch events from Supabase (fall back to local JSON if table empty/locked)
+  // Fetch events (fallback to local JSON)
   let events: EventRow[] = [];
   const { data, error } = await supabase
     .from('events')

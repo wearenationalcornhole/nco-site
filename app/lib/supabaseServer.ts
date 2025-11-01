@@ -1,43 +1,25 @@
 // app/lib/supabaseServer.ts
-'use server'
-
+import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { createServerClient as createSupabaseServerClient } from '@supabase/ssr'
 
-// Create a Supabase server client (Next 15: cookies() is async)
-export async function createServerClient() {
-  const cookieStore = await cookies()
+export async function getSupabaseServer() {
+  const cookieStore = await cookies() // Next 15: async
 
-  const supabase = createSupabaseServerClient(
+  const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
+        // READ-ONLY: we allow reads so Supabase can find your auth cookies
         get(name: string) {
           return cookieStore.get(name)?.value
         },
-        set(name: string, value: string, options: Parameters<typeof cookieStore.set>[2]) {
-          cookieStore.set(name, value, options)
-        },
-        remove(name: string, options: Parameters<typeof cookieStore.set>[2]) {
-          cookieStore.set(name, '', { ...options, maxAge: 0 })
-        },
+        // NO-OPs on server pages: only Route Handlers / Server Actions may modify cookies
+        set() { /* intentionally empty */ },
+        remove() { /* intentionally empty */ },
       },
-    },
+    }
   )
 
   return supabase
-}
-
-// Optional helpers if you want them
-export async function getSession() {
-  const supabase = await createServerClient()
-  const { data } = await supabase.auth.getSession()
-  return data.session
-}
-
-export async function getUser() {
-  const supabase = await createServerClient()
-  const { data } = await supabase.auth.getUser()
-  return data.user
 }

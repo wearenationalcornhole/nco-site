@@ -2,24 +2,19 @@
 export const revalidate = 0;
 export const dynamic = 'force-dynamic';
 
-import { cookies } from 'next/headers';
 import { redirect, notFound } from 'next/navigation';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { getSupabaseServer } from '@/app/lib/supabaseServer';
 import GalleryClient from '../ui/GalleryClient';
-
-// Try to read either GALLERIES or DEMO_GALLERIES without forcing you to rename your config export.
 import * as CFG from '../config';
 
-// Local copy of the config type (keeps this file stand-alone)
 type DemoGallery = {
   title: string;
   logo?: string;
   images: { src: string; caption?: string; filename?: string }[];
 };
 
-// Choose whichever export exists
 const GALLERIES: Record<string, DemoGallery> =
-  // @ts-ignore
+  // @ts-ignore – support either export name without forcing you to rename
   (CFG as any).GALLERIES ??
   // @ts-ignore
   (CFG as any).DEMO_GALLERIES ??
@@ -35,7 +30,9 @@ export default async function DemoBagsHybridPage(
   { params }: { params: Promise<Params> } // matches your project's PageProps constraint
 ) {
   const { slug: raw } = await params;
-  const supabase = createServerComponentClient({ cookies });
+
+  // ✅ await the server client
+  const supabase = await getSupabaseServer();
 
   // 1) Resolve eventId (UUID or slug)
   let eventId = raw;
@@ -45,15 +42,10 @@ export default async function DemoBagsHybridPage(
       .select('id')
       .ilike('slug', raw)
       .maybeSingle();
-    if (ev?.id) {
-      eventId = ev.id as string;
-    } else {
-      // If no event row, we'll likely fall back to static config below
-      eventId = ''; // keep empty so storage listing just returns empty
-    }
+    eventId = ev?.id ?? '';
   }
 
-  // 2) Try listing Supabase Storage first if we have an eventId
+  // 2) Try Supabase Storage first (if the event exists)
   let storageImages:
     | { src: string; caption?: string; filename?: string }[]
     | null = null;
@@ -64,15 +56,13 @@ export default async function DemoBagsHybridPage(
       .list(eventId, { limit: 500, sortBy: { column: 'name', order: 'asc' } });
 
     if (!listErr && Array.isArray(listing) && listing.length > 0) {
-      // 2a) STORAGE HAS FILES → gate with auth/authorization
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      // Require auth for storage-backed galleries
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         redirect(`/portal/login?redirect=${encodeURIComponent(`/portal/demo-bags/${raw}`)}`);
       }
 
-      // role/admin check or event_admins or demo_bag_viewers
+      // Admin or event organizer or explicitly granted viewer
       let authorized = false;
       const { data: me } = await supabase
         .from('profiles')
@@ -104,7 +94,7 @@ export default async function DemoBagsHybridPage(
         redirect('/portal/dashboard');
       }
 
-      // 2b) Sign and map files for GalleryClient
+      // Sign and map files for GalleryClient
       const files = listing.filter((f) => !f.name.endsWith('/'));
       let signed: { path: string; signedUrl: string }[] = [];
       if (files.length > 0) {
@@ -125,10 +115,9 @@ export default async function DemoBagsHybridPage(
     }
   }
 
-  // 3) Fallback to static config by slug (public)
+  // 3) Fallback to static config galleries (public)
   const staticGallery = GALLERIES[raw];
 
-  // If neither storage nor static has anything, 404
   if ((!storageImages || storageImages.length === 0) && !staticGallery) {
     notFound();
   }
@@ -154,7 +143,6 @@ export default async function DemoBagsHybridPage(
         <h1 className="text-2xl font-semibold text-[#0A3161]">{title}</h1>
       </header>
 
-      {/* Uses your download-enabled GalleryClient */}
       <GalleryClient images={images} slug={raw} />
     </main>
   );
