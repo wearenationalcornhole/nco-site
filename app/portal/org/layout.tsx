@@ -1,4 +1,3 @@
-// app/portal/org/layout.tsx
 import type { ReactNode } from 'react'
 import { requireOrganizer } from '@/app/lib/auth'
 import OrgSidebar from './components/OrgSidebar'
