@@ -6,18 +6,14 @@ import { getSupabaseServer } from '@/app/lib/supabaseServer';
 import { getPrisma } from '@/app/lib/safePrisma';
 import { devStore } from '@/app/lib/devStore';
 
-export async function POST(
-  req: Request,
-  { params }: { params: { id: string } }
-) {
+export async function POST(req: Request, context: any) {
   try {
-    const { id } = params; // event id
-    const prisma = await getPrisma();
+    const { id } = (context?.params ?? {}) as { id: string };
+    if (!id) return NextResponse.json({ error: 'Missing event id' }, { status: 400 });
 
+    const prisma = await getPrisma();
     const supabase = getSupabaseServer();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+    const { data: { session } } = await supabase.auth.getSession();
 
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -25,7 +21,6 @@ export async function POST(
 
     const userId = session.user.id;
 
-    // Prisma path
     if (prisma) {
       const exists = await prisma.registrations.findFirst({
         where: { event_id: id, user_id: userId },
@@ -33,14 +28,13 @@ export async function POST(
       if (exists) {
         return NextResponse.json({ error: 'Already registered' }, { status: 400 });
       }
-
       const created = await prisma.registrations.create({
         data: { event_id: id, user_id: userId },
       });
       return NextResponse.json(created, { status: 201 });
     }
 
-    // devStore fallback
+    // dev fallback
     const already = devStore
       .getAll('registrations')
       .find((r: any) => r.event_id === id && r.user_id === userId);

@@ -5,7 +5,6 @@ export const dynamic = 'force-dynamic';
 import { redirect, notFound } from 'next/navigation';
 import { getSupabaseServer } from '@/app/lib/supabaseServer';
 import GalleryClient from '../ui/GalleryClient';
-import * as CFG from '../config';
 
 type DemoGallery = {
   title: string;
@@ -13,27 +12,31 @@ type DemoGallery = {
   images: { src: string; caption?: string; filename?: string }[];
 };
 
-// Tolerate either export name without forcing you to change your config file
-const STATIC_GALLERIES: Record<string, DemoGallery> =
-  // @ts-ignore
-  (CFG as any).DEMO_GALLERIES ??
-  // @ts-ignore
-  (CFG as any).GALLERIES ??
-  {};
-
 type Params = { slug: string };
 
 function isUuidV4ish(s: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s);
 }
 
+async function loadStaticGallery(slug: string): Promise<DemoGallery | null> {
+  try {
+    // dynamic import so we don't care which named export you used
+    const mod: any = await import('../config');
+    const cfg: Record<string, DemoGallery> =
+      mod.DEMO_GALLERIES ?? mod.GALLERIES ?? {};
+    return cfg[slug] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export default async function DemoBagsHybridPage(
-  { params }: { params: Promise<Params> } // matches your app's PageProps constraint
+  { params }: { params: Promise<Params> }
 ) {
   const { slug: raw } = await params;
   const supabase = getSupabaseServer();
 
-  // 1) Try to resolve an eventId (UUID or slug)
+  // 1) Resolve eventId (UUID or slug)
   let eventId = raw;
   if (!isUuidV4ish(raw)) {
     const { data: ev } = await supabase
@@ -44,7 +47,7 @@ export default async function DemoBagsHybridPage(
     eventId = ev?.id ?? '';
   }
 
-  // 2) If an event folder exists in storage, require auth + authorization, and show those images
+  // 2) Try Supabase Storage first (if eventId folder exists)
   let storageImages: { src: string; caption?: string; filename?: string }[] | null = null;
 
   if (eventId) {
@@ -53,6 +56,7 @@ export default async function DemoBagsHybridPage(
       .list(eventId, { limit: 500, sortBy: { column: 'name', order: 'asc' } });
 
     if (!listErr && Array.isArray(listing) && listing.length > 0) {
+      // Require auth + authorization
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -60,7 +64,6 @@ export default async function DemoBagsHybridPage(
         redirect(`/portal/login?redirect=${encodeURIComponent(`/portal/demo-bags/${raw}`)}`);
       }
 
-      // admin OR event organizer OR explicitly granted viewer
       let authorized = false;
       const { data: me } = await supabase
         .from('profiles')
@@ -112,8 +115,8 @@ export default async function DemoBagsHybridPage(
     }
   }
 
-  // 3) If no storage images, fall back to static config by slug (public)
-  const staticGallery = STATIC_GALLERIES[raw];
+  // 3) Fallback to static config by slug (public)
+  const staticGallery = await loadStaticGallery(raw);
 
   if ((!storageImages || storageImages.length === 0) && !staticGallery) {
     notFound();
