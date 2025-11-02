@@ -5,13 +5,21 @@ export const dynamic = 'force-dynamic';
 import { redirect, notFound } from 'next/navigation';
 import { getSupabaseServer } from '@/app/lib/supabaseServer';
 import GalleryClient from '../ui/GalleryClient';
-import { DEMO_GALLERIES as GALLERIES } from '../config';
+import * as CFG from '../config';
 
 type DemoGallery = {
   title: string;
   logo?: string;
   images: { src: string; caption?: string; filename?: string }[];
 };
+
+// Tolerate either export name without forcing you to change your config file
+const STATIC_GALLERIES: Record<string, DemoGallery> =
+  // @ts-ignore
+  (CFG as any).DEMO_GALLERIES ??
+  // @ts-ignore
+  (CFG as any).GALLERIES ??
+  {};
 
 type Params = { slug: string };
 
@@ -20,14 +28,12 @@ function isUuidV4ish(s: string) {
 }
 
 export default async function DemoBagsHybridPage(
-  { params }: { params: Promise<Params> }
+  { params }: { params: Promise<Params> } // matches your app's PageProps constraint
 ) {
   const { slug: raw } = await params;
+  const supabase = getSupabaseServer();
 
-  // ✅ await the server client
-  const supabase = await getSupabaseServer();
-
-  // 1) Resolve eventId (UUID or slug)
+  // 1) Try to resolve an eventId (UUID or slug)
   let eventId = raw;
   if (!isUuidV4ish(raw)) {
     const { data: ev } = await supabase
@@ -38,10 +44,8 @@ export default async function DemoBagsHybridPage(
     eventId = ev?.id ?? '';
   }
 
-  // 2) Try Supabase Storage first (if the event exists)
-  let storageImages:
-    | { src: string; caption?: string; filename?: string }[]
-    | null = null;
+  // 2) If an event folder exists in storage, require auth + authorization, and show those images
+  let storageImages: { src: string; caption?: string; filename?: string }[] | null = null;
 
   if (eventId) {
     const { data: listing, error: listErr } = await supabase.storage
@@ -49,13 +53,14 @@ export default async function DemoBagsHybridPage(
       .list(eventId, { limit: 500, sortBy: { column: 'name', order: 'asc' } });
 
     if (!listErr && Array.isArray(listing) && listing.length > 0) {
-      // Require auth for storage-backed galleries
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         redirect(`/portal/login?redirect=${encodeURIComponent(`/portal/demo-bags/${raw}`)}`);
       }
 
-      // Admin or event organizer or explicitly granted viewer
+      // admin OR event organizer OR explicitly granted viewer
       let authorized = false;
       const { data: me } = await supabase
         .from('profiles')
@@ -87,7 +92,6 @@ export default async function DemoBagsHybridPage(
         redirect('/portal/dashboard');
       }
 
-      // Sign and map files for GalleryClient
       const files = listing.filter((f) => !f.name.endsWith('/'));
       let signed: { path: string; signedUrl: string }[] = [];
       if (files.length > 0) {
@@ -101,25 +105,22 @@ export default async function DemoBagsHybridPage(
             .map((s) => ({ path: s.path as string, signedUrl: s.signedUrl as string })) ?? [];
       }
 
-      storageImages = (signed ?? []).map((s) => {
+      storageImages = signed.map((s) => {
         const name = s.path.split('/').pop() ?? 'image.png';
         return { src: s.signedUrl, caption: name, filename: name };
       });
     }
   }
 
-  // 3) Fallback to static config galleries (public)
-  const staticGallery: DemoGallery | undefined = (GALLERIES as any)?.[raw];
+  // 3) If no storage images, fall back to static config by slug (public)
+  const staticGallery = STATIC_GALLERIES[raw];
 
   if ((!storageImages || storageImages.length === 0) && !staticGallery) {
     notFound();
   }
 
-  const title =
-    staticGallery?.title ??
-    `Demo Bags${isUuidV4ish(raw) ? '' : ` — ${raw}`}`;
+  const title = staticGallery?.title ?? `Demo Bags${isUuidV4ish(raw) ? '' : ` — ${raw}`}`;
   const logo = staticGallery?.logo;
-
   const images =
     storageImages && storageImages.length > 0
       ? storageImages
