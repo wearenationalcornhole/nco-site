@@ -1,57 +1,74 @@
 // app/portal/api/events/[id]/register/route.ts
-export const runtime = 'nodejs'
+export const runtime = 'nodejs';
 
-import { NextResponse } from 'next/server'
-import { createServerClient } from '@/app/lib/supabaseServer'
-import { getPrisma } from '@/app/lib/safePrisma'
-import { devStore } from '@/app/lib/devStore'
+import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { getPrisma } from '@/app/lib/safePrisma';
+import { devStore } from '@/app/lib/devStore';
 
-export async function POST(req: Request, context: any) {
+type RouteParams = { params: { id: string } };
+
+export async function POST(req: Request, { params }: RouteParams) {
   try {
-    const { id } = context.params as { id: string }
-    const prisma = await getPrisma()
+    const { id: eventId } = params;
 
-    // ✅ Await Supabase client creation
-    const supabase = await createServerClient()
-    const { data: { session } } = await supabase.auth.getSession()
+    // Supabase auth context comes from route handler cookies (safe here)
+    const supabase = createRouteHandlerClient({ cookies });
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-    if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const userId = session.user.id;
 
-    const userId = session.user.id
-
-    // -- Check if already registered
+    // Try Prisma first (prod path)
+    const prisma = await getPrisma();
     if (prisma) {
+      // Already registered?
       const existing = await prisma.registrations.findFirst({
-        where: { event_id: id, user_id: userId },
-      })
-      if (existing) return NextResponse.json({ error: 'Already registered' }, { status: 400 })
+        where: { event_id: eventId, user_id: userId },
+        select: { id: true },
+      });
+      if (existing) {
+        return NextResponse.json({ error: 'Already registered' }, { status: 400 });
+      }
 
       const created = await prisma.registrations.create({
         data: {
-          event_id: id,
+          event_id: eventId,
           user_id: userId,
+          // Optional defaults if your schema allows:
+          // status: 'pending',
+          // checked_in: false,
         },
-      })
-      return NextResponse.json(created, { status: 201 })
+      });
+
+      return NextResponse.json(created, { status: 201 });
     }
 
-    // -- devStore fallback
-    const existing = devStore
-      .getAll('registrations')
-      .find((r) => r.event_id === id && r.user_id === userId)
-    if (existing) return NextResponse.json({ error: 'Already registered' }, { status: 400 })
+    // Fallback: devStore (local/dev path)
+    const already = devStore
+      .getAll<any>('registrations')
+      .find((r) => r.event_id === eventId && r.user_id === userId);
+
+    if (already) {
+      return NextResponse.json({ error: 'Already registered' }, { status: 400 });
+    }
 
     const created = devStore.upsert('registrations', {
-      event_id: id,
+      event_id: eventId,
       user_id: userId,
-      created_at: new Date(),
-    })
+      created_at: new Date().toISOString(),
+      // status: 'pending',
+      // checked_in: false,
+    });
 
-    return NextResponse.json(created, { status: 201 })
+    return NextResponse.json(created, { status: 201 });
   } catch (e: any) {
-    console.error('POST /portal/api/events/[id]/register error:', e)
-    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+    console.error('POST /portal/api/events/[id]/register error:', e);
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }

@@ -5,20 +5,13 @@ export const dynamic = 'force-dynamic';
 import { redirect, notFound } from 'next/navigation';
 import { getSupabaseServer } from '@/app/lib/supabaseServer';
 import GalleryClient from '../ui/GalleryClient';
-import * as CFG from '../config';
+import { DEMO_GALLERIES as GALLERIES } from '../config';
 
 type DemoGallery = {
   title: string;
   logo?: string;
   images: { src: string; caption?: string; filename?: string }[];
 };
-
-const GALLERIES: Record<string, DemoGallery> =
-  // @ts-ignore – support either export name without forcing you to rename
-  (CFG as any).GALLERIES ??
-  // @ts-ignore
-  (CFG as any).DEMO_GALLERIES ??
-  {};
 
 type Params = { slug: string };
 
@@ -27,7 +20,7 @@ function isUuidV4ish(s: string) {
 }
 
 export default async function DemoBagsHybridPage(
-  { params }: { params: Promise<Params> } // matches your project's PageProps constraint
+  { params }: { params: Promise<Params> }
 ) {
   const { slug: raw } = await params;
 
@@ -108,7 +101,7 @@ export default async function DemoBagsHybridPage(
             .map((s) => ({ path: s.path as string, signedUrl: s.signedUrl as string })) ?? [];
       }
 
-      storageImages = signed.map((s) => {
+      storageImages = (signed ?? []).map((s) => {
         const name = s.path.split('/').pop() ?? 'image.png';
         return { src: s.signedUrl, caption: name, filename: name };
       });
@@ -116,7 +109,7 @@ export default async function DemoBagsHybridPage(
   }
 
   // 3) Fallback to static config galleries (public)
-  const staticGallery = GALLERIES[raw];
+  const staticGallery: DemoGallery | undefined = (GALLERIES as any)?.[raw];
 
   if ((!storageImages || storageImages.length === 0) && !staticGallery) {
     notFound();
