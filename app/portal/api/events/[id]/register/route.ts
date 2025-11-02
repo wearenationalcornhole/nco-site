@@ -12,8 +12,12 @@ export async function POST(req: Request, context: any) {
     if (!id) return NextResponse.json({ error: 'Missing event id' }, { status: 400 });
 
     const prisma = await getPrisma();
-    const supabase = getSupabaseServer();
-    const { data: { session } } = await supabase.auth.getSession();
+
+    // ⬅️ IMPORTANT: await the server client
+    const supabase = await getSupabaseServer();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
