@@ -3,10 +3,24 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
 function hasSupabaseSession(req: NextRequest) {
-  // Supabase v2 sets sb-xxx cookies; older libs may use supabase-auth-token
-  return req.cookies
-    .getAll()
-    .some(c => c.name.startsWith('sb-') || c.name === 'supabase-auth-token');
+  const names = req.cookies.getAll().map(c => c.name);
+
+  // Current names
+  if (names.includes('sb-access-token') || names.includes('sb-refresh-token')) {
+    return true;
+  }
+
+  // Legacy chunked cookie name e.g. sb-<project_ref>-auth-token or sb-<project_ref>-auth-token.0
+  if (names.some(n => /^sb-[\w-]+-auth-token(\.\d+)?$/.test(n))) {
+    return true;
+  }
+
+  // If you *know* you used the old single cookie:
+  if (names.includes('supabase-auth-token')) {
+    return true;
+  }
+
+  return false;
 }
 
 export function middleware(req: NextRequest) {
