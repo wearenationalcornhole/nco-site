@@ -1,6 +1,8 @@
 // app/demo-gallery/[slug]/page.tsx
 export const dynamic = 'force-dynamic';
 
+// app/portal/demo-bags/[slug]/page.tsx (top of file)
+import * as CFG from '../config';
 import Link from 'next/link';
 import { DEMO_GALLERIES } from '../config';
 import GalleryClient from '../ui/GalleryClient';
