@@ -1,25 +1,30 @@
 // app/lib/supabaseServer.ts
-import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { createServerClient } from '@supabase/ssr'
+import { type SupabaseClient } from '@supabase/supabase-js'
 
-export async function getSupabaseServer() {
-  const cookieStore = await cookies() // Next 15: async
+/**
+ * Read-only Supabase server client for server components/pages.
+ * - Only implements cookies.get
+ * - set/remove are NO-OP to avoid Next.js "cookies can only be modified..." errors
+ * Use route handlers (/app/**/route.ts) for login/exchange/logout where writes are allowed.
+ */
+export function getSupabaseServer(): SupabaseClient {
+  // NOTE: cookies() is fine to call here; we only read.
+  const cookieStore = cookies()
 
-  const supabase = createServerClient(
+  return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        // READ-ONLY: we allow reads so Supabase can find your auth cookies
         get(name: string) {
           return cookieStore.get(name)?.value
         },
-        // NO-OPs on server pages: only Route Handlers / Server Actions may modify cookies
-        set() { /* intentionally empty */ },
-        remove() { /* intentionally empty */ },
+        // No-ops so server components never attempt to mutate cookies
+        set() {},
+        remove() {},
       },
     }
   )
-
-  return supabase
 }
