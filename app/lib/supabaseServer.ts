@@ -9,8 +9,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  * - set/remove are NO-OP to avoid Next.js “cookies can only be modified…” errors
  * Use route handlers like /app/auth/callback/route.ts for login/exchange/logout where writes are allowed.
  */
-export async function getSupabaseServer(): Promise<SupabaseClient> {
-  const cookieStore = await cookies(); // read-only access is fine in server components
+export function getSupabaseServer(): SupabaseClient {
+  const cookieStore = cookies(); // ✅ no await needed
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -20,7 +20,7 @@ export async function getSupabaseServer(): Promise<SupabaseClient> {
       get(name: string) {
         return cookieStore.get(name)?.value;
       },
-      // NO-OPs to keep Next.js happy outside of route handlers
+      // ✅ No-ops prevent Next.js "cookies can only be modified" error
       set() {},
       remove() {},
     },

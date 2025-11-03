@@ -30,7 +30,8 @@ function fmtDate(iso?: string | null) {
 }
 
 export default async function EventsPage() {
-  const supabase = await getSupabaseServer();
+  // ✅ getSupabaseServer is synchronous — do NOT await
+  const supabase = getSupabaseServer();
 
   // Session required
   const {
@@ -40,16 +41,18 @@ export default async function EventsPage() {
     redirect('/portal/login?redirect=%2Fportal%2Fevents');
   }
 
-  // Role (for showing Organizer Console link)
+  // Role (for Organizer Console link)
   let role: Role = 'player';
-  const { data: p } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .maybeSingle();
-  if (p?.role === 'organizer' || p?.role === 'admin') role = p.role as Role;
+  {
+    const { data: p } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle();
+    if (p?.role === 'organizer' || p?.role === 'admin') role = p.role as Role;
+  }
 
-  // Fetch events (fallback to local JSON)
+  // Fetch events (falls back to local JSON if the table is empty/locked)
   let events: EventRow[] = [];
   const { data, error } = await supabase
     .from('events')
