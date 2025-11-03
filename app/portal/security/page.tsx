@@ -7,8 +7,8 @@ import { getSupabaseServer } from '@/app/lib/supabaseServer';
 import SecurityClient from './SecurityClient';
 
 export default async function SecurityPage() {
-  // ✅ getSupabaseServer is synchronous — do NOT await
-  const supabase = getSupabaseServer();
+  // getSupabaseServer is async → await it
+  const supabase = await getSupabaseServer();
 
   const {
     data: { session },
