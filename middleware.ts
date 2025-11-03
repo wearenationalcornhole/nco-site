@@ -5,20 +5,14 @@ import { NextResponse } from 'next/server';
 function hasSupabaseSession(req: NextRequest) {
   const names = req.cookies.getAll().map(c => c.name);
 
-  // Current names
-  if (names.includes('sb-access-token') || names.includes('sb-refresh-token')) {
-    return true;
-  }
+  // Current cookie names (Supabase v2)
+  if (names.includes('sb-access-token') || names.includes('sb-refresh-token')) return true;
 
-  // Legacy chunked cookie name e.g. sb-<project_ref>-auth-token or sb-<project_ref>-auth-token.0
-  if (names.some(n => /^sb-[\w-]+-auth-token(\.\d+)?$/.test(n))) {
-    return true;
-  }
+  // Legacy chunked names: sb-<project-ref>-auth-token or sb-<project-ref>-auth-token.0
+  if (names.some(n => /^sb-[\w-]+-auth-token(\.\d+)?$/.test(n))) return true;
 
-  // If you *know* you used the old single cookie:
-  if (names.includes('supabase-auth-token')) {
-    return true;
-  }
+  // Very old single cookie
+  if (names.includes('supabase-auth-token')) return true;
 
   return false;
 }
@@ -26,7 +20,7 @@ function hasSupabaseSession(req: NextRequest) {
 export function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
 
-  // 0) Skip static and Next internals ASAP
+  // Skip static/internals
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/static') ||
@@ -38,26 +32,30 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 1) Public demo-gallery: add noindex header
+  // Public demo-gallery: add noindex
   if (pathname.startsWith('/demo-gallery')) {
     const res = NextResponse.next();
     res.headers.set('X-Robots-Tag', 'noindex, nofollow');
     return res;
   }
 
-  // 2) Do NOT touch auth callback routes
+  // Always allow auth callbacks
   if (pathname.startsWith('/auth/')) {
     return NextResponse.next();
   }
 
-  // 3) Guard /portal/*
+  // 🔧 TEMP BYPASS: let /portal/events* through (the page enforces auth itself)
+  if (pathname === '/portal/events' || pathname.startsWith('/portal/events/')) {
+    return NextResponse.next();
+  }
+
+  // Guard everything else under /portal
   if (pathname.startsWith('/portal')) {
-    // allow login itself
+    // allow login
     if (pathname === '/portal/login' || pathname.startsWith('/portal/login/')) {
       return NextResponse.next();
     }
 
-    // require session
     if (!hasSupabaseSession(req)) {
       const url = req.nextUrl.clone();
       url.pathname = '/portal/login';
@@ -68,7 +66,6 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 4) Everything else untouched
   return NextResponse.next();
 }
 
@@ -76,6 +73,6 @@ export const config = {
   matcher: [
     '/portal/:path*',
     '/demo-gallery/:path*',
-    '/auth/:path*', // included so we can *allow* it (no redirects)
+    '/auth/:path*',
   ],
 };
