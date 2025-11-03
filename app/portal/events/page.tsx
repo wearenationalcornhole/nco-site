@@ -1,10 +1,10 @@
 // app/portal/events/page.tsx
-export const revalidate = 0;
-export const dynamic = 'force-dynamic';
+'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
-import { getSupabaseServer } from '@/app/lib/supabaseServer';
+import { useRouter } from 'next/navigation';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 type Role = 'organizer' | 'player' | 'admin';
 
@@ -13,14 +13,14 @@ type EventRow = {
   slug: string | null;
   title: string;
   city: string | null;
-  date: string | null; // ISO 'YYYY-MM-DD'
+  date: string | null;   // ISO 'YYYY-MM-DD'
   image: string | null;
 };
 
 function fmtDate(iso?: string | null) {
   if (!iso) return 'TBD';
-  const [y, m, d] = iso.split('-').map(Number);
-  const dt = new Date(Date.UTC(y ?? 1970, (m ?? 1) - 1, d ?? 1));
+  const [y, m, d] = (iso ?? '').split('-').map(Number);
+  const dt = new Date(Date.UTC(y || 1970, (m || 1) - 1, d || 1));
   return dt.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
@@ -29,39 +29,69 @@ function fmtDate(iso?: string | null) {
   });
 }
 
-export default async function EventsPage() {
-  // ✅ MUST await the server client, since getSupabaseServer() returns a Promise<SupabaseClient>
-  const supabase = await getSupabaseServer();
+export default function EventsPageClient() {
+  const supabase = createClientComponentClient();
+  const router = useRouter();
 
-  // Session required
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    redirect('/portal/login?redirect=%2Fportal%2Fevents');
+  const [loading, setLoading] = useState(true);
+  const [role, setRole] = useState<Role>('player');
+  const [events, setEvents] = useState<EventRow[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        // 1) Client-side session check (no middleware bounce here)
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          router.replace('/portal/login?redirect=%2Fportal%2Fevents');
+          return;
+        }
+
+        // 2) Role (for Organizer Console button)
+        const { data: me, error: roleErr } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .maybeSingle();
+        if (roleErr) throw roleErr;
+        if (me?.role === 'admin' || me?.role === 'organizer') {
+          if (alive) setRole(me.role as Role);
+        }
+
+        // 3) Load events via your API (keeps DB rules simple)
+        const base = window.location.origin;
+        const res = await fetch(`${base}/portal/api/events`, { cache: 'no-store' });
+        const json = res.ok ? await res.json() : [];
+        const list: EventRow[] = Array.isArray(json) ? json : (json.events ?? []);
+        if (alive) setEvents(list);
+      } catch (e: any) {
+        if (alive) setError(e?.message || 'Failed to load events');
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [router, supabase]);
+
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+        <p>Loading…</p>
+      </div>
+    );
   }
 
-  // Role (for showing Organizer Console link)
-  let role: Role = 'player';
-  const { data: p } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .maybeSingle();
-  if (p?.role === 'organizer' || p?.role === 'admin') role = p.role as Role;
-
-  // Fetch events (fallback to local JSON)
-  let events: EventRow[] = [];
-  const { data, error } = await supabase
-    .from('events')
-    .select('id, slug, title, city, date, image')
-    .order('date', { ascending: false });
-
-  if (!error && data) {
-    events = data as EventRow[];
-  } else {
-    const local = (await import('@/app/data/events.json')).default as EventRow[];
-    events = local;
+  if (error) {
+    return (
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+        <div className="rounded-xl border bg-white p-4">
+          <p className="text-red-600 font-semibold">Events error</p>
+          <p className="text-sm mt-1">{error}</p>
+        </div>
+      </div>
+    );
   }
 
   return (
