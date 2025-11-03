@@ -7,8 +7,8 @@ import { getSupabaseServer } from '@/app/lib/supabaseServer';
 import AdminClient from './AdminClient';
 
 export default async function AdminPage() {
-  // ✅ getSupabaseServer is synchronous — do NOT await
-  const supabase = getSupabaseServer();
+  // ✅ IMPORTANT: await the server client
+  const supabase = await getSupabaseServer();
 
   const {
     data: { user },

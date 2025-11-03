@@ -2,6 +2,7 @@
 export const revalidate = 0;
 export const dynamic = 'force-dynamic';
 
+import * as CFG from '../config';
 import { redirect, notFound } from 'next/navigation';
 import { getSupabaseServer } from '@/app/lib/supabaseServer';
 import GalleryClient from '../ui/GalleryClient';
