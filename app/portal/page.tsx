@@ -6,8 +6,8 @@ import { redirect } from 'next/navigation';
 import { getSupabaseServer } from '@/app/lib/supabaseServer';
 
 export default async function PortalIndex() {
-  // ⬇️ no await here
-  const supabase = getSupabaseServer();
+  // ⬇️ await here to get the Supabase client
+  const supabase = await getSupabaseServer();
   const {
     data: { user },
   } = await supabase.auth.getUser();

@@ -30,7 +30,7 @@ function fmtDate(iso?: string | null) {
 }
 
 export default async function EventsPage() {
-  const supabase = getSupabaseServer();
+  const supabase = await getSupabaseServer();
 
   // Session required
   const {

@@ -7,7 +7,7 @@ import { getSupabaseServer } from '@/app/lib/supabaseServer';
 import SecurityClient from './SecurityClient';
 
 export default async function SecurityPage() {
-  const supabase = getSupabaseServer(); 
+  const supabase = await getSupabaseServer();
 
   const {
     data: { session },
