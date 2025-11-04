@@ -3,8 +3,7 @@ export const revalidate = 0;
 export const dynamic = 'force-dynamic';
 
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
-import { getSupabaseServer } from '@/app/lib/supabaseServer';
+import { getSupabaseServer } from '@/app/lib/supabaseServer'; // ← use your correct path
 
 type Event = {
   id: string;
@@ -28,29 +27,9 @@ function fmtDate(iso?: string | null) {
 }
 
 export default async function OrgEventsPage() {
+  // ✅ No redirects here. Auth/role gate lives in /portal/org/layout.tsx
   const supabase = await getSupabaseServer();
 
-  // Use getUser() here (more robust than getSession() for some SSR paths)
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect('/portal/login?redirect=%2Fportal%2Forg%2Fevents');
-  }
-
-  // Organizer/Admin gate
-  const { data: me } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .maybeSingle();
-
-  if (!me || (me.role !== 'organizer' && me.role !== 'admin')) {
-    redirect('/portal/dashboard');
-  }
-
-  // Load events (fallback to local JSON if table blocked/empty)
   let events: Event[] = [];
   const { data, error } = await supabase
     .from('events')
@@ -60,8 +39,12 @@ export default async function OrgEventsPage() {
   if (!error && data) {
     events = data as Event[];
   } else {
-    const local = (await import('@/app/data/events.json')).default as Event[];
-    events = local;
+    try {
+      const local = (await import('@/app/data/events.json')).default as Event[];
+      events = local;
+    } catch {
+      events = [];
+    }
   }
 
   return (
