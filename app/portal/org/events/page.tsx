@@ -28,15 +28,14 @@ function fmtDate(iso?: string | null) {
 }
 
 export default async function OrgEventsPage() {
-  // ✅ get the server client and read the session on the server
   const supabase = await getSupabaseServer();
 
+  // Use getUser() here (more robust than getSession() for some SSR paths)
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  // Not logged in → login with redirect back here
-  if (!session) {
+  if (!user) {
     redirect('/portal/login?redirect=%2Fportal%2Forg%2Fevents');
   }
 
@@ -44,7 +43,7 @@ export default async function OrgEventsPage() {
   const { data: me } = await supabase
     .from('profiles')
     .select('role')
-    .eq('id', session.user.id)
+    .eq('id', user.id)
     .maybeSingle();
 
   if (!me || (me.role !== 'organizer' && me.role !== 'admin')) {
