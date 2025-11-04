@@ -8,13 +8,12 @@ import { getSupabaseServer } from '@/app/lib/supabaseServer';
 import OrgSidebar from './components/OrgSidebar';
 import OrgBreadcrumbs from './components/OrgBreadcrumbs';
 
-// IMPORTANT: Do NOT import or render TopBar here.
-// TopBar is already rendered once in /app/portal/layout.tsx.
-
+// Do NOT import/render TopBar here — it's already in /app/portal/layout.tsx
 export default async function OrgLayout({ children }: { children: ReactNode }) {
-  const supabase = getSupabaseServer(); // sync, cookie-read only
+  // Your current getSupabaseServer returns a Promise → await it
+  const supabase = await getSupabaseServer();
 
-  // Gate: must be signed in
+  // Gate: signed in
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -22,7 +21,7 @@ export default async function OrgLayout({ children }: { children: ReactNode }) {
     redirect('/portal/login?redirect=%2Fportal%2Forg');
   }
 
-  // Gate: must be organizer or admin
+  // Gate: organizer or admin
   const { data: me } = await supabase
     .from('profiles')
     .select('role')
