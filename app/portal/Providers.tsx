@@ -1,17 +1,14 @@
 // app/portal/Providers.tsx
-'use client'
+'use client';
 
-import type { ReactNode } from 'react'
-import { DevAuthProvider } from '@/app/lib/devAuth'
-import TopBar from './TopBar'
+import type { ReactNode } from 'react';
+import { DevAuthProvider } from '@/app/lib/devAuth';
 
 export default function Providers({ children }: { children: ReactNode }) {
   return (
     <DevAuthProvider>
-      <TopBar />
-      <main className="bg-neutral-50 min-h-[calc(100vh-56px)] p-4 md:p-6">
-        {children}
-      </main>
+      {/* ✅ Removed duplicate <TopBar /> and unnecessary wrapper */}
+      {children}
     </DevAuthProvider>
-  )
+  );
 }
