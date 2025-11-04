@@ -1,33 +1,36 @@
 // app/portal/org/layout.tsx
-import type { ReactNode } from 'react'
-import { redirect } from 'next/navigation'
-import { getSupabaseServer } from '@/app/lib/supabaseServer'
-import OrgSidebar from './components/OrgSidebar'
-import OrgBreadcrumbs from './components/OrgBreadcrumbs'
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
-// Note: TopBar is rendered once in /app/portal/layout.tsx — don't import it here.
+import type { ReactNode } from 'react';
+import { redirect } from 'next/navigation';
+import { getSupabaseServer } from '@/app/lib/supabaseServer';
+import OrgSidebar from './components/OrgSidebar';
+import OrgBreadcrumbs from './components/OrgBreadcrumbs';
+
+// ⚠️ Do NOT import TopBar here. It's already rendered once in /app/portal/layout.tsx
 
 export default async function OrgLayout({ children }: { children: ReactNode }) {
-  // 👇 Await the client (getSupabaseServer returns a Promise)
-  const supabase = await getSupabaseServer()
+  const supabase = getSupabaseServer();
 
-  // Gate: must be signed in
+  // Use getUser() (more robust under SSR than getSession())
   const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  if (!session) {
-    redirect('/portal/login?redirect=%2Fportal%2Forg')
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect('/portal/login?redirect=%2Fportal%2Forg');
   }
 
-  // Gate: must be organizer or admin
+  // Organizer/Admin gate
   const { data: me } = await supabase
     .from('profiles')
     .select('role')
-    .eq('id', session.user.id)
-    .maybeSingle()
+    .eq('id', user.id)
+    .maybeSingle();
 
   if (!me || (me.role !== 'organizer' && me.role !== 'admin')) {
-    redirect('/portal/dashboard')
+    redirect('/portal/dashboard');
   }
 
   return (
@@ -43,5 +46,5 @@ export default async function OrgLayout({ children }: { children: ReactNode }) {
         <main className="lg:col-span-9">{children}</main>
       </div>
     </div>
-  )
+  );
 }
