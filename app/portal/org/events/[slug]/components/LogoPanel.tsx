@@ -2,113 +2,110 @@
 
 import { useState } from 'react'
 import Spinner from '@/components/ui/Spinner'
+import { supabase } from '@/app/lib/supabaseClient'
 
 type Props = {
-  eventId: string
-  currentLogoUrl?: string | null
-  onSaved?: (url: string | null) => void
+  slug: string
+  onSaved?: (path: string | null) => void
 }
 
-export default function LogoPanel({ eventId, currentLogoUrl = null, onSaved }: Props) {
+export default function LogoPanel({ slug, onSaved }: Props) {
   const [file, setFile] = useState<File | null>(null)
+  const [preview, setPreview] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [preview, setPreview] = useState<string | null>(currentLogoUrl)
+  const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
 
-  async function uploadToSupabase(file: File): Promise<string> {
-    const { supabase } = await import('@/app/lib/supabaseClient')
-    const safe = eventId.replace(/[^a-z0-9-]/gi, '-').toLowerCase()
-    const fname = `${Date.now()}-${file.name.replace(/[^a-z0-9.\-]+/gi, '-')}`
-    const path = `event/${safe}/logo/${fname}`
-
-    const { error } = await supabase.storage
-      .from('sponsor-logos') // reuse bucket
-      .upload(path, file, {
-        cacheControl: '31536000',
-        upsert: true,
-        contentType: file.type || 'image/png',
-      })
-    if (error) throw error
-
-    const { data } = supabase.storage.from('sponsor-logos').getPublicUrl(path)
-    return data.publicUrl
-  }
-
-  async function save(e: React.FormEvent) {
-    e.preventDefault()
-    if (!file) return
-    setSubmitting(true)
-    try {
-      const url = await uploadToSupabase(file)
-      const res = await fetch(`/portal/api/events/${encodeURIComponent(eventId)}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: url }),
-      })
-      if (!res.ok) throw new Error((await res.json())?.error ?? 'Failed to update event')
+  const onFile = (f: File | null) => {
+    setFile(f)
+    setError(null)
+    setMessage(null)
+    if (f) {
+      const url = URL.createObjectURL(f)
       setPreview(url)
-      onSaved?.(url)
-      setFile(null)
-    } catch (err) {
-      console.error(err)
-      onSaved?.(preview ?? null) // no-op notify
-    } finally {
-      setSubmitting(false)
+    } else {
+      setPreview(null)
     }
   }
 
-  async function clearLogo() {
-    setSubmitting(true)
+  async function handleUpload(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+    setMessage(null)
+
+    if (!file) {
+      setError('Pick a file first.')
+      return
+    }
+
     try {
-      const res = await fetch(`/portal/api/events/${encodeURIComponent(eventId)}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: null }),
-      })
-      if (!res.ok) throw new Error((await res.json())?.error ?? 'Failed to update event')
+      setSubmitting(true)
+
+      // Ensure we are logged in – this keeps RLS happy.
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        setError('You must be signed in to upload.')
+        return
+      }
+
+      // Correct bucket for EVENT LOGOS:
+      const bucket = 'event-logos'
+
+      // Key convention: <eventSlug>/logo-<timestamp>.<ext>
+      const ext = file.name.split('.').pop() || 'png'
+      const key = `${slug}/logo-${Date.now()}.${ext}`
+
+      const { error: upErr } = await supabase
+        .storage
+        .from(bucket)
+        .upload(key, file, { upsert: true })
+
+      if (upErr) {
+        setError(upErr.message)
+        return
+      }
+
+      setMessage('Event logo uploaded.')
+      onSaved?.(`${bucket}/${key}`)
+      setFile(null)
       setPreview(null)
-      onSaved?.(null)
-    } catch (err) {
-      console.error(err)
+    } catch (err: any) {
+      setError(err?.message ?? 'Upload failed')
     } finally {
       setSubmitting(false)
     }
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-4">
-        <div className="h-16 w-16 rounded bg-gray-100 overflow-hidden flex items-center justify-center">
-          {preview ? (
-            <img src={preview} alt="Tournament logo" className="h-full w-full object-cover" />
-          ) : (
-            <span className="text-xs text-gray-400">No logo</span>
-          )}
-        </div>
-        {preview && (
-          <button
-            type="button"
-            onClick={clearLogo}
-            className="rounded border px-3 py-1 text-sm hover:bg-gray-50 disabled:opacity-60"
-            disabled={submitting}
-          >
-            Remove
-          </button>
-        )}
+    <div className="space-y-4 rounded-xl border p-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold">Event Logo</h3>
       </div>
 
-      <form onSubmit={save} className="flex items-center gap-3">
+      <form onSubmit={handleUpload} className="space-y-3">
         <input
           type="file"
           accept="image/*"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          className="w-full rounded border px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-gray-100 file:px-3 file:py-2"
+          onChange={(e) => onFile(e.target.files?.[0] ?? null)}
         />
+
+        {preview && (
+          <div className="mt-2">
+            <img src={preview} alt="preview" className="h-24 rounded border object-contain" />
+          </div>
+        )}
+
         <button
-          className="inline-flex items-center gap-2 rounded bg-usaBlue text-white px-3 py-2 text-sm hover:opacity-90 disabled:opacity-60"
+          type="submit"
           disabled={submitting || !file}
+          className="inline-flex items-center gap-2 rounded-md border px-3 py-2 disabled:opacity-50"
         >
-          {submitting && <Spinner size={16} />} Upload
+          {submitting ? <Spinner size={16} /> : null}
+          Upload
         </button>
+
+        {message && <p className="text-sm text-green-600">{message}</p>}
+        {error && <p className="text-sm text-red-600">{error}</p>}
       </form>
     </div>
   )
