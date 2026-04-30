@@ -7,6 +7,7 @@ import Spinner from '@/components/ui/Spinner'
 import Toast from '@/components/ui/Toast'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
+import { formatEventDate } from '@/app/lib/formatDate'
 
 // ── Dynamic, client-only panels ─────────────────────────────────────────
 const EditDetailsPanel = dynamic(() => import('./components/EditDetailsPanel'), { ssr: false })
@@ -98,7 +99,7 @@ export default function EventClient({ slug, initialEvent = null }: Props) {
         <div>
           <h1 className="text-2xl font-semibold">{event.title}</h1>
           <div className="mt-1 flex items-center gap-2 text-sm text-gray-500">
-            {event.date && <Badge>{new Date(event.date).toLocaleDateString()}</Badge>}
+            {event.date && <Badge>{formatEventDate(event.date)}</Badge>}
             {event.status && <Badge color="gray">{event.status}</Badge>}
             <Badge color="gray">/{slugStr}</Badge>
           </div>

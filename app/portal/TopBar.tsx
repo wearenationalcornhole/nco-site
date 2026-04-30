@@ -72,7 +72,7 @@ export default function TopBar() {
           <Link href="/portal/profile" className={linkClass('/portal/profile')}>Profile</Link>
           <Link href="/portal/events" className={linkClass('/portal/events')}>Events</Link>
           {/* Player landing (your “My Registrations” lives here today) */}
-          <Link href="/portal/players" className={linkClass('/portal/players')}>My Registrations</Link>
+          <Link href="/portal/my-registrations" className={linkClass('/portal/my-registrations')}>My Registrations</Link>
 
           {/* Organizer console (exists as /portal/org) */}
           {(role === 'organizer' || role === 'admin') && (

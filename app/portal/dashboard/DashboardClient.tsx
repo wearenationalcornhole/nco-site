@@ -129,7 +129,7 @@ export default function DashboardClient() {
               title="My Registrations"
               desc="Your entries & statuses."
               cta="View registrations"
-              href="/portal/players"
+              href="/portal/my-registrations"
               color="#0A3161"
             />
           </>
@@ -170,7 +170,7 @@ export default function DashboardClient() {
               title="My Registrations"
               desc="Divisions, statuses & bags."
               cta="View registrations"
-              href="/portal/players"
+              href="/portal/my-registrations"
               color="#0A3161"
             />
           </>

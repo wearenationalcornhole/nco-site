@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import Link from 'next/link';
 import { getSupabaseServer } from '@/app/lib/supabaseServer'; // ← use your correct path
+import { formatEventDate } from '@/app/lib/formatDate';
 
 type Event = {
   id: string;
@@ -13,18 +14,6 @@ type Event = {
   date?: string | null;   // ISO 'YYYY-MM-DD'
   image?: string | null;
 };
-
-function fmtDate(iso?: string | null) {
-  if (!iso) return 'TBD';
-  const [y, m, d] = (iso ?? '').split('-').map(Number);
-  const dt = new Date(Date.UTC(y || 1970, (m || 1) - 1, d || 1));
-  return dt.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  });
-}
 
 export default async function OrgEventsPage() {
   // ✅ No redirects here. Auth/role gate lives in /portal/org/layout.tsx
@@ -81,7 +70,7 @@ export default async function OrgEventsPage() {
                 />
               </div>
               <h3 className="mt-4 text-xl font-bold">{e.title}</h3>
-              <p className="text-gray-600">{(e.city ?? 'TBD') + ' • ' + fmtDate(e.date)}</p>
+              <p className="text-gray-600">{(e.city ?? 'TBD') + ' • ' + formatEventDate(e.date)}</p>
               <div className="mt-4 flex items-center justify-between gap-2">
                 <Link
                   href={`/portal/org/events/${e.slug ?? e.id}`}

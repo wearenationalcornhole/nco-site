@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { formatEventDate } from '@/app/lib/formatDate';
 
 type Role = 'player' | 'organizer' | 'admin';
 
@@ -325,7 +326,7 @@ export default function AdminClient() {
           {filteredEvents.length > 0 ? (
             filteredEvents.map(ev => (
               <option key={ev.id} value={ev.id}>
-                {ev.title ?? 'Untitled'} {ev.date ? `— ${new Date(ev.date).toLocaleDateString()}` : ''}
+                {ev.title ?? 'Untitled'} {ev.date ? `— ${formatEventDate(ev.date)}` : ''}
               </option>
             ))
           ) : (

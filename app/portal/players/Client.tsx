@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { formatEventDate } from '@/app/lib/formatDate';
 
 type Profile = {
   first_name: string | null;
@@ -244,7 +245,7 @@ export default function Client() {
                     </p>
                   </div>
                   <div className="text-right text-sm text-gray-600">
-                    <p>{r.date ? new Date(r.date).toLocaleDateString() : 'TBD'}</p>
+                    <p>{formatEventDate(r.date)}</p>
                     {r.city ? <p>{r.city}</p> : null}
                   </div>
                 </div>

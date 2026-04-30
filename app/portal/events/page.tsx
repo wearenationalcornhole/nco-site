@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { formatEventDate } from '@/app/lib/formatDate';
 
 type Role = 'organizer' | 'player' | 'admin';
 
@@ -16,18 +17,6 @@ type EventRow = {
   date: string | null;   // ISO 'YYYY-MM-DD'
   image: string | null;
 };
-
-function fmtDate(iso?: string | null) {
-  if (!iso) return 'TBD';
-  const [y, m, d] = (iso ?? '').split('-').map(Number);
-  const dt = new Date(Date.UTC(y || 1970, (m || 1) - 1, d || 1));
-  return dt.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  });
-}
 
 export default function EventsPageClient() {
   const supabase = createClientComponentClient();
@@ -120,7 +109,7 @@ export default function EventsPageClient() {
             >
               <h2 className="text-lg font-semibold text-gray-900">{e.title}</h2>
               <p className="text-sm text-gray-600">{e.city ?? 'TBD'}</p>
-              <p className="text-sm text-gray-600 mt-1">{fmtDate(e.date)}</p>
+              <p className="text-sm text-gray-600 mt-1">{formatEventDate(e.date)}</p>
               <div className="mt-3">
                 <Link
                   href={`/portal/events/${e.slug ?? e.id}`}

@@ -19,6 +19,10 @@ type RowDb = {
   id?: string
   event_id: string
   user_id: string
+  division_id?: string | null
+  status?: string | null
+  checked_in?: boolean | null
+  notes?: string | null
   created_at: string | Date | null
 }
 
@@ -26,6 +30,10 @@ type Row = {
   id: string
   eventId: string
   userId: string
+  divisionId: string | null
+  status: string | null
+  checkedIn: boolean | null
+  notes: string | null
   createdAt: string | null
   user?: { id: string; email?: string | null; name?: string | null } | null
 }
@@ -43,11 +51,25 @@ function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
+async function getSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE
+  if (!url || !key) return null
+  const { createClient } = await import('@supabase/supabase-js')
+  return createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
+}
+
 function toApiRow(r: RowDb, user?: UserDb | null): Row {
   return {
     id: r.id!, // set by prisma or devStore
     eventId: r.event_id,
     userId: r.user_id,
+    divisionId: r.division_id ?? null,
+    status: r.status ?? null,
+    checkedIn: r.checked_in ?? null,
+    notes: r.notes ?? null,
     createdAt: asIso(r.created_at),
     user: user ? { id: user.id, email: user.email, name: user.name ?? null } : null,
   }
@@ -60,6 +82,41 @@ function toApiRow(r: RowDb, user?: UserDb | null): Row {
 export async function GET(_req: Request, context: any) {
   try {
     const { id } = context.params as { id: string }
+    const supabase = await getSupabaseAdmin()
+    if (supabase) {
+      const { data: regs, error: regError } = await supabase
+        .from('registrations')
+        .select('id,event_id,user_id,division_id,status,checked_in,notes,created_at')
+        .eq('event_id', id)
+        .order('created_at', { ascending: false })
+
+      if (regError) throw regError
+
+      const userIds = Array.from(new Set((regs ?? []).map((row) => row.user_id)))
+      const { data: profiles } =
+        userIds.length > 0
+          ? await supabase
+              .from('profiles')
+              .select('id,email,first_name,last_name')
+              .in('id', userIds)
+          : { data: [] }
+
+      const userMap = new Map(
+        (profiles ?? []).map((profile: any) => [
+          profile.id,
+          {
+            id: profile.id,
+            email: profile.email ?? null,
+            name: [profile.first_name, profile.last_name].filter(Boolean).join(' ') || null,
+          },
+        ]),
+      )
+
+      return NextResponse.json(
+        (regs ?? []).map((row: any) => toApiRow(row as RowDb, userMap.get(row.user_id))),
+      )
+    }
+
     const prisma = await getPrisma()
 
     if (prisma) {
@@ -115,9 +172,97 @@ export async function POST(req: Request, context: any) {
 
     const email = String(body?.email ?? '').trim().toLowerCase()
     const name = body?.name ? String(body.name).trim() : undefined
+    const divisionId =
+      typeof body?.divisionId === 'string' && body.divisionId.trim()
+        ? body.divisionId.trim()
+        : null
 
     if (!email || !isValidEmail(email)) {
       return NextResponse.json({ error: 'Valid email is required' }, { status: 400 })
+    }
+
+    const supabase = await getSupabaseAdmin()
+    if (supabase) {
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id,email,first_name,last_name')
+        .eq('email', email)
+        .maybeSingle()
+
+      if (profileError) throw profileError
+      if (!profile?.id) {
+        return NextResponse.json(
+          {
+            error:
+              'Player needs a portal account before an organizer can register them by email.',
+          },
+          { status: 404 },
+        )
+      }
+
+      const { data: existing } = await supabase
+        .from('registrations')
+        .select('id,event_id,user_id,division_id,status,checked_in,notes,created_at')
+        .eq('event_id', id)
+        .eq('user_id', profile.id)
+        .maybeSingle()
+
+      if (existing) {
+        const patch: Record<string, any> = {}
+        if (existing.division_id !== divisionId) patch.division_id = divisionId
+        if (!existing.status) patch.status = 'registered'
+        if (existing.checked_in == null) patch.checked_in = false
+
+        if (Object.keys(patch).length > 0) {
+          const { data: updated, error: updateError } = await supabase
+            .from('registrations')
+            .update(patch)
+            .eq('id', existing.id)
+            .select('id,event_id,user_id,division_id,status,checked_in,notes,created_at')
+            .single()
+          if (updateError) throw updateError
+          return NextResponse.json(
+            toApiRow(updated as RowDb, {
+              id: profile.id,
+              email: profile.email ?? null,
+              name: [profile.first_name, profile.last_name].filter(Boolean).join(' ') || name || null,
+            }),
+          )
+        }
+
+        return NextResponse.json(
+          toApiRow(existing as RowDb, {
+            id: profile.id,
+            email: profile.email ?? null,
+            name: [profile.first_name, profile.last_name].filter(Boolean).join(' ') || name || null,
+          }),
+        )
+      }
+
+      const payload: Record<string, any> = {
+        event_id: id,
+        user_id: profile.id,
+        status: 'registered',
+        checked_in: false,
+      }
+      if (divisionId) payload.division_id = divisionId
+
+      const { data: created, error: createError } = await supabase
+        .from('registrations')
+        .insert(payload)
+        .select('id,event_id,user_id,division_id,status,checked_in,notes,created_at')
+        .single()
+
+      if (createError) throw createError
+
+      return NextResponse.json(
+        toApiRow(created as RowDb, {
+          id: profile.id,
+          email: profile.email ?? null,
+          name: [profile.first_name, profile.last_name].filter(Boolean).join(' ') || name || null,
+        }),
+        { status: 201 },
+      )
     }
 
     const prisma = await getPrisma()
@@ -203,5 +348,62 @@ export async function POST(req: Request, context: any) {
   } catch (e: any) {
     console.error('POST /portal/api/events/[id]/registrations error:', e)
     return NextResponse.json({ error: e?.message ?? 'Invalid payload' }, { status: 400 })
+  }
+}
+
+export async function DELETE(req: Request, context: any) {
+  try {
+    const { id } = context.params as { id: string }
+    const url = new URL(req.url)
+    const registrationId = url.searchParams.get('registrationId')
+    const userId = url.searchParams.get('userId')
+
+    if (!registrationId && !userId) {
+      return NextResponse.json({ error: 'registrationId or userId required' }, { status: 400 })
+    }
+
+    const supabase = await getSupabaseAdmin()
+    if (supabase) {
+      let query = supabase.from('registrations').delete().eq('event_id', id)
+      query = registrationId ? query.eq('id', registrationId) : query.eq('user_id', userId!)
+      const { error } = await query
+      if (error) throw error
+      return NextResponse.json({ ok: true })
+    }
+
+    const prisma = await getPrisma()
+    if (prisma) {
+      if (registrationId) {
+        const result = await prisma.registrations.deleteMany({
+          where: { id: registrationId, event_id: id },
+        })
+        if (result.count === 0) {
+          return NextResponse.json({ error: 'Not found' }, { status: 404 })
+        }
+      } else {
+        await prisma.registrations.deleteMany({
+          where: { event_id: id, user_id: userId! },
+        })
+      }
+      return NextResponse.json({ ok: true })
+    }
+
+    if (registrationId) {
+      const row = devStore.getById<any>('registrations', registrationId)
+      if (!row || row.event_id !== id) {
+        return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      }
+      devStore.remove('registrations', registrationId)
+    } else {
+      const rows = devStore.getAll<any>('registrations')
+      const row = rows.find((item) => item.event_id === id && item.user_id === userId)
+      if (!row?.id) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      devStore.remove('registrations', row.id)
+    }
+
+    return NextResponse.json({ ok: true })
+  } catch (e: any) {
+    console.error('DELETE /portal/api/events/[id]/registrations error:', e)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
