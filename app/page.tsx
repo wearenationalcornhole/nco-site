@@ -90,7 +90,7 @@ export default async function Home() {
               <p className="mt-1 text-sm text-white/80">See the current lineup of featured NCO gear.</p>
             </Link>
             <Link
-              href="/portal"
+              href="/community"
               className="rounded-2xl border border-white/25 bg-white/10 px-5 py-4 text-left backdrop-blur transition hover:bg-white/20"
             >
               <p className="text-sm font-semibold">Join Community</p>
@@ -132,7 +132,7 @@ export default async function Home() {
                   <Link href="/shop">Shop Bags</Link>
                 </Button>
                 <Button asChild variant="outline">
-                  <Link href="/portal">Join Community</Link>
+                  <Link href="/community">Join Community</Link>
                 </Button>
                 <Button asChild variant="outline">
                   <Link href="/portal/login?redirect=%2Fportal%2Forg">Organize Events</Link>

@@ -109,7 +109,7 @@ export default function DashboardClient() {
         )}
 
         <div className="mt-4">
-          <Link href="/portal/onboarding" className="text-sm text-[#0A3161] underline underline-offset-2">
+          <Link href="/portal/profile" className="text-sm text-[#0A3161] underline underline-offset-2">
             Edit profile
           </Link>
         </div>

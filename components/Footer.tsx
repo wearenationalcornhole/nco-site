@@ -6,6 +6,8 @@ export default function Footer() {
   const primaryLinks = [
     { href: '/', label: 'Home' },
     { href: '/events', label: 'Events' },
+    { href: '/community', label: 'Community' },
+    { href: '/clubs', label: 'Clubs' },
     { href: '/shop', label: 'Shop' },
     { href: '/about', label: 'About' },
     { href: '/portal', label: 'Join Community' },
