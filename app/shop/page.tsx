@@ -16,6 +16,16 @@ async function getProducts(): Promise<Product[]> {
   return data;
 }
 
+function resolveProductImage(product: Product) {
+  const knownImages: Record<string, string> = {
+    flashpoint: '/images/shop/flashpoint.png',
+    operator: '/images/shop/flashpoint.png',
+    tee: '/images/shop/tee.png',
+  };
+
+  return knownImages[product.id] ?? product.image ?? '/images/nco-mark.png';
+}
+
 export default async function ShopPage() {
   const products = await getProducts();
 
@@ -40,7 +50,7 @@ export default async function ShopPage() {
           >
             <div className="relative h-56 w-full">
               <Image
-                src={p.image}
+                src={resolveProductImage(p)}
                 alt={p.name}
                 fill
                 sizes="(max-width: 768px) 100vw, 33vw"

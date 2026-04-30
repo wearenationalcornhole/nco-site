@@ -2,6 +2,19 @@ import Link from 'next/link'
 import Image from 'next/image'
 
 export default function Footer() {
+  const year = new Date().getFullYear()
+  const primaryLinks = [
+    { href: '/', label: 'Home' },
+    { href: '/events', label: 'Events' },
+    { href: '/shop', label: 'Shop' },
+    { href: '/about', label: 'About' },
+    { href: '/portal', label: 'Join Community' },
+  ]
+  const legalLinks = [
+    { href: '/privacy', label: 'Privacy' },
+    { href: '/terms', label: 'Terms' },
+  ]
+
   return (
     <footer className="bg-[#0A3161] text-white py-10 mt-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -21,42 +34,29 @@ export default function Footer() {
           </div>
 
           <nav className="flex flex-wrap justify-center gap-6 text-sm font-medium">
-            <Link href="/" className="hover:text-accent transition-colors">
-              Home
-            </Link>
-            <Link href="/events" className="hover:text-accent transition-colors">
-              Events
-            </Link>
-            <Link href="/shop" className="hover:text-accent transition-colors">
-              Shop
-            </Link>
-            <Link href="/portal" className="hover:text-accent transition-colors">
-              Portal
-            </Link>
-            <Link href="/about" className="hover:text-accent transition-colors">
-              About
-            </Link>
+            {primaryLinks.map((link) => (
+              <Link key={link.href} href={link.href} className="hover:text-accent transition-colors">
+                {link.label}
+              </Link>
+            ))}
           </nav>
         </div>
 
         {/* Bottom Row — Copyright */}
         <div className="mt-8 flex flex-col sm:flex-row items-center justify-between text-sm text-white/80">
           <p>
-            © {new Date().getFullYear()} National Cornhole Organization. All rights reserved.
+            © {year} National Cornhole Organization. All rights reserved.
           </p>
           <div className="flex gap-4 mt-3 sm:mt-0">
-            <Link
-              href="/privacy"
-              className="hover:text-accent transition-colors"
-            >
-              Privacy Policy
-            </Link>
-            <Link
-              href="/terms"
-              className="hover:text-accent transition-colors"
-            >
-              Terms of Service
-            </Link>
+            {legalLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="hover:text-accent transition-colors"
+              >
+                {link.label}
+              </Link>
+            ))}
           </div>
         </div>
       </div>

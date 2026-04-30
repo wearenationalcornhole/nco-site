@@ -3,6 +3,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import Button from '@/components/ui/Button'
 import EventCard from '@/components/EventCard'
+import { formatEventDate } from '@/app/lib/formatDate'
 
 type Event = {
   id: string
@@ -25,18 +26,6 @@ async function getEvents(): Promise<Event[]> {
   } catch {/* fall back */}
   const local = (await import('./data/events.json')).default as Event[]
   return local.slice(0, 6)
-}
-
-function fmtDate(iso?: string | null) {
-  if (!iso) return 'TBD'
-  const [y, m, d] = iso.split('-').map(Number)
-  const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1))
-  return dt.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
 }
 
 export default async function Home() {
@@ -80,9 +69,76 @@ export default async function Home() {
             <Button asChild size="lg">
               <Link href="/events">Find Events</Link>
             </Button>
-            <Button asChild size="lg" variant="outline" className="bg-white/10 backdrop-blur hover:bg-white/20">
-              <Link href="/portal">Community Portal</Link>
+            <Button asChild size="lg" variant="secondary">
+              <Link href="/shop">Shop Bags</Link>
             </Button>
+          </div>
+
+          <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Link
+              href="/events"
+              className="rounded-2xl border border-white/25 bg-white/10 px-5 py-4 text-left backdrop-blur transition hover:bg-white/20"
+            >
+              <p className="text-sm font-semibold">Find Events</p>
+              <p className="mt-1 text-sm text-white/80">Browse upcoming tournaments and local play.</p>
+            </Link>
+            <Link
+              href="/shop"
+              className="rounded-2xl border border-white/25 bg-white/10 px-5 py-4 text-left backdrop-blur transition hover:bg-white/20"
+            >
+              <p className="text-sm font-semibold">Shop Bags</p>
+              <p className="mt-1 text-sm text-white/80">See the current lineup of featured NCO gear.</p>
+            </Link>
+            <Link
+              href="/portal"
+              className="rounded-2xl border border-white/25 bg-white/10 px-5 py-4 text-left backdrop-blur transition hover:bg-white/20"
+            >
+              <p className="text-sm font-semibold">Join Community</p>
+              <p className="mt-1 text-sm text-white/80">Create a profile and keep up with your events.</p>
+            </Link>
+            <Link
+              href="/portal/login?redirect=%2Fportal%2Forg"
+              className="rounded-2xl border border-white/25 bg-white/10 px-5 py-4 text-left backdrop-blur transition hover:bg-white/20"
+            >
+              <p className="text-sm font-semibold">Organize Events</p>
+              <p className="mt-1 text-sm text-white/80">Access organizer tools for schedules, sponsors, and players.</p>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-white">
+        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+          <div className="rounded-[2rem] bg-slate-950 px-6 py-8 text-white sm:px-8">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-2xl">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#F4D35E]">
+                  Public Site Foundation
+                </p>
+                <h2 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">
+                  One front door for players, clubs, and organizers.
+                </h2>
+                <p className="mt-3 text-sm leading-6 text-white/75 sm:text-base">
+                  Explore public events, browse shop inventory, join the community portal, or
+                  move directly into organizer workflows from the main site.
+                </p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Button asChild>
+                  <Link href="/events">Find Events</Link>
+                </Button>
+                <Button asChild variant="secondary">
+                  <Link href="/shop">Shop Bags</Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link href="/portal">Join Community</Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link href="/portal/login?redirect=%2Fportal%2Forg">Organize Events</Link>
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -129,9 +185,9 @@ export default async function Home() {
                 <EventCard
                   key={e.id}
                   title={e.title}
-                  subtitle={`${e.city ?? 'TBD'} • ${fmtDate(e.date)}`}
+                  subtitle={`${e.city ?? 'TBD'} • ${formatEventDate(e.date)}`}
                   image={e.image ?? '/images/tournament-1.webp'}
-                  href={`/portal/events/${e.slug ?? e.id}`}
+                  href={`/events/${e.slug ?? e.id}`}
                 />
               ))}
             </div>

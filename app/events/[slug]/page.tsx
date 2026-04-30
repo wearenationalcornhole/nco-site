@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import RegisterButton from '@/components/RegisterButton'
 import { headers } from 'next/headers'
+import { formatEventDate } from '@/app/lib/formatDate'
 
 type Event = {
   id: string
@@ -27,18 +28,6 @@ type SponsorLink = {
   } | null
 }
 
-function fmtDate(iso?: string | null) {
-  if (!iso) return 'TBD'
-  const [y, m, d] = iso.split('-').map(Number)
-  const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1))
-  return dt.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
-}
-
 async function baseUrl() {
   const h = await headers()
   const proto = h.get('x-forwarded-proto') ?? 'https'
@@ -47,7 +36,8 @@ async function baseUrl() {
 }
 
 async function getEventBySlug(slug: string): Promise<Event | null> {
-  const res = await fetch(`/portal/api/events/by-slug/${encodeURIComponent(slug)}`, {
+  const base = await baseUrl()
+  const res = await fetch(`${base}/portal/api/events/by-slug/${encodeURIComponent(slug)}`, {
     cache: 'no-store',
   })
   if (!res.ok) return null
@@ -55,7 +45,8 @@ async function getEventBySlug(slug: string): Promise<Event | null> {
 }
 
 async function getSponsors(eventId: string): Promise<SponsorLink[]> {
-  const res = await fetch(`/portal/api/event-sponsors?eventId=${encodeURIComponent(eventId)}`, {
+  const base = await baseUrl()
+  const res = await fetch(`${base}/portal/api/event-sponsors?eventId=${encodeURIComponent(eventId)}`, {
     cache: 'no-store',
   })
   if (!res.ok) return []
@@ -98,7 +89,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
             {event.title}
           </h1>
           <p className="mt-3 text-white/90">
-            {event.city ?? 'TBD'} • {fmtDate(event.date)}
+            {event.city ?? 'TBD'} • {formatEventDate(event.date)}
           </p>
           <div className="mt-6">
             <RegisterButton eventId={event.id} />
@@ -133,7 +124,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
               <dl className="mt-3 text-sm">
                 <div className="flex justify-between py-2 border-b">
                   <dt className="text-gray-500">Date</dt>
-                  <dd className="font-medium">{fmtDate(event.date)}</dd>
+                  <dd className="font-medium">{formatEventDate(event.date)}</dd>
                 </div>
                 <div className="flex justify-between py-2 border-b">
                   <dt className="text-gray-500">City</dt>

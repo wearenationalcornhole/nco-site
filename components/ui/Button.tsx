@@ -4,7 +4,7 @@ import { Slot } from '@radix-ui/react-slot'
 import clsx from 'clsx'
 import React from 'react'
 
-type Variant = 'primary' | 'secondary' | 'outline'
+type Variant = 'primary' | 'secondary' | 'outline' | 'ghost'
 type Size = 'sm' | 'md' | 'lg'
 
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -36,6 +36,8 @@ export default function Button({
       'bg-white text-usaBlue hover:bg-gray-100 focus:ring-usaBlue focus:ring-offset-[#0A3161]',
     outline:
       'border border-white text-white hover:bg-white/10 focus:ring-accent focus:ring-offset-[#0A3161]',
+    ghost:
+      'bg-transparent text-gray-700 hover:bg-gray-100 focus:ring-usaBlue focus:ring-offset-white',
   }
 
   const sizes: Record<Size, string> = {

@@ -29,11 +29,11 @@ export async function GET(req: Request) {
         : {}
 
       const [items, total] = await Promise.all([
-        prisma.user.findMany({
-          where, orderBy: { createdAt: 'desc' }, skip: offset, take: pageSize,
-          select: { id: true, name: true, email: true, createdAt: true },
+        prisma.users.findMany({
+          where, orderBy: { created_at: 'desc' }, skip: offset, take: pageSize,
+          select: { id: true, name: true, email: true, created_at: true },
         }),
-        prisma.user.count({ where }),
+        prisma.users.count({ where }),
       ])
 
       return NextResponse.json({ items, total, page, pageSize, source: 'prisma' })
@@ -72,12 +72,12 @@ export async function POST(req: Request) {
 
     const prisma = await getPrisma()
     if (prisma) {
-      const existing = await prisma.user.findUnique({ where: { email } })
+      const existing = await prisma.users.findUnique({ where: { email } })
       if (existing) return NextResponse.json(existing)
 
-      const created = await prisma.user.create({
+      const created = await prisma.users.create({
         data: { email, name: name || null },
-        select: { id: true, name: true, email: true, createdAt: true },
+        select: { id: true, name: true, email: true, created_at: true },
       })
       return NextResponse.json(created, { status: 201 })
     }

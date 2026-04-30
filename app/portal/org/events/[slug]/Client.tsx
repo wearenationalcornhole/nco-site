@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import Spinner from '@/components/ui/Spinner'
@@ -14,183 +14,125 @@ const LogoPanel        = dynamic(() => import('./components/LogoPanel'),        
 const PlayersPanel     = dynamic(() => import('./components/PlayersPanel'),     { ssr: false })
 const SponsorsPanel    = dynamic(() => import('./components/SponsorsPanel'),    { ssr: false })
 const BagsPanel        = dynamic(() => import('./components/BagsPanel'),        { ssr: false })
-const DivisionsPanel   = dynamic(() => import('./components/DivisionsPanel'),   { ssr: false })
 
-// ── Types ───────────────────────────────────────────────────────────────
-type Event = {
+type EventRecord = {
   id: string
   slug: string | null
   title: string
-  city?: string | null
-  date?: string | null
-  image?: string | null
+  date: string | null
   logo_url?: string | null
+  image?: string | null
+  status?: 'draft' | 'published' | 'archived' | string
+  [k: string]: unknown
 }
 
-// Typed tab config
-const TABS = [
-  { id: 'details',   label: 'Details' },
-  { id: 'players',   label: 'Players' },
-  { id: 'divisions', label: 'Divisions' },
-  { id: 'sponsors',  label: 'Sponsors' },
-  { id: 'bags',      label: 'Bags' },
-] as const
-type TabId = typeof TABS[number]['id']
+type ToastMsg = { kind: 'success' | 'error' | 'info'; msg: string }
 
-// ── Helpers ─────────────────────────────────────────────────────────────
-function fmtDate(iso?: string | null) {
-  if (!iso) return 'TBD'
-  const [y, m, d] = iso.split('-').map(Number)
-  const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1))
-  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+type Props = {
+  /** Slug from the route param (always a string in Next App Router) */
+  slug: string
+  /** Event fetched on the server (optional); improves TTFB */
+  initialEvent?: EventRecord | null
 }
 
-// ── Component ───────────────────────────────────────────────────────────
-export default function Client({ slug }: { slug: string }) {
-  const [event, setEvent]   = useState<Event | null>(null)
-  const [tab, setTab]       = useState<TabId>('details')
-  const [toast, setToast]   = useState<{ msg: string; kind: 'success' | 'error' } | null>(null)
-  const [loading, setLoading] = useState(true)
+export default function EventClient({ slug, initialEvent = null }: Props) {
+  // Source of truth for event on this page
+  const [event, setEvent] = useState<EventRecord | null>(initialEvent)
+  const [loading, setLoading] = useState(!initialEvent)
+  const [tab, setTab] = useState<'details' | 'players' | 'sponsors' | 'bags'>('details')
+  const [toast, setToast] = useState<ToastMsg | null>(null)
 
-  const fetchEvent = useCallback(async () => {
-    setLoading(true)
-    try {
-      const res = await fetch(`/portal/api/events/by-slug/${encodeURIComponent(slug)}`)
-      if (!res.ok) throw new Error('Failed to fetch event')
-      const ev = (await res.json()) as Event
-      setEvent(ev)
-    } catch (err) {
-      console.error(err)
-      setEvent(null)
-    } finally {
-      setLoading(false)
-    }
-  }, [slug])
+  // Ensure we always have a non-null string for LogoPanel
+  const slugStr = useMemo(() => (event?.slug ?? slug), [event?.slug, slug])
 
+  // Example client fetch-on-mount if no initialEvent provided
   useEffect(() => {
-    fetchEvent()
-  }, [fetchEvent])
+    let cancelled = false
+    async function load() {
+      if (initialEvent) return
+      try {
+        setLoading(true)
+        const res = await fetch(`/portal/api/events/by-slug/${encodeURIComponent(slug)}`, { cache: 'no-store' })
+        if (!res.ok) throw new Error('Failed to load event')
+        const data = await res.json()
+        if (!cancelled) setEvent(data ?? null)
+      } catch (e) {
+        console.error(e)
+        if (!cancelled) setToast({ kind: 'error', msg: 'Failed to load event.' })
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [slug, initialEvent])
 
-  if (loading) {
+  const onSavedLogo = useCallback((url: string | null) => {
+    setEvent(prev => prev ? { ...prev, logo_url: url } : prev)
+    setToast({ kind: 'success', msg: url ? 'Event logo updated.' : 'Event logo removed.' })
+  }, [])
+
+  if (loading && !event) {
     return (
-      <div className="flex items-center justify-center h-48 text-gray-600">
-        <Spinner /> Loading event…
+      <div className="flex items-center gap-2 text-sm text-gray-600">
+        <Spinner size={16} /> Loading event…
       </div>
     )
   }
 
   if (!event) {
     return (
-      <div className="p-6">
-        <div className="rounded-xl border bg-white p-6">
-          <h2 className="text-lg font-semibold text-gray-800">Event not found</h2>
-          <p className="text-gray-500 mt-2">The event may have been deleted or moved.</p>
-          <div className="mt-4">
-            <Button asChild variant="outline">
-              <Link href="/portal/org/events">Back to Events</Link>
-            </Button>
-          </div>
+      <div className="rounded-xl border p-6">
+        <p className="text-sm text-gray-600">Event not found.</p>
+        <div className="mt-3">
+          <Link href="/portal">Back to portal</Link>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-6">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+      <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs uppercase tracking-wider text-gray-500">Organizer · Event</p>
-          <h1 className="text-2xl font-bold text-gray-800">{event.title}</h1>
-          <div className="mt-1 flex flex-wrap gap-2 text-sm text-gray-700">
-            <Badge color="gray">{event.slug ?? event.id}</Badge>
-            <Badge color="blue">{fmtDate(event.date)}</Badge>
-            <Badge color="gray">{event.city ?? 'TBD'}</Badge>
+          <h1 className="text-2xl font-semibold">{event.title}</h1>
+          <div className="mt-1 flex items-center gap-2 text-sm text-gray-500">
+            {event.date && <Badge>{new Date(event.date).toLocaleDateString()}</Badge>}
+            {event.status && <Badge color="gray">{event.status}</Badge>}
+            <Badge color="gray">/{slugStr}</Badge>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={fetchEvent}>Refresh</Button>
-          <Button asChild>
-            <Link href={`/portal/events/${event.slug ?? event.id}`}>View Public</Link>
-          </Button>
+          <Button onClick={() => setTab('details')} variant={tab === 'details' ? 'primary' : 'ghost'}>Details</Button>
+          <Button onClick={() => setTab('players')} variant={tab === 'players' ? 'primary' : 'ghost'}>Players</Button>
+          <Button onClick={() => setTab('sponsors')} variant={tab === 'sponsors' ? 'primary' : 'ghost'}>Sponsors</Button>
+          <Button onClick={() => setTab('bags')} variant={tab === 'bags' ? 'primary' : 'ghost'}>Demo Bags</Button>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b mb-6 overflow-x-auto">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`px-4 py-2 border-b-2 -mb-[2px] text-sm font-medium whitespace-nowrap ${
-              tab === t.id
-                ? 'border-usaBlue text-usaBlue'
-                : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Tab Content */}
+      {/* Panels */}
       {tab === 'details' && (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          {/* Summary + Edit */}
-          <div className="rounded-xl border bg-white p-6 lg:col-span-2">
-            <h2 className="text-lg font-semibold">Event Details</h2>
-            <dl className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-              <div>
-                <dt className="text-gray-500">Title</dt>
-                <dd className="font-medium">{event.title}</dd>
-              </div>
-              <div>
-                <dt className="text-gray-500">Slug</dt>
-                <dd className="font-medium">{event.slug ?? '—'}</dd>
-              </div>
-              <div>
-                <dt className="text-gray-500">Date</dt>
-                <dd className="font-medium">{fmtDate(event.date)}</dd>
-              </div>
-              <div>
-                <dt className="text-gray-500">City</dt>
-                <dd className="font-medium">{event.city ?? 'TBD'}</dd>
-              </div>
-            </dl>
-
-            <div className="mt-6">
-              <EditDetailsPanel
-                event={event}
-                onSaved={(updated) => {
-                  setEvent(updated)
-                  setToast({ msg: 'Event details saved', kind: 'success' })
-                }}
-                onToast={setToast}
-              />
-            </div>
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* Left: Edit core details */}
+          <div className="rounded-xl border p-4">
+            <h3 className="mb-3 text-lg font-semibold">Event Details</h3>
+            <EditDetailsPanel event={event} onSaved={(updated) => setEvent(updated)} onToast={setToast} />
           </div>
 
-          {/* Tournament Logo */}
-          <div className="rounded-xl border bg-white p-6">
-            <h3 className="text-sm font-semibold text-gray-700">Tournament Logo</h3>
-            <div className="mt-3">
-              <LogoPanel
-                eventId={event.id}
-                currentLogoUrl={event.logo_url ?? null}
-                onSaved={(newUrl) => {
-                  setEvent((prev) => (prev ? { ...prev, logo_url: newUrl ?? null } : prev))
-                  setToast({ msg: newUrl ? 'Logo updated' : 'Logo cleared', kind: 'success' })
-                }}
-              />
-            </div>
+          {/* Right: Event Logo (single source of truth) */}
+          <div className="rounded-xl border p-4">
+            <LogoPanel
+              slug={slugStr}
+              onSaved={onSavedLogo}
+            />
           </div>
         </div>
       )}
 
       {tab === 'players'   && <PlayersPanel   eventId={event.id} onToast={setToast} />}
-      {tab === 'divisions' && <DivisionsPanel eventId={event.id} onToast={setToast} />}
-      {tab === 'sponsors'  && <SponsorsPanel  event={event}     onToast={setToast} />}
-      {tab === 'bags'      && <BagsPanel      event={event}     onToast={setToast} />}
+      {tab === 'sponsors'  && <SponsorsPanel  event={event} onToast={setToast} />}
+      {tab === 'bags'      && <BagsPanel      event={event} onToast={setToast} />}
 
       {/* Toast notification */}
       {toast && (

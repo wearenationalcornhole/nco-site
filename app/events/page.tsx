@@ -1,6 +1,7 @@
 // app/events/page.tsx
 import Link from 'next/link'
 import { headers } from 'next/headers'
+import { formatEventDate } from '@/app/lib/formatDate'
 
 type Event = {
   id: string
@@ -10,18 +11,6 @@ type Event = {
   date?: string | null
   image?: string | null
   createdAt?: string | null
-}
-
-function fmtDate(iso?: string | null) {
-  if (!iso) return 'TBD'
-  const [y, m, d] = iso.split('-').map(Number)
-  const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1))
-  return dt.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
 }
 
 async function getBaseUrl() {
@@ -64,7 +53,7 @@ export default async function Page() {
         <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {events.map((e) => (
             <li key={e.id} className="rounded-xl border bg-white overflow-hidden">
-              <Link href={`/portal/events/${e.slug ?? e.id}`} className="block">
+              <Link href={`/events/${e.slug ?? e.id}`} className="block">
                 {e.image ? (
                   <img
                     src={e.image}
@@ -78,7 +67,7 @@ export default async function Page() {
                 <div className="p-4">
                   <h2 className="font-semibold text-gray-900 truncate">{e.title}</h2>
                   <div className="mt-1 text-sm text-gray-600">
-                    {e.city ?? 'TBD'} • {fmtDate(e.date)}
+                    {e.city ?? 'TBD'} • {formatEventDate(e.date)}
                   </div>
                 </div>
               </Link>

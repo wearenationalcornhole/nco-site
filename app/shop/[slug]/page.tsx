@@ -16,6 +16,16 @@ async function getProducts(): Promise<Product[]> {
   return data;
 }
 
+function resolveProductImage(product: Product) {
+  const knownImages: Record<string, string> = {
+    flashpoint: '/images/shop/flashpoint.png',
+    operator: '/images/shop/flashpoint.png',
+    tee: '/images/shop/tee.png',
+  };
+
+  return knownImages[product.id] ?? product.image ?? '/images/nco-mark.png';
+}
+
 function tail(href: string) {
   const parts = (href || '').split('/').filter(Boolean);
   return parts[parts.length - 1] || '';
@@ -58,11 +68,11 @@ export default async function ProductPage({
         {/* Gallery */}
         <div className="rounded-2xl bg-white shadow ring-1 ring-gray-100 p-4">
           <div className="relative w-full aspect-[4/3]">
-            <Image
-              src={product.image}
-              alt={product.name}
-              fill
-              sizes="(max-width: 1024px) 100vw, 50vw"
+              <Image
+                src={resolveProductImage(product)}
+                alt={product.name}
+                fill
+                sizes="(max-width: 1024px) 100vw, 50vw"
               className="object-contain"
             />
           </div>
@@ -87,13 +97,19 @@ export default async function ProductPage({
             side and push power on the fast side.
           </p>
 
-          <div className="mt-8 flex items-center gap-3">
-            <button
-              className="rounded bg-[#0A3161] text-white px-5 py-2 font-medium"
-              onClick={() => alert('Cart coming soon')}
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            <Link
+              href="/shop"
+              className="rounded bg-[#0A3161] px-5 py-2 font-medium text-white hover:opacity-90"
             >
-              Add to Cart
-            </button>
+              Browse More Bags
+            </Link>
+            <Link
+              href="/portal"
+              className="rounded border border-[#0A3161] px-5 py-2 font-medium text-[#0A3161] hover:bg-white/70"
+            >
+              Join Community
+            </Link>
             <Link href="/shop" className="text-[#0A3161] underline underline-offset-2">
               Continue shopping
             </Link>

@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 
-type Kind = 'success' | 'error';
+type Kind = 'success' | 'error' | 'info';
 
 export default function Toast({
   message,
@@ -23,6 +23,8 @@ export default function Toast({
   const style =
     kind === 'error'
       ? 'bg-danger text-white'
+      : kind === 'info'
+      ? 'bg-usaBlue text-white'
       : 'bg-success text-white';
 
   const icon =
@@ -30,6 +32,10 @@ export default function Toast({
       // X / error
       <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden>
         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16Zm2.59-11.41a1 1 0 10-1.41-1.41L10 8.59 8.82 7.18a1 1 0 00-1.41 1.41L8.59 10l-1.18 1.41a1 1 0 101.41 1.41L10 11.41l1.41 1.41a1 1 0 001.41-1.41L11.41 10l1.18-1.41Z" clipRule="evenodd" />
+      </svg>
+    ) : kind === 'info' ? (
+      <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden>
+        <path fillRule="evenodd" d="M18 10A8 8 0 112 10a8 8 0 0116 0zm-7-3a1 1 0 10-2 0 1 1 0 002 0zm-2 3a1 1 0 000 2v3a1 1 0 102 0v-3a1 1 0 100-2H9z" clipRule="evenodd" />
       </svg>
     ) : (
       // Check / success

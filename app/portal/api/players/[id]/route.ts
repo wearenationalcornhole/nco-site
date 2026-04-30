@@ -12,7 +12,7 @@ export async function GET(_req: Request, context: any) {
 
     const prisma = await getPrisma()
     if (prisma) {
-      const user = await prisma.user.findUnique({ where: { id } })
+      const user = await prisma.users.findUnique({ where: { id } })
       if (!user) return NextResponse.json({ error: 'Not found' }, { status: 404 })
       return NextResponse.json(user)
     }
@@ -34,7 +34,7 @@ export async function PATCH(req: Request, context: any) {
 
     const prisma = await getPrisma()
     if (prisma) {
-      const updated = await prisma.user.update({
+      const updated = await prisma.users.update({
         where: { id },
         data: { ...(name !== undefined ? { name } : {}) },
       })
@@ -57,7 +57,7 @@ export async function DELETE(_req: Request, context: any) {
 
     const prisma = await getPrisma()
     if (prisma) {
-      await prisma.user.delete({ where: { id } })
+      await prisma.users.delete({ where: { id } })
       return NextResponse.json({ ok: true })
     }
 
