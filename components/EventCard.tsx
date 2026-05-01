@@ -1,3 +1,5 @@
+import Link from 'next/link'
+
 export default function EventCard({
   title,
   subtitle,
@@ -9,14 +11,11 @@ export default function EventCard({
   image: string
   href?: string
 }) {
-  const Wrapper = href ? 'a' : 'div'
-  const wrapperProps = href
-    ? { href, className: 'block group rounded-2xl bg-white p-6 shadow ring-1 ring-black/5 transition hover:shadow-lg' }
-    : { className: 'group rounded-2xl bg-white p-6 shadow ring-1 ring-black/5 transition hover:shadow-lg' }
+  const className =
+    'group block rounded-2xl bg-white p-6 shadow ring-1 ring-black/5 transition hover:shadow-lg'
 
-  return (
-    // @ts-ignore - Wrapper can be 'a' or 'div'
-    <Wrapper {...(wrapperProps as any)}>
+  const content = (
+    <>
       <div className="aspect-[16/9] w-full overflow-hidden rounded-xl bg-neutral-200">
         <img src={image} alt={title} className="h-full w-full object-cover transition group-hover:scale-[1.02]" loading="lazy" />
       </div>
@@ -27,6 +26,10 @@ export default function EventCard({
           View Details
         </span>
       </div>
-    </Wrapper>
+    </>
   )
+
+  if (href) return <Link href={href} className={className}>{content}</Link>
+
+  return <div className={className}>{content}</div>
 }

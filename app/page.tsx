@@ -3,44 +3,10 @@ import Image from 'next/image'
 import Link from 'next/link'
 import Button from '@/components/ui/Button'
 import EventCard from '@/components/EventCard'
-
-type Event = {
-  id: string
-  slug: string | null
-  title: string
-  city?: string | null
-  date?: string | null
-  image?: string | null
-  createdAt?: string | null
-}
-
-async function getEvents(): Promise<Event[]> {
-  try {
-    const base = process.env.NEXT_PUBLIC_BASE_URL ?? ''
-    const res = await fetch(`${base}/portal/api/events`, { cache: 'no-store' })
-    if (res.ok) {
-      const json = await res.json()
-      return Array.isArray(json) ? json : json.events ?? []
-    }
-  } catch {/* fall back */}
-  const local = (await import('./data/events.json')).default as Event[]
-  return local.slice(0, 6)
-}
-
-function fmtDate(iso?: string | null) {
-  if (!iso) return 'TBD'
-  const [y, m, d] = iso.split('-').map(Number)
-  const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1))
-  return dt.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
-}
+import { fetchPublicEvents, formatEventDate } from '@/app/lib/publicEvents'
 
 export default async function Home() {
-  const events = await getEvents()
+  const events = await fetchPublicEvents()
 
   return (
     <main className="min-h-screen">
@@ -81,8 +47,36 @@ export default async function Home() {
               <Link href="/events">Find Events</Link>
             </Button>
             <Button asChild size="lg" variant="outline" className="bg-white/10 backdrop-blur hover:bg-white/20">
-              <Link href="/portal">Community Portal</Link>
+              <Link href="/portal/login?redirect=%2Fportal">Join Community</Link>
             </Button>
+          </div>
+        </div>
+      </section>
+
+      {/* ACTIONS */}
+      <section className="bg-white">
+        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <Link href="/events" className="rounded-2xl border border-gray-200 bg-white p-5 transition hover:-translate-y-0.5 hover:shadow-lg">
+              <p className="text-sm font-semibold uppercase tracking-wide text-usaBlue">Find Events</p>
+              <h2 className="mt-2 text-xl font-bold text-gray-900">See upcoming tournaments</h2>
+              <p className="mt-2 text-sm text-gray-600">Browse public event listings, dates, and locations.</p>
+            </Link>
+            <Link href="/shop" className="rounded-2xl border border-gray-200 bg-white p-5 transition hover:-translate-y-0.5 hover:shadow-lg">
+              <p className="text-sm font-semibold uppercase tracking-wide text-usaBlue">Shop Bags</p>
+              <h2 className="mt-2 text-xl font-bold text-gray-900">Explore tournament gear</h2>
+              <p className="mt-2 text-sm text-gray-600">View current product drops and signature bags.</p>
+            </Link>
+            <Link href="/portal/login?redirect=%2Fportal" className="rounded-2xl border border-gray-200 bg-white p-5 transition hover:-translate-y-0.5 hover:shadow-lg">
+              <p className="text-sm font-semibold uppercase tracking-wide text-usaBlue">Join Community</p>
+              <h2 className="mt-2 text-xl font-bold text-gray-900">Create your player access</h2>
+              <p className="mt-2 text-sm text-gray-600">Sign in with a magic link to register and manage your portal activity.</p>
+            </Link>
+            <Link href="/portal/login?redirect=%2Fportal%2Forg" className="rounded-2xl border border-gray-200 bg-white p-5 transition hover:-translate-y-0.5 hover:shadow-lg">
+              <p className="text-sm font-semibold uppercase tracking-wide text-usaBlue">Organize Events</p>
+              <h2 className="mt-2 text-xl font-bold text-gray-900">Run leagues and tournaments</h2>
+              <p className="mt-2 text-sm text-gray-600">Access the organizer console to manage events and registrations.</p>
+            </Link>
           </div>
         </div>
       </section>
@@ -115,23 +109,23 @@ export default async function Home() {
       <section className="bg-usaBlue">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-gray-900">Featured Events</h2>
+            <h2 className="text-xl font-semibold text-white">Featured Events</h2>
             <Button asChild variant="outline" size="sm">
               <Link href="/events">Browse All</Link>
             </Button>
           </div>
 
           {events.length === 0 ? (
-            <p className="mt-6 text-gray-600">No events yet—check back soon.</p>
+            <p className="mt-6 text-white/80">No events yet—check back soon.</p>
           ) : (
             <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {events.slice(0, 6).map((e) => (
                 <EventCard
                   key={e.id}
                   title={e.title}
-                  subtitle={`${e.city ?? 'TBD'} • ${fmtDate(e.date)}`}
+                  subtitle={`${e.city ?? 'TBD'} • ${formatEventDate(e.date)}`}
                   image={e.image ?? '/images/tournament-1.webp'}
-                  href={`/portal/events/${e.slug ?? e.id}`}
+                  href={`/events/${e.slug ?? e.id}`}
                 />
               ))}
             </div>
