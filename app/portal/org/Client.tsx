@@ -14,6 +14,18 @@ type Event = {
   image?: string | null;
 };
 
+function fmtDate(iso?: string | null) {
+  if (!iso) return 'TBD'
+  const [y, m, d] = iso.split('-').map(Number)
+  const dt = new Date(Date.UTC(y || 1970, (m || 1) - 1, d || 1))
+  return dt.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
+}
+
 export default function OrganizerClient() {
   const supabase = createClientComponentClient();
   const router = useRouter();
@@ -104,7 +116,7 @@ export default function OrganizerClient() {
           {top.map((e) => (
             <li key={e.id} className="rounded-xl border bg-white p-4">
               <div className="font-semibold">{e.title}</div>
-              <div className="text-sm text-gray-600">{e.city ?? 'TBD'} • {e.date ?? 'TBD'}</div>
+              <div className="text-sm text-gray-600">{e.city ?? 'TBD'} • {fmtDate(e.date)}</div>
               <div className="mt-3 flex gap-2">
                 <Link
                   href={`/portal/org/events/${e.slug ?? e.id}`}
@@ -113,7 +125,7 @@ export default function OrganizerClient() {
                   Manage
                 </Link>
                 <Link
-                  href={`/portal/events/${e.slug ?? e.id}`}
+                  href={`/events/${e.slug ?? e.id}`}
                   className="rounded bg-usaBlue text-white px-3 py-1 text-sm hover:opacity-90"
                 >
                   Public

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import Spinner from '@/components/ui/Spinner'
 import Toast from '@/components/ui/Toast'
 import Badge from '@/components/ui/Badge'
@@ -21,10 +22,24 @@ type Event = {
   id: string
   slug: string | null
   title: string
-  city?: string | null
-  date?: string | null
-  image?: string | null
-  logo_url?: string | null
+  city: string | null
+  date: string | null
+  image: string | null
+  logo_url: string | null
+}
+
+function normalizeEventRecord(event: Partial<Event> | null): Event | null {
+  if (!event?.id || !event.title) return null
+
+  return {
+    id: event.id,
+    slug: event.slug ?? null,
+    title: event.title,
+    city: event.city ?? null,
+    date: event.date ?? null,
+    image: event.image ?? null,
+    logo_url: event.logo_url ?? null,
+  }
 }
 
 // Typed tab config
@@ -47,6 +62,7 @@ function fmtDate(iso?: string | null) {
 
 // ── Component ───────────────────────────────────────────────────────────
 export default function Client({ slug }: { slug: string }) {
+  const router = useRouter()
   const [event, setEvent]   = useState<Event | null>(null)
   const [tab, setTab]       = useState<TabId>('details')
   const [toast, setToast]   = useState<{ msg: string; kind: 'success' | 'error' } | null>(null)
@@ -57,7 +73,7 @@ export default function Client({ slug }: { slug: string }) {
     try {
       const res = await fetch(`/portal/api/events/by-slug/${encodeURIComponent(slug)}`)
       if (!res.ok) throw new Error('Failed to fetch event')
-      const ev = (await res.json()) as Event
+      const ev = normalizeEventRecord((await res.json()) as Event)
       setEvent(ev)
     } catch (err) {
       console.error(err)
@@ -111,7 +127,7 @@ export default function Client({ slug }: { slug: string }) {
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={fetchEvent}>Refresh</Button>
           <Button asChild>
-            <Link href={`/portal/events/${event.slug ?? event.id}`}>View Public</Link>
+            <Link href={`/events/${event.slug ?? event.id}`}>View Public</Link>
           </Button>
         </div>
       </div>
@@ -162,8 +178,10 @@ export default function Client({ slug }: { slug: string }) {
               <EditDetailsPanel
                 event={event}
                 onSaved={(updated) => {
-                  setEvent(updated)
+                  setEvent(normalizeEventRecord(updated))
                   setToast({ msg: 'Event details saved', kind: 'success' })
+                  const nextSlug = updated.slug ?? updated.id
+                  if (nextSlug !== slug) router.replace(`/portal/org/events/${encodeURIComponent(nextSlug)}`)
                 }}
                 onToast={setToast}
               />

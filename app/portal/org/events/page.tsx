@@ -3,7 +3,10 @@ export const revalidate = 0;
 export const dynamic = 'force-dynamic';
 
 import Link from 'next/link';
-import { getSupabaseServer } from '@/app/lib/supabaseServer'; // ← use your correct path
+import SearchBar from './components/SearchBar';
+import DeleteEventButton from './components/DeleteEventButton';
+import EditEventDialog from './components/EditEventDialog';
+import { getRequestOrigin } from '@/app/lib/site';
 
 type Event = {
   id: string;
@@ -26,26 +29,34 @@ function fmtDate(iso?: string | null) {
   });
 }
 
-export default async function OrgEventsPage() {
-  // ✅ No redirects here. Auth/role gate lives in /portal/org/layout.tsx
-  const supabase = await getSupabaseServer();
-
-  let events: Event[] = [];
-  const { data, error } = await supabase
-    .from('events')
-    .select('id, slug, title, city, date, image')
-    .order('date', { ascending: false });
-
-  if (!error && data) {
-    events = data as Event[];
-  } else {
-    try {
-      const local = (await import('@/app/data/events.json')).default as Event[];
-      events = local;
-    } catch {
-      events = [];
+async function fetchEvents(query: string): Promise<Event[]> {
+  try {
+    const base = await getRequestOrigin()
+    const search = new URLSearchParams()
+    if (query) search.set('q', query)
+    search.set('pageSize', '50')
+    const response = await fetch(`${base}/portal/api/events?${search.toString()}`, {
+      cache: 'no-store',
+    })
+    if (response.ok) {
+      const payload = await response.json()
+      return (Array.isArray(payload) ? payload : (payload.events ?? [])) as Event[]
     }
+  } catch {
+    // fall through
   }
+
+  return []
+}
+
+export default async function OrgEventsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ q?: string }>
+}) {
+  const params = (await searchParams) ?? {}
+  const query = typeof params.q === 'string' ? params.q : ''
+  const events = await fetchEvents(query)
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
@@ -63,9 +74,15 @@ export default async function OrgEventsPage() {
         </Link>
       </div>
 
+      <div className="mb-6">
+        <SearchBar initialQuery={query} />
+      </div>
+
       {events.length === 0 ? (
         <div className="rounded-xl border bg-white p-6 text-gray-600">
-          No events yet. Click “Create Event” to add your first tournament.
+          {query
+            ? 'No events match that search yet.'
+            : 'No events yet. Click “Create Event” to add your first tournament.'}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -82,7 +99,7 @@ export default async function OrgEventsPage() {
               </div>
               <h3 className="mt-4 text-xl font-bold">{e.title}</h3>
               <p className="text-gray-600">{(e.city ?? 'TBD') + ' • ' + fmtDate(e.date)}</p>
-              <div className="mt-4 flex items-center justify-between gap-2">
+              <div className="mt-4 flex flex-wrap items-center gap-2">
                 <Link
                   href={`/portal/org/events/${e.slug ?? e.id}`}
                   className="rounded-full bg-usaBlue text-white px-4 py-2 text-sm hover:opacity-90"
@@ -90,11 +107,13 @@ export default async function OrgEventsPage() {
                   Manage
                 </Link>
                 <Link
-                  href={`/portal/events/${e.slug ?? e.id}`}
+                  href={`/events/${e.slug ?? e.id}`}
                   className="rounded-full border px-4 py-2 text-sm hover:bg-gray-50"
                 >
                   View Public
                 </Link>
+                <EditEventDialog event={e} />
+                <DeleteEventButton id={e.id} title={e.title} />
               </div>
             </article>
           ))}
