@@ -23,7 +23,7 @@ type EventRecord = {
   date: string | null
   logo_url?: string | null
   image?: string | null
-  status?: 'draft' | 'published' | 'archived' | string
+  status?: 'draft' | 'published' | 'archived' | string | null
   [k: string]: unknown
 }
 
@@ -36,10 +36,25 @@ type Props = {
   initialEvent?: EventRecord | null
 }
 
+function normalizeEventRecord(event: Partial<EventRecord> | null): EventRecord | null {
+  if (!event?.id || !event.title) return null
+
+  return {
+    id: event.id,
+    slug: event.slug ?? null,
+    title: event.title,
+    date: event.date ?? null,
+    logo_url: event.logo_url ?? null,
+    image: event.image ?? null,
+    status: event.status ?? null,
+    ...event,
+  }
+}
+
 export default function EventClient({ slug, initialEvent = null }: Props) {
   // Source of truth for event on this page
-  const [event, setEvent] = useState<EventRecord | null>(initialEvent)
-  const [loading, setLoading] = useState(!initialEvent)
+  const [event, setEvent] = useState<EventRecord | null>(normalizeEventRecord(initialEvent))
+  const [loading, setLoading] = useState(!normalizeEventRecord(initialEvent))
   const [tab, setTab] = useState<'details' | 'players' | 'sponsors' | 'bags'>('details')
   const [toast, setToast] = useState<ToastMsg | null>(null)
 
@@ -56,7 +71,7 @@ export default function EventClient({ slug, initialEvent = null }: Props) {
         const res = await fetch(`/portal/api/events/by-slug/${encodeURIComponent(slug)}`, { cache: 'no-store' })
         if (!res.ok) throw new Error('Failed to load event')
         const data = await res.json()
-        if (!cancelled) setEvent(data ?? null)
+        if (!cancelled) setEvent(normalizeEventRecord(data ?? null))
       } catch (e) {
         console.error(e)
         if (!cancelled) setToast({ kind: 'error', msg: 'Failed to load event.' })
@@ -118,7 +133,11 @@ export default function EventClient({ slug, initialEvent = null }: Props) {
           {/* Left: Edit core details */}
           <div className="rounded-xl border p-4">
             <h3 className="mb-3 text-lg font-semibold">Event Details</h3>
-            <EditDetailsPanel event={event} onSaved={(updated) => setEvent(updated)} onToast={setToast} />
+            <EditDetailsPanel
+              event={event}
+              onSaved={(updated) => setEvent(normalizeEventRecord(updated))}
+              onToast={setToast}
+            />
           </div>
 
           {/* Right: Event Logo (single source of truth) */}
