@@ -7,6 +7,7 @@ import SearchBar from './components/SearchBar';
 import DeleteEventButton from './components/DeleteEventButton';
 import EditEventDialog from './components/EditEventDialog';
 import { getRequestOrigin } from '@/app/lib/site';
+import { getEventRegistrationConfig } from '@/app/lib/eventRegistration';
 
 type Event = {
   id: string;
@@ -99,6 +100,9 @@ export default async function OrgEventsPage({
               </div>
               <h3 className="mt-4 text-xl font-bold">{e.title}</h3>
               <p className="text-gray-600">{(e.city ?? 'TBD') + ' • ' + fmtDate(e.date)}</p>
+              <p className="mt-2 text-sm text-gray-500">
+                Registration: {getEventRegistrationConfig({ id: e.id, slug: e.slug }).amountLabel}
+              </p>
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 <Link
                   href={`/portal/org/events/${e.slug ?? e.id}`}

@@ -8,6 +8,7 @@ import Spinner from '@/components/ui/Spinner'
 import Toast from '@/components/ui/Toast'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
+import { getEventRegistrationConfig } from '@/app/lib/eventRegistration'
 
 // ── Dynamic, client-only panels ─────────────────────────────────────────
 const EditDetailsPanel = dynamic(() => import('./components/EditDetailsPanel'), { ssr: false })
@@ -111,6 +112,8 @@ export default function Client({ slug }: { slug: string }) {
     )
   }
 
+  const registrationConfig = getEventRegistrationConfig({ id: event.id, slug: event.slug })
+
   return (
     <div className="max-w-7xl mx-auto p-6">
       {/* Header */}
@@ -122,6 +125,7 @@ export default function Client({ slug }: { slug: string }) {
             <Badge color="gray">{event.slug ?? event.id}</Badge>
             <Badge color="blue">{fmtDate(event.date)}</Badge>
             <Badge color="gray">{event.city ?? 'TBD'}</Badge>
+            <Badge color="gray">{registrationConfig.amountLabel}</Badge>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -171,6 +175,10 @@ export default function Client({ slug }: { slug: string }) {
               <div>
                 <dt className="text-gray-500">City</dt>
                 <dd className="font-medium">{event.city ?? 'TBD'}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-500">Registration</dt>
+                <dd className="font-medium">{registrationConfig.amountLabel}</dd>
               </div>
             </dl>
 

@@ -6,8 +6,13 @@ import {
   fetchEventSponsors,
   formatEventDate,
 } from '@/app/lib/publicEvents'
+import { getEventRegistrationConfigByRecord } from '@/app/lib/eventRegistration'
 
-export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ slug: string }>
+}) {
   const { slug } = await params
   const event = await fetchEventBySlug(slug)
 
@@ -26,6 +31,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
   }
 
   const sponsors = await fetchEventSponsors(event.id)
+  const registrationConfig = getEventRegistrationConfigByRecord(event)
 
   return (
     <div className="min-h-screen">
@@ -63,12 +69,20 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
           <p className="mt-3 text-white/90">
             {event.city ?? 'TBD'} • {formatEventDate(event.date)}
           </p>
-          <div className="mt-6">
+          <div className="mt-6 max-w-md rounded-2xl bg-white/10 p-4 backdrop-blur">
+            <p className="text-sm font-semibold uppercase tracking-wide text-white/80">
+              Registration Status
+            </p>
+            <p className="mt-2 text-sm text-white">{registrationConfig.description}</p>
+            <div className="mt-4">
             <RegisterButton
               eventId={event.id}
               redirectTo={`/portal/events/${event.slug ?? event.id}`}
-              label="Register Free"
+              label={registrationConfig.buttonLabel}
+              mode={registrationConfig.mode}
+              helperText={registrationConfig.description}
             />
+            </div>
           </div>
         </div>
       </section>
@@ -110,7 +124,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                 </div>
                 <div className="flex justify-between py-2 border-b">
                   <dt className="text-gray-500">Registration</dt>
-                  <dd className="font-medium">Free online</dd>
+                  <dd className="font-medium">{registrationConfig.amountLabel}</dd>
                 </div>
                 <div className="flex justify-between py-2">
                   <dt className="text-gray-500">Slug</dt>
@@ -121,7 +135,9 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                 <RegisterButton
                   eventId={event.id}
                   redirectTo={`/portal/events/${event.slug ?? event.id}`}
-                  label="Register Free"
+                  label={registrationConfig.buttonLabel}
+                  mode={registrationConfig.mode}
+                  helperText={registrationConfig.description}
                 />
               </div>
             </div>
