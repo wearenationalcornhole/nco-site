@@ -19,9 +19,55 @@ type Profile = {
 type EventRow = { id: string; title: string | null; date: string | null; city?: string | null };
 type ViewerRow = { event_id: string; user_id: string; granted_at: string; email?: string | null };
 type OrganizerRow = { event_id: string; user_id: string; email?: string | null };
+type CheckoutRow = {
+  id: string;
+  type: 'store' | 'event' | 'other';
+  status: string;
+  paymentStatus: string;
+  amountTotal: number | null;
+  currency: string | null;
+  customerEmail: string | null;
+  createdAt: string | null;
+};
+type RegistrationActivityRow = {
+  id: string;
+  eventTitle: string;
+  userName: string;
+  email: string | null;
+  createdAt: string | null;
+};
+type Overview = {
+  stats: {
+    players: number;
+    organizers: number;
+    admins: number;
+    clubs: number;
+    events: number;
+    upcomingEvents: number;
+    registrations: number;
+    storeProducts: number;
+    featuredProducts: number;
+  };
+  config: {
+    siteUrl: string;
+    hasSupabaseUrl: boolean;
+    hasSupabaseAnonKey: boolean;
+    hasSupabaseServiceRole: boolean;
+    hasDatabaseUrl: boolean;
+    hasStripeSecretKey: boolean;
+    hasStripeWebhookSecret: boolean;
+  };
+  capabilities: {
+    storeOrderPersistence: boolean;
+    eventPaymentPersistence: boolean;
+  };
+  recentRegistrations: RegistrationActivityRow[];
+  recentCheckouts: CheckoutRow[];
+};
 
 export default function AdminClient() {
   const supabase = createClientComponentClient();
+  const [overview, setOverview] = useState<Overview | null>(null);
 
   // ---- Users & Roles ----
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -55,7 +101,14 @@ export default function AdminClient() {
         setLoading(true);
         setErr(null);
 
-        const [{ data: p, error: perr }, { data: ev, error: everr }] = await Promise.all([
+        const [overviewRes, { data: p, error: perr }, { data: ev, error: everr }] = await Promise.all([
+          fetch('/portal/api/admin/overview', { cache: 'no-store' }).then(async (response) => {
+            if (!response.ok) {
+              const payload = await response.json().catch(() => ({}));
+              throw new Error(payload?.error ?? 'Failed to load admin overview');
+            }
+            return response.json() as Promise<Overview>;
+          }),
           supabase.from('profiles').select('id,role,first_name,last_name,email,avatar_url').order('first_name', { ascending: true }),
           supabase.from('events').select('id,title,date,city').order('date', { ascending: false }),
         ]);
@@ -63,6 +116,7 @@ export default function AdminClient() {
         if (everr) throw everr;
 
         if (!alive) return;
+        setOverview(overviewRes);
         setProfiles(p ?? []);
         setEvents(ev ?? []);
         if (!eventId && (ev ?? []).length) setEventId((ev ?? [])[0].id);
@@ -99,6 +153,17 @@ export default function AdminClient() {
       return name.includes(needle) || email.includes(needle) || p.id.includes(needle);
     });
   }, [profiles, qUsers]);
+
+  async function refreshOverview() {
+    try {
+      const response = await fetch('/portal/api/admin/overview', { cache: 'no-store' });
+      if (!response.ok) return;
+      const payload = (await response.json()) as Overview;
+      setOverview(payload);
+    } catch {
+      // Keep the current overview visible if the refresh fails.
+    }
+  }
 
   // Load viewers + organizers when event changes
   useEffect(() => {
@@ -156,7 +221,9 @@ export default function AdminClient() {
     if (error) {
       setProfiles(prev);
       alert(`Failed to set role: ${error.message}`);
+      return;
     }
+    await refreshOverview();
   }
 
   // ---- Viewers actions ----
@@ -257,6 +324,115 @@ export default function AdminClient() {
 
   return (
     <div className="grid gap-6 md:grid-cols-2">
+      {overview && (
+        <>
+          <div className="rounded-xl border bg-white p-6 md:col-span-2">
+            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-[#0A3161]">Platform Overview</h2>
+                <p className="mt-1 text-sm text-gray-600">
+                  Live counts and readiness checks for the current public site, portal, store, and payment stack.
+                </p>
+              </div>
+              <p className="text-xs text-gray-500">
+                Site URL: <span className="font-medium text-gray-700">{overview.config.siteUrl}</span>
+              </p>
+            </div>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+              <OverviewCard label="Players" value={String(overview.stats.players)} detail="Profiles mapped to the player role" />
+              <OverviewCard label="Organizers" value={String(overview.stats.organizers)} detail="Organizer accounts in the portal" />
+              <OverviewCard label="Events" value={`${overview.stats.events}`} detail={`${overview.stats.upcomingEvents} upcoming on the calendar`} />
+              <OverviewCard label="Registrations" value={String(overview.stats.registrations)} detail="Total event registrations captured" />
+              <OverviewCard label="Store Catalog" value={String(overview.stats.storeProducts)} detail={`${overview.stats.featuredProducts} featured products live`} />
+            </div>
+          </div>
+
+          <div className="rounded-xl border bg-white p-6">
+            <h2 className="text-lg font-semibold text-[#0A3161]">Environment Readiness</h2>
+            <div className="mt-4 space-y-3">
+              <ReadinessRow label="Supabase URL" ready={overview.config.hasSupabaseUrl} />
+              <ReadinessRow label="Supabase anon key" ready={overview.config.hasSupabaseAnonKey} />
+              <ReadinessRow label="Supabase service role" ready={overview.config.hasSupabaseServiceRole} />
+              <ReadinessRow label="Database URL" ready={overview.config.hasDatabaseUrl} />
+              <ReadinessRow label="Stripe secret key" ready={overview.config.hasStripeSecretKey} />
+              <ReadinessRow label="Stripe webhook secret" ready={overview.config.hasStripeWebhookSecret} />
+            </div>
+
+            <div className="mt-5 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">
+              <p>
+                Store order persistence: <strong>{overview.capabilities.storeOrderPersistence ? 'Enabled' : 'Not yet enabled'}</strong>
+              </p>
+              <p className="mt-2">
+                Event payment persistence: <strong>{overview.capabilities.eventPaymentPersistence ? 'Enabled' : 'Not yet enabled'}</strong>
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border bg-white p-6">
+            <h2 className="text-lg font-semibold text-[#0A3161]">Recent Stripe Checkout Activity</h2>
+            {overview.recentCheckouts.length === 0 ? (
+              <p className="mt-4 text-sm text-gray-600">
+                No recent checkout sessions are visible yet, or Stripe is not configured in this environment.
+              </p>
+            ) : (
+              <ul className="mt-4 divide-y">
+                {overview.recentCheckouts.map((checkout) => (
+                  <li key={checkout.id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        {checkout.customerEmail ?? 'Unknown customer'} · {checkout.type}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {checkout.createdAt ? new Date(checkout.createdAt).toLocaleString() : 'Unknown time'} · {checkout.status} / {checkout.paymentStatus}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-gray-900">
+                        {formatMoney(checkout.amountTotal, checkout.currency)}
+                      </p>
+                      <p className="text-xs text-gray-500">{checkout.id}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="rounded-xl border bg-white p-6 md:col-span-2">
+            <h2 className="text-lg font-semibold text-[#0A3161]">Recent Registration Activity</h2>
+            {overview.recentRegistrations.length === 0 ? (
+              <p className="mt-4 text-sm text-gray-600">No registration activity is available yet.</p>
+            ) : (
+              <div className="mt-4 overflow-hidden rounded border">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:text-left text-gray-600">
+                      <th>Event</th>
+                      <th>Player</th>
+                      <th>Email</th>
+                      <th>Registered</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {overview.recentRegistrations.map((registration) => (
+                      <tr key={registration.id} className="[&>td]:px-3 [&>td]:py-2">
+                        <td className="font-medium">{registration.eventTitle}</td>
+                        <td>{registration.userName}</td>
+                        <td className="text-gray-700">{registration.email ?? '—'}</td>
+                        <td className="text-gray-500">
+                          {registration.createdAt ? new Date(registration.createdAt).toLocaleString() : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
       {/* USERS & ROLES */}
       <div className="rounded-xl border bg-white p-6 md:col-span-2">
         <h2 className="text-lg font-semibold text-[#0A3161]">Users & Roles</h2>
@@ -434,4 +610,42 @@ export default function AdminClient() {
       </div>
     </div>
   );
+}
+
+function OverviewCard({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-2 text-3xl font-bold text-slate-900">{value}</p>
+      <p className="mt-2 text-sm text-slate-600">{detail}</p>
+    </div>
+  );
+}
+
+function ReadinessRow({ label, ready }: { label: string; ready: boolean }) {
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
+      <span className="text-sm text-slate-700">{label}</span>
+      <span
+        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+          ready ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800'
+        }`}
+      >
+        {ready ? 'Ready' : 'Missing'}
+      </span>
+    </div>
+  );
+}
+
+function formatMoney(amountTotal: number | null, currency: string | null) {
+  if (amountTotal == null || !currency) return '—';
+
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency.toUpperCase(),
+    }).format(amountTotal / 100);
+  } catch {
+    return `${amountTotal / 100} ${currency.toUpperCase()}`;
+  }
 }
