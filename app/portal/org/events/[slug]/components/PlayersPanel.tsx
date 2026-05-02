@@ -138,6 +138,33 @@ export default function PlayersPanel({
     })
   }, [rows, q])
 
+  const paymentSummary = useMemo(() => {
+    return (rows ?? []).reduce(
+      (summary, row) => {
+        if (!row.paymentStatus) {
+          summary.freeManualCount += 1
+          return summary
+        }
+
+        const normalized = row.paymentStatus.toLowerCase()
+        if (normalized === 'paid') {
+          summary.paidCount += 1
+          summary.revenueCents += row.paymentAmountCents ?? 0
+          return summary
+        }
+
+        summary.pendingCount += 1
+        return summary
+      },
+      {
+        paidCount: 0,
+        pendingCount: 0,
+        freeManualCount: 0,
+        revenueCents: 0,
+      },
+    )
+  }, [rows])
+
   // Add player
   async function addByEmail(e: React.FormEvent) {
     e.preventDefault()
@@ -268,6 +295,24 @@ export default function PlayersPanel({
           </Button>
         </div>
       </form>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-lg border bg-slate-50 px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Paid Registrations</p>
+          <p className="mt-2 text-2xl font-bold text-slate-900">{paymentSummary.paidCount}</p>
+          <p className="mt-1 text-sm text-slate-600">{formatMoney(paymentSummary.revenueCents, 'usd') ?? '$0.00'} collected</p>
+        </div>
+        <div className="rounded-lg border bg-slate-50 px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Pending Payments</p>
+          <p className="mt-2 text-2xl font-bold text-slate-900">{paymentSummary.pendingCount}</p>
+          <p className="mt-1 text-sm text-slate-600">Checkout started but not yet settled</p>
+        </div>
+        <div className="rounded-lg border bg-slate-50 px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Free / Manual</p>
+          <p className="mt-2 text-2xl font-bold text-slate-900">{paymentSummary.freeManualCount}</p>
+          <p className="mt-1 text-sm text-slate-600">Registrants without a payment record</p>
+        </div>
+      </div>
 
       {/* Table */}
       <div className="mt-6 overflow-hidden rounded-lg border">

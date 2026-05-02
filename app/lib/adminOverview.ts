@@ -5,6 +5,7 @@ import { getStripeClient } from '@/app/lib/stripe'
 import { getAllProducts } from '@/app/lib/store/catalog'
 import { getConfiguredSiteUrl, getSupabaseServiceRoleKey } from '@/app/lib/site'
 import {
+  getPaymentOverviewTotals,
   getPersistenceCapabilities,
   listRecentEventRegistrationPayments,
   listRecentStoreOrders,
@@ -23,6 +24,12 @@ export type AdminOverviewData = {
     registrations: number
     storeProducts: number
     featuredProducts: number
+    storeOrderCount: number
+    storeRevenueCents: number
+    eventPaymentCount: number
+    paidEventPaymentCount: number
+    pendingEventPaymentCount: number
+    eventRevenueCents: number
   }
   config: {
     siteUrl: string
@@ -69,6 +76,7 @@ export type AdminOverviewData = {
     id: string
     eventId: string
     eventTitle: string
+    eventSlug: string | null
     userId: string
     userName: string
     email: string | null
@@ -217,8 +225,9 @@ export async function getAdminOverview(): Promise<AdminOverviewData> {
   }
 
   const prisma = await getPrisma()
-  const [capabilities, recentStoreOrders, recentEventPayments] = await Promise.all([
+  const [capabilities, paymentTotals, recentStoreOrders, recentEventPayments] = await Promise.all([
     getPersistenceCapabilities(),
+    getPaymentOverviewTotals(),
     listRecentStoreOrders(8),
     listRecentEventRegistrationPayments(8),
   ])
@@ -265,6 +274,12 @@ export async function getAdminOverview(): Promise<AdminOverviewData> {
         registrations: await prisma.registrations.count(),
         storeProducts: products.length,
         featuredProducts: products.filter((product) => product.featured).length,
+        storeOrderCount: paymentTotals.storeOrderCount,
+        storeRevenueCents: paymentTotals.storeRevenueCents,
+        eventPaymentCount: paymentTotals.eventPaymentCount,
+        paidEventPaymentCount: paymentTotals.paidEventPaymentCount,
+        pendingEventPaymentCount: paymentTotals.pendingEventPaymentCount,
+        eventRevenueCents: paymentTotals.eventRevenueCents,
       },
       config,
       capabilities,
@@ -317,6 +332,12 @@ export async function getAdminOverview(): Promise<AdminOverviewData> {
       registrations: devRegistrations.length,
       storeProducts: products.length,
       featuredProducts: products.filter((product) => product.featured).length,
+      storeOrderCount: paymentTotals.storeOrderCount,
+      storeRevenueCents: paymentTotals.storeRevenueCents,
+      eventPaymentCount: paymentTotals.eventPaymentCount,
+      paidEventPaymentCount: paymentTotals.paidEventPaymentCount,
+      pendingEventPaymentCount: paymentTotals.pendingEventPaymentCount,
+      eventRevenueCents: paymentTotals.eventRevenueCents,
     },
     config,
     capabilities,

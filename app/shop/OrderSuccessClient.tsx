@@ -36,6 +36,12 @@ export default function OrderSuccessClient({ sessionId }: { sessionId?: string }
           Back to Shop
         </Link>
         <Link
+          href="/portal/orders"
+          className="rounded-full border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-100"
+        >
+          View Orders
+        </Link>
+        <Link
           href="/portal"
           className="rounded-full border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-100"
         >

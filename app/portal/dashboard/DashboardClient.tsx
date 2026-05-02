@@ -139,6 +139,13 @@ export default function DashboardClient() {
               href="/portal/profile"
               color="#B31942"
             />
+            <Card
+              title="Orders & Payments"
+              desc="Review store checkouts and paid event history."
+              cta="Open billing"
+              href="/portal/orders"
+              color="#0A3161"
+            />
           </>
         ) : (
           <>
@@ -179,6 +186,13 @@ export default function DashboardClient() {
               cta="View registrations"
               href="/portal/my-registrations"
               color="#0A3161"
+            />
+            <Card
+              title="Orders & Payments"
+              desc="Review store orders and paid registration history."
+              cta="Open billing"
+              href="/portal/orders"
+              color="#B31942"
             />
           </>
         )}

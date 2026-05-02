@@ -71,6 +71,7 @@ export default function TopBar() {
           <Link href="/portal/dashboard" className={linkClass('/portal/dashboard')}>Dashboard</Link>
           <Link href="/portal/events" className={linkClass('/portal/events')}>Events</Link>
           <Link href="/portal/my-registrations" className={linkClass('/portal/my-registrations')}>My Registrations</Link>
+          <Link href="/portal/orders" className={linkClass('/portal/orders')}>Orders</Link>
           <Link href="/portal/profile" className={linkClass('/portal/profile')}>Profile</Link>
 
           {/* Organizer console (exists as /portal/org) */}

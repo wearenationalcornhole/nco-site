@@ -47,6 +47,12 @@ type Overview = {
     registrations: number;
     storeProducts: number;
     featuredProducts: number;
+    storeOrderCount: number;
+    storeRevenueCents: number;
+    eventPaymentCount: number;
+    paidEventPaymentCount: number;
+    pendingEventPaymentCount: number;
+    eventRevenueCents: number;
   };
   config: {
     siteUrl: string;
@@ -78,6 +84,7 @@ type Overview = {
     id: string;
     eventId: string;
     eventTitle: string;
+    eventSlug: string | null;
     userId: string;
     userName: string;
     email: string | null;
@@ -364,12 +371,15 @@ export default function AdminClient() {
               </p>
             </div>
 
-            <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <OverviewCard label="Players" value={String(overview.stats.players)} detail="Profiles mapped to the player role" />
               <OverviewCard label="Organizers" value={String(overview.stats.organizers)} detail="Organizer accounts in the portal" />
               <OverviewCard label="Events" value={`${overview.stats.events}`} detail={`${overview.stats.upcomingEvents} upcoming on the calendar`} />
               <OverviewCard label="Registrations" value={String(overview.stats.registrations)} detail="Total event registrations captured" />
               <OverviewCard label="Store Catalog" value={String(overview.stats.storeProducts)} detail={`${overview.stats.featuredProducts} featured products live`} />
+              <OverviewCard label="Store Orders" value={String(overview.stats.storeOrderCount)} detail={`${formatMoney(overview.stats.storeRevenueCents, 'usd')} persisted gross revenue`} />
+              <OverviewCard label="Event Payments" value={String(overview.stats.eventPaymentCount)} detail={`${overview.stats.paidEventPaymentCount} settled · ${overview.stats.pendingEventPaymentCount} pending`} />
+              <OverviewCard label="Event Revenue" value={formatMoney(overview.stats.eventRevenueCents, 'usd')} detail="Settled paid-registration volume" />
             </div>
           </div>
 

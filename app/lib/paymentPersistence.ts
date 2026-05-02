@@ -7,7 +7,7 @@ import {
   getStoreOrdersModel,
 } from '@/app/lib/prismaModels'
 
-type StoreOrderSummary = {
+export type StoreOrderSummary = {
   id: string
   stripeSessionId: string
   email: string | null
@@ -19,10 +19,22 @@ type StoreOrderSummary = {
   createdAt: string | null
 }
 
-type EventPaymentSummary = {
+export type StoreOrderItemSummary = {
+  productSlug: string
+  title: string
+  unitAmount: number
+  quantity: number
+}
+
+export type StoreOrderDetail = StoreOrderSummary & {
+  items: StoreOrderItemSummary[]
+}
+
+export type EventPaymentSummary = {
   id: string
   eventId: string
   eventTitle: string
+  eventSlug: string | null
   userId: string
   userName: string
   email: string | null
@@ -32,6 +44,15 @@ type EventPaymentSummary = {
   currency: string
   status: string
   createdAt: string | null
+}
+
+export type PaymentOverviewTotals = {
+  storeOrderCount: number
+  storeRevenueCents: number
+  eventPaymentCount: number
+  paidEventPaymentCount: number
+  pendingEventPaymentCount: number
+  eventRevenueCents: number
 }
 
 type StoreOrderLine = {
@@ -60,6 +81,15 @@ type PaymentUserSummary = {
 function asIso(value: string | Date | null | undefined) {
   if (!value) return null
   return value instanceof Date ? value.toISOString() : value
+}
+
+function normalizeEmail(value: string | null | undefined) {
+  return value?.trim().toLowerCase() ?? ''
+}
+
+function isPaidLikeStatus(value: string | null | undefined) {
+  if (!value) return false
+  return new Set(['paid', 'complete', 'completed', 'succeeded']).has(value.toLowerCase())
 }
 
 function normalizeStripeId(value: string | Stripe.PaymentIntent | null | undefined) {
@@ -327,6 +357,96 @@ export async function listRecentStoreOrders(limit = 10): Promise<StoreOrderSumma
     })
 }
 
+export async function listStoreOrdersByEmail(email: string, limit = 20): Promise<StoreOrderDetail[]> {
+  const normalizedEmail = normalizeEmail(email)
+  if (!normalizedEmail) return []
+
+  const { prisma, StoreOrders, StoreOrderItems } = await getStoreModels()
+
+  if (prisma && StoreOrders && StoreOrderItems) {
+    try {
+      const rows = await StoreOrders.findMany({
+        where: {
+          email: {
+            equals: normalizedEmail,
+            mode: 'insensitive',
+          },
+        },
+        orderBy: { created_at: 'desc' },
+        take: limit,
+      })
+
+      const itemsByOrder = new Map<string, StoreOrderItemSummary[]>()
+      if (rows.length > 0) {
+        const items = await StoreOrderItems.findMany({
+          where: { order_id: { in: rows.map((row: any) => row.id) } },
+          orderBy: { created_at: 'asc' },
+        })
+
+        for (const item of items as any[]) {
+          const current = itemsByOrder.get(item.order_id) ?? []
+          current.push({
+            productSlug: item.product_slug,
+            title: item.title,
+            unitAmount: item.unit_amount,
+            quantity: item.quantity,
+          })
+          itemsByOrder.set(item.order_id, current)
+        }
+      }
+
+      return rows.map((row: any) => {
+        const items = itemsByOrder.get(row.id) ?? []
+        return {
+          id: row.id,
+          stripeSessionId: row.stripe_session_id,
+          email: row.email ?? null,
+          status: row.status,
+          currency: row.currency,
+          subtotalAmount: row.subtotal_amount,
+          totalAmount: row.total_amount,
+          itemCount: items.reduce((total, item) => total + item.quantity, 0),
+          createdAt: asIso(row.created_at),
+          items,
+        }
+      })
+    } catch {
+      return []
+    }
+  }
+
+  return devStore
+    .getAll<any>('store_orders')
+    .filter((row) => normalizeEmail(row.email) === normalizedEmail)
+    .sort((a, b) => (asIso(b.created_at) ?? '').localeCompare(asIso(a.created_at) ?? ''))
+    .slice(0, limit)
+    .map((row) => {
+      const items = devStore
+        .getAll<any>('store_order_items')
+        .filter((item) => item.order_id === row.id)
+        .sort((a, b) => (asIso(a.created_at) ?? '').localeCompare(asIso(b.created_at) ?? ''))
+        .map((item) => ({
+          productSlug: item.product_slug,
+          title: item.title,
+          unitAmount: item.unit_amount ?? 0,
+          quantity: item.quantity ?? 0,
+        }))
+
+      return {
+        id: row.id,
+        stripeSessionId: row.stripe_session_id,
+        email: row.email ?? null,
+        status: row.status,
+        currency: row.currency ?? 'usd',
+        subtotalAmount: row.subtotal_amount ?? 0,
+        totalAmount: row.total_amount ?? 0,
+        itemCount: items.reduce((total, item) => total + item.quantity, 0),
+        createdAt: asIso(row.created_at),
+        items,
+      }
+    })
+}
+
 export async function listRecentEventRegistrationPayments(limit = 10): Promise<EventPaymentSummary[]> {
   const prisma = await getPrisma()
   const EventRegistrationPayments = prisma ? getEventRegistrationPaymentsModel(prisma) : null
@@ -343,7 +463,7 @@ export async function listRecentEventRegistrationPayments(limit = 10): Promise<E
       const [events, users] = await Promise.all([
         prisma.events.findMany({
           where: { id: { in: eventIds } },
-          select: { id: true, title: true },
+          select: { id: true, title: true, slug: true },
         }),
         prisma.users.findMany({
           where: { id: { in: userIds } },
@@ -351,8 +471,8 @@ export async function listRecentEventRegistrationPayments(limit = 10): Promise<E
         }),
       ])
 
-      const eventMap = new Map<string, string>(
-        events.map((event: any) => [event.id, event.title ?? 'Untitled Event']),
+      const eventMap = new Map<string, { title: string; slug: string | null }>(
+        events.map((event: any) => [event.id, { title: event.title ?? 'Untitled Event', slug: event.slug ?? null }]),
       )
       const userMap = new Map<string, PaymentUserSummary>(
         users.map((user: any) => [user.id, { name: user.name ?? user.email ?? user.id, email: user.email ?? null }]),
@@ -361,7 +481,8 @@ export async function listRecentEventRegistrationPayments(limit = 10): Promise<E
       return rows.map((row: any) => ({
         id: row.id,
         eventId: row.event_id,
-        eventTitle: eventMap.get(row.event_id) ?? 'Untitled Event',
+        eventTitle: eventMap.get(row.event_id)?.title ?? 'Untitled Event',
+        eventSlug: eventMap.get(row.event_id)?.slug ?? null,
         userId: row.user_id,
         userName: userMap.get(row.user_id)?.name ?? row.user_id,
         email: userMap.get(row.user_id)?.email ?? null,
@@ -377,8 +498,10 @@ export async function listRecentEventRegistrationPayments(limit = 10): Promise<E
     }
   }
 
-  const eventMap = new Map<string, string>(
-    devStore.getAll<any>('events').map((event) => [event.id, event.title ?? 'Untitled Event']),
+  const eventMap = new Map<string, { title: string; slug: string | null }>(
+    devStore
+      .getAll<any>('events')
+      .map((event) => [event.id, { title: event.title ?? 'Untitled Event', slug: event.slug ?? null }]),
   )
   const userMap = new Map<string, PaymentUserSummary>(
     devStore.getAll<any>('users').map((user) => [user.id, { name: user.name ?? user.email ?? user.id, email: user.email ?? null }]),
@@ -391,7 +514,8 @@ export async function listRecentEventRegistrationPayments(limit = 10): Promise<E
     .map((row) => ({
       id: row.id,
       eventId: row.event_id,
-      eventTitle: eventMap.get(row.event_id) ?? 'Untitled Event',
+      eventTitle: eventMap.get(row.event_id)?.title ?? 'Untitled Event',
+      eventSlug: eventMap.get(row.event_id)?.slug ?? null,
       userId: row.user_id,
       userName: userMap.get(row.user_id)?.name ?? row.user_id,
       email: userMap.get(row.user_id)?.email ?? null,
@@ -402,6 +526,147 @@ export async function listRecentEventRegistrationPayments(limit = 10): Promise<E
       status: row.status ?? 'pending',
       createdAt: asIso(row.created_at),
     }))
+}
+
+export async function listEventRegistrationPaymentsByUserId(
+  userId: string,
+  limit = 20,
+): Promise<EventPaymentSummary[]> {
+  if (!userId) return []
+
+  const prisma = await getPrisma()
+  const EventRegistrationPayments = prisma ? getEventRegistrationPaymentsModel(prisma) : null
+
+  if (prisma && EventRegistrationPayments) {
+    try {
+      const rows = await EventRegistrationPayments.findMany({
+        where: { user_id: userId },
+        orderBy: { created_at: 'desc' },
+        take: limit,
+      })
+
+      const eventIds = Array.from(new Set(rows.map((row: any) => row.event_id)))
+      const [events, user] = await Promise.all([
+        prisma.events.findMany({
+          where: { id: { in: eventIds } },
+          select: { id: true, title: true, slug: true },
+        }),
+        prisma.users.findFirst({
+          where: { id: userId },
+          select: { id: true, name: true, email: true },
+        }),
+      ])
+
+      const eventMap = new Map<string, { title: string; slug: string | null }>(
+        events.map((event: any) => [event.id, { title: event.title ?? 'Untitled Event', slug: event.slug ?? null }]),
+      )
+      const userName = user?.name ?? user?.email ?? userId
+      const email = user?.email ?? null
+
+      return rows.map((row: any) => ({
+        id: row.id,
+        eventId: row.event_id,
+        eventTitle: eventMap.get(row.event_id)?.title ?? 'Untitled Event',
+        eventSlug: eventMap.get(row.event_id)?.slug ?? null,
+        userId: row.user_id,
+        userName,
+        email,
+        registrationId: row.registration_id ?? null,
+        stripeCheckoutSessionId: row.stripe_checkout_session_id,
+        amountCents: row.amount_cents,
+        currency: row.currency,
+        status: row.status,
+        createdAt: asIso(row.created_at),
+      }))
+    } catch {
+      return []
+    }
+  }
+
+  const eventMap = new Map<string, { title: string; slug: string | null }>(
+    devStore
+      .getAll<any>('events')
+      .map((event) => [event.id, { title: event.title ?? 'Untitled Event', slug: event.slug ?? null }]),
+  )
+  const user = devStore.getAll<any>('users').find((row) => row.id === userId)
+
+  return devStore
+    .getAll<any>('event_registration_payments')
+    .filter((row) => row.user_id === userId)
+    .sort((a, b) => (asIso(b.created_at) ?? '').localeCompare(asIso(a.created_at) ?? ''))
+    .slice(0, limit)
+    .map((row) => ({
+      id: row.id,
+      eventId: row.event_id,
+      eventTitle: eventMap.get(row.event_id)?.title ?? 'Untitled Event',
+      eventSlug: eventMap.get(row.event_id)?.slug ?? null,
+      userId: row.user_id,
+      userName: user?.name ?? user?.email ?? row.user_id,
+      email: user?.email ?? null,
+      registrationId: row.registration_id ?? null,
+      stripeCheckoutSessionId: row.stripe_checkout_session_id,
+      amountCents: row.amount_cents ?? 0,
+      currency: row.currency ?? 'usd',
+      status: row.status ?? 'pending',
+      createdAt: asIso(row.created_at),
+    }))
+}
+
+export async function getPaymentOverviewTotals(): Promise<PaymentOverviewTotals> {
+  const prisma = await getPrisma()
+  const defaultTotals: PaymentOverviewTotals = {
+    storeOrderCount: 0,
+    storeRevenueCents: 0,
+    eventPaymentCount: 0,
+    paidEventPaymentCount: 0,
+    pendingEventPaymentCount: 0,
+    eventRevenueCents: 0,
+  }
+
+  if (prisma) {
+    try {
+      const StoreOrders = getStoreOrdersModel(prisma)
+      const EventRegistrationPayments = getEventRegistrationPaymentsModel(prisma)
+      if (!StoreOrders || !EventRegistrationPayments) return defaultTotals
+
+      const [orders, payments] = await Promise.all([
+        StoreOrders.findMany({
+          select: { total_amount: true, status: true },
+        }),
+        EventRegistrationPayments.findMany({
+          select: { amount_cents: true, status: true },
+        }),
+      ])
+
+      const paidEventPayments = (payments as any[]).filter((row) => isPaidLikeStatus(row.status))
+      const pendingEventPayments = (payments as any[]).filter((row) => !isPaidLikeStatus(row.status))
+
+      return {
+        storeOrderCount: orders.length,
+        storeRevenueCents: (orders as any[]).reduce((total, row) => total + Number(row.total_amount ?? 0), 0),
+        eventPaymentCount: payments.length,
+        paidEventPaymentCount: paidEventPayments.length,
+        pendingEventPaymentCount: pendingEventPayments.length,
+        eventRevenueCents: paidEventPayments.reduce((total, row) => total + Number(row.amount_cents ?? 0), 0),
+      }
+    } catch {
+      return defaultTotals
+    }
+  }
+
+  const orders = devStore.getAll<any>('store_orders')
+  const payments = devStore.getAll<any>('event_registration_payments')
+  const paidEventPayments = payments.filter((row) => isPaidLikeStatus(row.status))
+  const pendingEventPayments = payments.filter((row) => !isPaidLikeStatus(row.status))
+
+  return {
+    storeOrderCount: orders.length,
+    storeRevenueCents: orders.reduce((total, row) => total + Number(row.total_amount ?? 0), 0),
+    eventPaymentCount: payments.length,
+    paidEventPaymentCount: paidEventPayments.length,
+    pendingEventPaymentCount: pendingEventPayments.length,
+    eventRevenueCents: paidEventPayments.reduce((total, row) => total + Number(row.amount_cents ?? 0), 0),
+  }
 }
 
 export async function getPersistenceCapabilities() {
