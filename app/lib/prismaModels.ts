@@ -37,3 +37,7 @@ export function getEventRegistrationPaymentsModel(prisma: any) {
 export function getPaymentActionAuditLogsModel(prisma: any) {
   return prisma?.payment_action_audit_logs ?? prisma?.paymentActionAuditLogs ?? null
 }
+
+export function getWebhookDeliveryLogsModel(prisma: any) {
+  return prisma?.webhook_delivery_logs ?? prisma?.webhookDeliveryLogs ?? null
+}

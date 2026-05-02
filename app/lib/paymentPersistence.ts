@@ -153,6 +153,13 @@ type PaymentUserSummary = {
   email: string | null
 }
 
+type RegistrationRecord = {
+  id?: string
+  event_id: string
+  user_id: string
+  created_at: string
+}
+
 function asIso(value: string | Date | null | undefined) {
   if (!value) return null
   return value instanceof Date ? value.toISOString() : value
@@ -220,6 +227,38 @@ async function getEventPaymentModels() {
     prisma,
     EventRegistrationPayments: prisma ? getEventRegistrationPaymentsModel(prisma) : null,
   }
+}
+
+async function createRegistrationIfMissing(eventId: string, userId: string) {
+  const prisma = await getPrisma()
+
+  if (prisma) {
+    const existing = await prisma.registrations.findFirst({
+      where: { event_id: eventId, user_id: userId },
+      select: { id: true },
+    })
+    if (existing) return existing.id
+
+    const created = await prisma.registrations.create({
+      data: {
+        event_id: eventId,
+        user_id: userId,
+      },
+    })
+    return created.id
+  }
+
+  const existing = devStore
+    .getAll<RegistrationRecord>('registrations')
+    .find((registration) => registration.event_id === eventId && registration.user_id === userId)
+  if (existing) return existing.id
+
+  const created = devStore.upsert<RegistrationRecord>('registrations', {
+    event_id: eventId,
+    user_id: userId,
+    created_at: new Date().toISOString(),
+  })
+  return created.id
 }
 
 async function getPaymentAuditModels() {
@@ -414,6 +453,37 @@ export async function upsertEventRegistrationPayment(input: EventPaymentPersistI
     currency: input.currency,
     status: input.status,
     created_at: existing?.created_at ?? new Date().toISOString(),
+  })
+
+  return true
+}
+
+export function isEventRegistrationSession(session: Stripe.Checkout.Session) {
+  return session.metadata?.mode === 'event_registration'
+}
+
+export async function persistEventRegistrationFromSession(session: Stripe.Checkout.Session) {
+  if (!isEventRegistrationSession(session)) return false
+
+  const eventId = session.metadata?.event_id
+  const userId = session.metadata?.user_id
+  if (!eventId || !userId) {
+    throw new Error('Event registration session metadata is incomplete.')
+  }
+
+  const registrationId = await createRegistrationIfMissing(eventId, userId)
+  await upsertEventRegistrationPayment({
+    eventId,
+    userId,
+    registrationId,
+    stripeCheckoutSessionId: session.id,
+    stripePaymentIntentId:
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : session.payment_intent?.id ?? null,
+    amountCents: session.amount_total ?? 0,
+    currency: session.currency ?? 'usd',
+    status: session.payment_status ?? session.status ?? 'paid',
   })
 
   return true

@@ -56,6 +56,9 @@ type Overview = {
     refundedEventPaymentCount: number;
     cancelledEventPaymentCount: number;
     eventRevenueCents: number;
+    webhookDeliveries: number;
+    failedWebhookDeliveries: number;
+    retryableWebhookFailures: number;
   };
   config: {
     siteUrl: string;
@@ -70,6 +73,7 @@ type Overview = {
     storeOrderPersistence: boolean;
     eventPaymentPersistence: boolean;
     paymentAuditPersistence: boolean;
+    webhookLogPersistence: boolean;
   };
   recentRegistrations: RegistrationActivityRow[];
   recentCheckouts: CheckoutRow[];
@@ -118,6 +122,28 @@ type Overview = {
     note: string | null;
     createdAt: string | null;
   }>;
+  recentWebhookDeliveries: Array<{
+    id: string;
+    provider: string;
+    source: string;
+    route: string;
+    attemptKind: string;
+    eventType: string | null;
+    status: string;
+    stripeEventId: string | null;
+    stripeCheckoutSessionId: string | null;
+    stripePaymentIntentId: string | null;
+    eventId: string | null;
+    userId: string | null;
+    registrationId: string | null;
+    httpStatus: number | null;
+    errorMessage: string | null;
+    note: string | null;
+    retryParentLogId: string | null;
+    createdAt: string | null;
+    processedAt: string | null;
+    retryable: boolean;
+  }>;
 };
 
 export default function AdminClient() {
@@ -148,6 +174,7 @@ export default function AdminClient() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [paymentActionKey, setPaymentActionKey] = useState<string | null>(null);
+  const [webhookRetryKey, setWebhookRetryKey] = useState<string | null>(null);
 
   // Load base data once
   useEffect(() => {
@@ -253,6 +280,30 @@ export default function AdminClient() {
       alert(error?.message ?? 'Payment action failed')
     } finally {
       setPaymentActionKey(null)
+    }
+  }
+
+  async function retryWebhookLog(id: string) {
+    if (!window.confirm('Retry this failed webhook persistence attempt from the admin portal?')) return;
+
+    try {
+      setWebhookRetryKey(id);
+      const response = await fetch('/portal/api/webhooks/retry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? 'Webhook retry failed');
+      }
+
+      await refreshOverview();
+    } catch (error: any) {
+      alert(error?.message ?? 'Webhook retry failed');
+    } finally {
+      setWebhookRetryKey(null);
     }
   }
 
@@ -439,6 +490,7 @@ export default function AdminClient() {
               <OverviewCard label="Store Orders" value={String(overview.stats.storeOrderCount)} detail={`${formatMoney(overview.stats.storeRevenueCents, 'usd')} active revenue · ${overview.stats.refundedStoreOrderCount} refunded`} />
               <OverviewCard label="Event Payments" value={String(overview.stats.eventPaymentCount)} detail={`${overview.stats.paidEventPaymentCount} settled · ${overview.stats.pendingEventPaymentCount} pending · ${overview.stats.refundedEventPaymentCount} refunded`} />
               <OverviewCard label="Event Revenue" value={formatMoney(overview.stats.eventRevenueCents, 'usd')} detail="Settled paid-registration volume" />
+              <OverviewCard label="Webhook Failures" value={String(overview.stats.failedWebhookDeliveries)} detail={`${overview.stats.retryableWebhookFailures} retryable out of ${overview.stats.webhookDeliveries} recent deliveries`} />
             </div>
           </div>
 
@@ -462,6 +514,9 @@ export default function AdminClient() {
               </p>
               <p className="mt-2">
                 Payment audit persistence: <strong>{overview.capabilities.paymentAuditPersistence ? 'Enabled' : 'Not yet enabled'}</strong>
+              </p>
+              <p className="mt-2">
+                Webhook log persistence: <strong>{overview.capabilities.webhookLogPersistence ? 'Enabled' : 'Not yet enabled'}</strong>
               </p>
             </div>
           </div>
@@ -624,6 +679,72 @@ export default function AdminClient() {
                             </button>
                           ) : (
                             <span className="text-xs text-gray-500 capitalize">{payment.status}</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border bg-white p-6 md:col-span-2">
+            <h2 className="text-lg font-semibold text-[#0A3161]">Webhook Delivery Health</h2>
+            {!overview.capabilities.webhookLogPersistence ? (
+              <p className="mt-4 text-sm text-gray-600">
+                Webhook delivery logging is not active yet in this environment. Apply the schema changes before relying on durable delivery diagnostics.
+              </p>
+            ) : overview.recentWebhookDeliveries.length === 0 ? (
+              <p className="mt-4 text-sm text-gray-600">No webhook delivery logs have been recorded yet.</p>
+            ) : (
+              <div className="mt-4 overflow-hidden rounded border">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:text-left text-gray-600">
+                      <th>Source</th>
+                      <th>Status</th>
+                      <th>Identifiers</th>
+                      <th>Notes</th>
+                      <th>Created</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {overview.recentWebhookDeliveries.map((log) => (
+                      <tr key={log.id} className="[&>td]:px-3 [&>td]:py-2 align-top">
+                        <td>
+                          <div className="font-medium">{log.source.replace(/_/g, ' ')}</div>
+                          <div className="text-xs text-gray-500">{log.route}</div>
+                          <div className="text-xs text-gray-500">{log.attemptKind.replace(/_/g, ' ')}</div>
+                        </td>
+                        <td>
+                          <div className="capitalize">{log.status.replace(/_/g, ' ')}</div>
+                          <div className="text-xs text-gray-500">{log.eventType ?? 'Unknown event'}</div>
+                        </td>
+                        <td className="text-xs text-gray-600">
+                          <div>{log.stripeCheckoutSessionId ?? log.stripeEventId ?? 'No Stripe id'}</div>
+                          {log.eventId ? <div>Event: {log.eventId}</div> : null}
+                          {log.userId ? <div>User: {log.userId}</div> : null}
+                        </td>
+                        <td className="text-xs text-gray-600">
+                          <div>{log.errorMessage ?? log.note ?? '—'}</div>
+                          {log.httpStatus ? <div className="mt-1 text-gray-500">HTTP {log.httpStatus}</div> : null}
+                        </td>
+                        <td className="text-gray-500">
+                          {log.createdAt ? new Date(log.createdAt).toLocaleString() : '—'}
+                        </td>
+                        <td>
+                          {log.retryable ? (
+                            <button
+                              onClick={() => retryWebhookLog(log.id)}
+                              disabled={webhookRetryKey === log.id}
+                              className="rounded border px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-50"
+                            >
+                              {webhookRetryKey === log.id ? 'Retrying…' : 'Retry'}
+                            </button>
+                          ) : (
+                            <span className="text-xs text-gray-500">No retry</span>
                           )}
                         </td>
                       </tr>

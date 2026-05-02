@@ -11,6 +11,11 @@ import {
   listRecentEventRegistrationPayments,
   listRecentStoreOrders,
 } from '@/app/lib/paymentPersistence'
+import {
+  getWebhookDeliveryStats,
+  hasWebhookDeliveryPersistence,
+  listRecentWebhookDeliveryLogs,
+} from '@/app/lib/webhookDeliveries'
 
 type Role = 'player' | 'organizer' | 'admin'
 
@@ -34,6 +39,9 @@ export type AdminOverviewData = {
     refundedEventPaymentCount: number
     cancelledEventPaymentCount: number
     eventRevenueCents: number
+    webhookDeliveries: number
+    failedWebhookDeliveries: number
+    retryableWebhookFailures: number
   }
   config: {
     siteUrl: string
@@ -48,6 +56,7 @@ export type AdminOverviewData = {
     storeOrderPersistence: boolean
     eventPaymentPersistence: boolean
     paymentAuditPersistence: boolean
+    webhookLogPersistence: boolean
   }
   recentRegistrations: Array<{
     id: string
@@ -110,6 +119,28 @@ export type AdminOverviewData = {
     stripeRefundId: string | null
     note: string | null
     createdAt: string | null
+  }>
+  recentWebhookDeliveries: Array<{
+    id: string
+    provider: string
+    source: string
+    route: string
+    attemptKind: string
+    eventType: string | null
+    status: string
+    stripeEventId: string | null
+    stripeCheckoutSessionId: string | null
+    stripePaymentIntentId: string | null
+    eventId: string | null
+    userId: string | null
+    registrationId: string | null
+    httpStatus: number | null
+    errorMessage: string | null
+    note: string | null
+    retryParentLogId: string | null
+    createdAt: string | null
+    processedAt: string | null
+    retryable: boolean
   }>
 }
 
@@ -249,12 +280,15 @@ export async function getAdminOverview(): Promise<AdminOverviewData> {
   }
 
   const prisma = await getPrisma()
-  const [capabilities, paymentTotals, recentStoreOrders, recentEventPayments, recentPaymentActions] = await Promise.all([
+  const [capabilities, paymentTotals, recentStoreOrders, recentEventPayments, recentPaymentActions, webhookStats, webhookLogPersistence, recentWebhookDeliveries] = await Promise.all([
     getPersistenceCapabilities(),
     getPaymentOverviewTotals(),
     listRecentStoreOrders(8),
     listRecentEventRegistrationPayments(8),
     listRecentPaymentAuditActions(10),
+    getWebhookDeliveryStats(),
+    hasWebhookDeliveryPersistence(),
+    listRecentWebhookDeliveryLogs(12),
   ])
 
   if (prisma) {
@@ -308,9 +342,15 @@ export async function getAdminOverview(): Promise<AdminOverviewData> {
         refundedEventPaymentCount: paymentTotals.refundedEventPaymentCount,
         cancelledEventPaymentCount: paymentTotals.cancelledEventPaymentCount,
         eventRevenueCents: paymentTotals.eventRevenueCents,
+        webhookDeliveries: webhookStats.total,
+        failedWebhookDeliveries: webhookStats.failed + webhookStats.configIssues,
+        retryableWebhookFailures: webhookStats.retryableFailures,
       },
       config,
-      capabilities,
+      capabilities: {
+        ...capabilities,
+        webhookLogPersistence,
+      },
       recentRegistrations: (registrations as RegistrationSummary[]).map((registration) => {
         const user = userMap.get(registration.user_id)
         return {
@@ -325,6 +365,7 @@ export async function getAdminOverview(): Promise<AdminOverviewData> {
       recentStoreOrders,
       recentEventPayments,
       recentPaymentActions,
+      recentWebhookDeliveries,
     }
   }
 
@@ -370,9 +411,15 @@ export async function getAdminOverview(): Promise<AdminOverviewData> {
       refundedEventPaymentCount: paymentTotals.refundedEventPaymentCount,
       cancelledEventPaymentCount: paymentTotals.cancelledEventPaymentCount,
       eventRevenueCents: paymentTotals.eventRevenueCents,
+      webhookDeliveries: webhookStats.total,
+      failedWebhookDeliveries: webhookStats.failed + webhookStats.configIssues,
+      retryableWebhookFailures: webhookStats.retryableFailures,
     },
     config,
-    capabilities,
+    capabilities: {
+      ...capabilities,
+      webhookLogPersistence,
+    },
     recentRegistrations: devRegistrations.slice(0, 8).map((registration) => {
       const user = devUsers.get(registration.user_id)
       return {
@@ -387,5 +434,6 @@ export async function getAdminOverview(): Promise<AdminOverviewData> {
     recentStoreOrders,
     recentEventPayments,
     recentPaymentActions,
+    recentWebhookDeliveries,
   }
 }

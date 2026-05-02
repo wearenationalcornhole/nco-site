@@ -24,6 +24,11 @@ The store-admin management pass also adds:
 - `/portal/admin/store` for admin-managed product catalog operations
 - runtime support for durable `store_products` and `store_product_images` tables with safe fallback behavior until those tables exist
 
+The production rollout observability pass also adds:
+
+- durable `webhook_delivery_logs` for Stripe store and event-registration webhook processing
+- admin-visible webhook delivery health and manual retry support for retryable failed deliveries
+
 The refund/cancellation pass adds:
 
 - admin refund actions for persisted store orders
@@ -34,6 +39,7 @@ The refund/cancellation pass adds:
 
 - applying the database migration for `store_orders`, `store_order_items`, and `event_registration_payments`
 - applying the database migration for `store_products` and `store_product_images` if you want admin-managed catalog changes to persist outside the in-memory fallback
+- applying the database migration for `webhook_delivery_logs` if you want durable Stripe webhook diagnostics and retry history
 - external log shipping or alerting
 
 The schema direction for the order and payment tables is already captured in:
@@ -42,6 +48,7 @@ The schema direction for the order and payment tables is already captured in:
 - `docs/store-catalog-rollout-checklist.md`
 - `docs/event-registration-payment-schema-proposal.md`
 - `docs/payment-migration-rollout-checklist.md`
+- `docs/production-rollout-validation-checklist.md`
 
 ## Recommended next ops step
 
