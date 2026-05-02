@@ -8,6 +8,7 @@ import {
   getEventRegistrationPaymentById,
   getStoreOrderById,
   isRefundedLikeStatus,
+  logPaymentAction,
   removeRegistrationRecord,
   updateEventRegistrationPayment,
   updateStoreOrder,
@@ -93,7 +94,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Stripe is not configured' }, { status: 503 })
       }
 
-      await stripe.refunds.create({
+      const refund = await stripe.refunds.create({
         payment_intent: order.stripePaymentId,
         metadata: {
           source: 'nco-store-order-refund',
@@ -103,6 +104,18 @@ export async function POST(req: Request) {
       })
 
       const updated = await updateStoreOrder(order.id, { status: 'refunded' })
+      await logPaymentAction({
+        kind: 'store_order',
+        action: 'refund',
+        targetId: order.id,
+        actorUserId: user.id,
+        actorRole: role,
+        storeOrderId: order.id,
+        statusBefore: order.status,
+        statusAfter: updated?.status ?? 'refunded',
+        stripeRefundId: refund.id,
+        note: 'Admin refund issued from portal admin overview.',
+      })
       return NextResponse.json({ ok: true, order: updated })
     }
 
@@ -127,7 +140,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Stripe is not configured' }, { status: 503 })
       }
 
-      await stripe.refunds.create({
+      const refund = await stripe.refunds.create({
         payment_intent: payment.stripePaymentIntentId,
         metadata: {
           source: 'nco-event-registration-refund',
@@ -146,6 +159,22 @@ export async function POST(req: Request) {
         status: 'refunded',
         ...(registrationRemoved ? { registrationId: null } : {}),
       })
+      await logPaymentAction({
+        kind: 'event_registration',
+        action: 'refund',
+        targetId: payment.id,
+        actorUserId: user.id,
+        actorRole: role,
+        eventId: payment.eventId,
+        paymentId: payment.id,
+        registrationId: payment.registrationId,
+        statusBefore: payment.status,
+        statusAfter: updated?.status ?? 'refunded',
+        stripeRefundId: refund.id,
+        note: registrationRemoved
+          ? 'Refund issued and registration removed by organizer/admin.'
+          : 'Refund issued by organizer/admin.',
+      })
 
       return NextResponse.json({ ok: true, payment: updated, registrationRemoved })
     }
@@ -158,6 +187,21 @@ export async function POST(req: Request) {
     const updated = await updateEventRegistrationPayment(payment.id, {
       status: 'cancelled',
       ...(registrationRemoved ? { registrationId: null } : {}),
+    })
+    await logPaymentAction({
+      kind: 'event_registration',
+      action: 'cancel',
+      targetId: payment.id,
+      actorUserId: user.id,
+      actorRole: role,
+      eventId: payment.eventId,
+      paymentId: payment.id,
+      registrationId: payment.registrationId,
+      statusBefore: payment.status,
+      statusAfter: updated?.status ?? 'cancelled',
+      note: registrationRemoved
+        ? 'Pending payment record cancelled and registration removed.'
+        : 'Pending payment record cancelled.',
     })
 
     return NextResponse.json({ ok: true, payment: updated, registrationRemoved })

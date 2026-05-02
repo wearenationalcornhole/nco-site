@@ -34,6 +34,7 @@ The schema direction for the order and payment tables is already captured in:
 
 - `docs/store-order-schema-proposal.md`
 - `docs/event-registration-payment-schema-proposal.md`
+- `docs/payment-migration-rollout-checklist.md`
 
 ## Recommended next ops step
 

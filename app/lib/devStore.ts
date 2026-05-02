@@ -24,6 +24,7 @@ export type TableName =
   | 'store_orders'
   | 'store_order_items'
   | 'event_registration_payments'
+  | 'payment_action_audit_logs'
 
 type StoreShape = Record<TableName, AnyRecord[]>
 
@@ -50,6 +51,7 @@ function createDefaultData(): StoreShape {
     store_orders: [],
     store_order_items: [],
     event_registration_payments: [],
+    payment_action_audit_logs: [],
   }
 }
 

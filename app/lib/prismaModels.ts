@@ -25,3 +25,7 @@ export function getStoreOrderItemsModel(prisma: any) {
 export function getEventRegistrationPaymentsModel(prisma: any) {
   return prisma?.event_registration_payments ?? prisma?.eventRegistrationPayments ?? null
 }
+
+export function getPaymentActionAuditLogsModel(prisma: any) {
+  return prisma?.payment_action_audit_logs ?? prisma?.paymentActionAuditLogs ?? null
+}

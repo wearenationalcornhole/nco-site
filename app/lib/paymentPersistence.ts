@@ -3,6 +3,7 @@ import { getPrisma } from '@/app/lib/safePrisma'
 import { devStore } from '@/app/lib/devStore'
 import {
   getEventRegistrationPaymentsModel,
+  getPaymentActionAuditLogsModel,
   getStoreOrderItemsModel,
   getStoreOrdersModel,
 } from '@/app/lib/prismaModels'
@@ -66,6 +67,26 @@ export type PaymentOverviewTotals = {
   eventRevenueCents: number
 }
 
+export type PaymentAuditEntry = {
+  id: string
+  kind: string
+  action: string
+  targetId: string
+  actorUserId: string | null
+  actorName: string
+  actorRole: string | null
+  eventId: string | null
+  eventTitle: string | null
+  storeOrderId: string | null
+  paymentId: string | null
+  registrationId: string | null
+  statusBefore: string | null
+  statusAfter: string | null
+  stripeRefundId: string | null
+  note: string | null
+  createdAt: string | null
+}
+
 type UpdateStoreOrderInput = {
   status?: string
 }
@@ -73,6 +94,40 @@ type UpdateStoreOrderInput = {
 type UpdateEventPaymentInput = {
   status?: string
   registrationId?: string | null
+}
+
+type PaymentActionAuditInput = {
+  kind: string
+  action: string
+  targetId: string
+  actorUserId?: string | null
+  actorRole?: string | null
+  eventId?: string | null
+  storeOrderId?: string | null
+  paymentId?: string | null
+  registrationId?: string | null
+  statusBefore?: string | null
+  statusAfter?: string | null
+  stripeRefundId?: string | null
+  note?: string | null
+}
+
+type PaymentAuditRow = {
+  id?: string
+  kind: string
+  action: string
+  target_id: string
+  actor_user_id?: string | null
+  actor_role?: string | null
+  event_id?: string | null
+  store_order_id?: string | null
+  payment_id?: string | null
+  registration_id?: string | null
+  status_before?: string | null
+  status_after?: string | null
+  stripe_refund_id?: string | null
+  note?: string | null
+  created_at?: string | Date | null
 }
 
 type StoreOrderLine = {
@@ -164,6 +219,14 @@ async function getEventPaymentModels() {
   return {
     prisma,
     EventRegistrationPayments: prisma ? getEventRegistrationPaymentsModel(prisma) : null,
+  }
+}
+
+async function getPaymentAuditModels() {
+  const prisma = await getPrisma()
+  return {
+    prisma,
+    PaymentActionAuditLogs: prisma ? getPaymentActionAuditLogsModel(prisma) : null,
   }
 }
 
@@ -758,6 +821,34 @@ function mapEventPaymentRecord(
   }
 }
 
+function mapPaymentAuditEntry(
+  row: any,
+  userMap: Map<string, PaymentUserSummary>,
+  eventMap: Map<string, { title: string; slug?: string | null }>,
+): PaymentAuditEntry {
+  return {
+    id: row.id,
+    kind: row.kind,
+    action: row.action,
+    targetId: row.target_id,
+    actorUserId: row.actor_user_id ?? null,
+    actorName: row.actor_user_id
+      ? userMap.get(row.actor_user_id)?.name ?? row.actor_user_id
+      : 'System',
+    actorRole: row.actor_role ?? null,
+    eventId: row.event_id ?? null,
+    eventTitle: row.event_id ? eventMap.get(row.event_id)?.title ?? null : null,
+    storeOrderId: row.store_order_id ?? null,
+    paymentId: row.payment_id ?? null,
+    registrationId: row.registration_id ?? null,
+    statusBefore: row.status_before ?? null,
+    statusAfter: row.status_after ?? null,
+    stripeRefundId: row.stripe_refund_id ?? null,
+    note: row.note ?? null,
+    createdAt: asIso(row.created_at),
+  }
+}
+
 export async function getEventRegistrationPaymentById(id: string): Promise<EventPaymentRecord | null> {
   if (!id) return null
 
@@ -869,6 +960,120 @@ export async function removeRegistrationRecord(registrationId: string) {
   return devStore.remove('registrations', registrationId)
 }
 
+export async function logPaymentAction(input: PaymentActionAuditInput) {
+  const { prisma, PaymentActionAuditLogs } = await getPaymentAuditModels()
+
+  if (prisma && PaymentActionAuditLogs) {
+    try {
+      const row = await PaymentActionAuditLogs.create({
+        data: {
+          kind: input.kind,
+          action: input.action,
+          target_id: input.targetId,
+          actor_user_id: input.actorUserId ?? null,
+          actor_role: input.actorRole ?? null,
+          event_id: input.eventId ?? null,
+          store_order_id: input.storeOrderId ?? null,
+          payment_id: input.paymentId ?? null,
+          registration_id: input.registrationId ?? null,
+          status_before: input.statusBefore ?? null,
+          status_after: input.statusAfter ?? null,
+          stripe_refund_id: input.stripeRefundId ?? null,
+          note: input.note ?? null,
+        },
+      })
+
+      return row.id as string
+    } catch {
+      return null
+    }
+  }
+
+  const row = devStore.upsert<PaymentAuditRow>('payment_action_audit_logs', {
+    kind: input.kind,
+    action: input.action,
+    target_id: input.targetId,
+    actor_user_id: input.actorUserId ?? null,
+    actor_role: input.actorRole ?? null,
+    event_id: input.eventId ?? null,
+    store_order_id: input.storeOrderId ?? null,
+    payment_id: input.paymentId ?? null,
+    registration_id: input.registrationId ?? null,
+    status_before: input.statusBefore ?? null,
+    status_after: input.statusAfter ?? null,
+    stripe_refund_id: input.stripeRefundId ?? null,
+    note: input.note ?? null,
+    created_at: new Date().toISOString(),
+  })
+
+  return row.id ?? null
+}
+
+export async function listRecentPaymentAuditActions(limit = 20): Promise<PaymentAuditEntry[]> {
+  const { prisma, PaymentActionAuditLogs } = await getPaymentAuditModels()
+
+  if (prisma && PaymentActionAuditLogs) {
+    try {
+      const rows = await PaymentActionAuditLogs.findMany({
+        orderBy: { created_at: 'desc' },
+        take: limit,
+      })
+
+      const actorIds = Array.from(new Set(rows.map((row: any) => row.actor_user_id).filter(Boolean)))
+      const eventIds = Array.from(new Set(rows.map((row: any) => row.event_id).filter(Boolean)))
+
+      const [users, events] = await Promise.all([
+        actorIds.length > 0
+          ? prisma.users.findMany({
+              where: { id: { in: actorIds } },
+              select: { id: true, name: true, email: true },
+            })
+          : Promise.resolve([]),
+        eventIds.length > 0
+          ? prisma.events.findMany({
+              where: { id: { in: eventIds } },
+              select: { id: true, title: true, slug: true },
+            })
+          : Promise.resolve([]),
+      ])
+
+      const userMap = new Map<string, PaymentUserSummary>(
+        (users as any[]).map((user) => [user.id, { name: user.name ?? user.email ?? user.id, email: user.email ?? null }]),
+      )
+      const eventMap = new Map<string, { title: string; slug?: string | null }>(
+        (events as any[]).map((event) => [event.id, { title: event.title ?? 'Untitled Event', slug: event.slug ?? null }]),
+      )
+
+      return (rows as any[]).map((row) => mapPaymentAuditEntry(row, userMap, eventMap))
+    } catch {
+      return []
+    }
+  }
+
+  const userMap = new Map<string, PaymentUserSummary>(
+    devStore.getAll<any>('users').map((user) => [user.id, { name: user.name ?? user.email ?? user.id, email: user.email ?? null }]),
+  )
+  const eventMap = new Map<string, { title: string; slug?: string | null }>(
+    devStore.getAll<any>('events').map((event) => [event.id, { title: event.title ?? 'Untitled Event', slug: event.slug ?? null }]),
+  )
+
+  return devStore
+    .getAll<any>('payment_action_audit_logs')
+    .sort((a, b) => (asIso(b.created_at) ?? '').localeCompare(asIso(a.created_at) ?? ''))
+    .slice(0, limit)
+    .map((row) => mapPaymentAuditEntry(row, userMap, eventMap))
+}
+
+export async function listPaymentAuditActionsForEvent(
+  eventId: string,
+  limit = 20,
+): Promise<PaymentAuditEntry[]> {
+  if (!eventId) return []
+
+  const all = await listRecentPaymentAuditActions(200)
+  return all.filter((entry) => entry.eventId === eventId).slice(0, limit)
+}
+
 export async function getPaymentOverviewTotals(): Promise<PaymentOverviewTotals> {
   const prisma = await getPrisma()
   const defaultTotals: PaymentOverviewTotals = {
@@ -949,32 +1154,38 @@ export async function getPersistenceCapabilities() {
     return {
       storeOrderPersistence: true,
       eventPaymentPersistence: true,
+      paymentAuditPersistence: true,
     }
   }
 
   try {
     const StoreOrders = getStoreOrdersModel(prisma)
     const EventRegistrationPayments = getEventRegistrationPaymentsModel(prisma)
-    if (!StoreOrders || !EventRegistrationPayments) {
+    const PaymentActionAuditLogs = getPaymentActionAuditLogsModel(prisma)
+    if (!StoreOrders || !EventRegistrationPayments || !PaymentActionAuditLogs) {
       return {
         storeOrderPersistence: false,
         eventPaymentPersistence: false,
+        paymentAuditPersistence: false,
       }
     }
 
     await Promise.all([
       StoreOrders.count(),
       EventRegistrationPayments.count(),
+      PaymentActionAuditLogs.count(),
     ])
 
     return {
       storeOrderPersistence: true,
       eventPaymentPersistence: true,
+      paymentAuditPersistence: true,
     }
   } catch {
     return {
       storeOrderPersistence: false,
       eventPaymentPersistence: false,
+      paymentAuditPersistence: false,
     }
   }
 }

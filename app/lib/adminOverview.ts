@@ -7,6 +7,7 @@ import { getConfiguredSiteUrl, getSupabaseServiceRoleKey } from '@/app/lib/site'
 import {
   getPaymentOverviewTotals,
   getPersistenceCapabilities,
+  listRecentPaymentAuditActions,
   listRecentEventRegistrationPayments,
   listRecentStoreOrders,
 } from '@/app/lib/paymentPersistence'
@@ -46,6 +47,7 @@ export type AdminOverviewData = {
   capabilities: {
     storeOrderPersistence: boolean
     eventPaymentPersistence: boolean
+    paymentAuditPersistence: boolean
   }
   recentRegistrations: Array<{
     id: string
@@ -88,6 +90,25 @@ export type AdminOverviewData = {
     amountCents: number
     currency: string
     status: string
+    createdAt: string | null
+  }>
+  recentPaymentActions: Array<{
+    id: string
+    kind: string
+    action: string
+    targetId: string
+    actorUserId: string | null
+    actorName: string
+    actorRole: string | null
+    eventId: string | null
+    eventTitle: string | null
+    storeOrderId: string | null
+    paymentId: string | null
+    registrationId: string | null
+    statusBefore: string | null
+    statusAfter: string | null
+    stripeRefundId: string | null
+    note: string | null
     createdAt: string | null
   }>
 }
@@ -228,11 +249,12 @@ export async function getAdminOverview(): Promise<AdminOverviewData> {
   }
 
   const prisma = await getPrisma()
-  const [capabilities, paymentTotals, recentStoreOrders, recentEventPayments] = await Promise.all([
+  const [capabilities, paymentTotals, recentStoreOrders, recentEventPayments, recentPaymentActions] = await Promise.all([
     getPersistenceCapabilities(),
     getPaymentOverviewTotals(),
     listRecentStoreOrders(8),
     listRecentEventRegistrationPayments(8),
+    listRecentPaymentAuditActions(10),
   ])
 
   if (prisma) {
@@ -302,6 +324,7 @@ export async function getAdminOverview(): Promise<AdminOverviewData> {
       recentCheckouts,
       recentStoreOrders,
       recentEventPayments,
+      recentPaymentActions,
     }
   }
 
@@ -363,5 +386,6 @@ export async function getAdminOverview(): Promise<AdminOverviewData> {
     recentCheckouts,
     recentStoreOrders,
     recentEventPayments,
+    recentPaymentActions,
   }
 }

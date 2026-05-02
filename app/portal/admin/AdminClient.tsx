@@ -69,6 +69,7 @@ type Overview = {
   capabilities: {
     storeOrderPersistence: boolean;
     eventPaymentPersistence: boolean;
+    paymentAuditPersistence: boolean;
   };
   recentRegistrations: RegistrationActivityRow[];
   recentCheckouts: CheckoutRow[];
@@ -96,6 +97,25 @@ type Overview = {
     amountCents: number;
     currency: string;
     status: string;
+    createdAt: string | null;
+  }>;
+  recentPaymentActions: Array<{
+    id: string;
+    kind: string;
+    action: string;
+    targetId: string;
+    actorUserId: string | null;
+    actorName: string;
+    actorRole: string | null;
+    eventId: string | null;
+    eventTitle: string | null;
+    storeOrderId: string | null;
+    paymentId: string | null;
+    registrationId: string | null;
+    statusBefore: string | null;
+    statusAfter: string | null;
+    stripeRefundId: string | null;
+    note: string | null;
     createdAt: string | null;
   }>;
 };
@@ -440,6 +460,9 @@ export default function AdminClient() {
               <p className="mt-2">
                 Event payment persistence: <strong>{overview.capabilities.eventPaymentPersistence ? 'Enabled' : 'Not yet enabled'}</strong>
               </p>
+              <p className="mt-2">
+                Payment audit persistence: <strong>{overview.capabilities.paymentAuditPersistence ? 'Enabled' : 'Not yet enabled'}</strong>
+              </p>
             </div>
           </div>
 
@@ -581,6 +604,55 @@ export default function AdminClient() {
                           ) : (
                             <span className="text-xs text-gray-500 capitalize">{payment.status}</span>
                           )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border bg-white p-6 md:col-span-2">
+            <h2 className="text-lg font-semibold text-[#0A3161]">Recent Payment Actions</h2>
+            {!overview.capabilities.paymentAuditPersistence ? (
+              <p className="mt-4 text-sm text-gray-600">
+                Payment audit persistence is not active yet in this environment. Apply the schema changes before relying on immutable support history.
+              </p>
+            ) : overview.recentPaymentActions.length === 0 ? (
+              <p className="mt-4 text-sm text-gray-600">No payment actions have been logged yet.</p>
+            ) : (
+              <div className="mt-4 overflow-hidden rounded border">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:text-left text-gray-600">
+                      <th>Action</th>
+                      <th>Actor</th>
+                      <th>Target</th>
+                      <th>Status Change</th>
+                      <th>Created</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {overview.recentPaymentActions.map((entry) => (
+                      <tr key={entry.id} className="[&>td]:px-3 [&>td]:py-2">
+                        <td>
+                          <div className="font-medium capitalize">{entry.action}</div>
+                          <div className="text-xs text-gray-500">{entry.kind.replace(/_/g, ' ')}</div>
+                        </td>
+                        <td>
+                          <div>{entry.actorName}</div>
+                          <div className="text-xs text-gray-500">{entry.actorRole ?? 'system'}</div>
+                        </td>
+                        <td>
+                          <div>{entry.eventTitle ?? entry.storeOrderId ?? entry.targetId}</div>
+                          <div className="text-xs text-gray-500">{entry.note ?? entry.targetId}</div>
+                        </td>
+                        <td className="text-gray-700">
+                          {(entry.statusBefore ?? '—')} → {entry.statusAfter ?? '—'}
+                        </td>
+                        <td className="text-gray-500">
+                          {entry.createdAt ? new Date(entry.createdAt).toLocaleString() : '—'}
                         </td>
                       </tr>
                     ))}

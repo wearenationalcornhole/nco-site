@@ -25,6 +25,17 @@ type Row = {
   user?: { id: string; email?: string | null; name?: string | null } | null
 }
 
+type AuditEntry = {
+  id: string
+  action: string
+  actorName: string
+  actorRole: string | null
+  statusBefore: string | null
+  statusAfter: string | null
+  note: string | null
+  createdAt: string | null
+}
+
 function formatMoney(amountCents?: number | null, currency?: string | null) {
   if (amountCents == null) return null
 
@@ -62,6 +73,7 @@ export default function PlayersPanel({
   const [submitting, setSubmitting] = useState(false)
   const [removing, setRemoving] = useState<string | null>(null)
   const [paymentActionRowId, setPaymentActionRowId] = useState<string | null>(null)
+  const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([])
 
   // divisions
   const [divisions, setDivisions] = useState<Division[]>([])
@@ -102,6 +114,23 @@ export default function PlayersPanel({
       .catch(() => {
         if (!alive) return
         setDivisions([])
+      })
+    return () => {
+      alive = false
+    }
+  }, [eventId])
+
+  useEffect(() => {
+    let alive = true
+    fetch(`/portal/api/payments/audit?eventId=${encodeURIComponent(eventId)}&limit=8`, { cache: 'no-store' })
+      .then(async (r) => (r.ok ? r.json() : Promise.reject(await r.json())))
+      .then((data: AuditEntry[]) => {
+        if (!alive) return
+        setAuditEntries(data || [])
+      })
+      .catch(() => {
+        if (!alive) return
+        setAuditEntries([])
       })
     return () => {
       alive = false
@@ -269,6 +298,22 @@ export default function PlayersPanel({
         )
       }
 
+      setAuditEntries((prev) => [
+        {
+          id: `local-${Date.now()}`,
+          action: 'refund',
+          actorName: 'Current organizer',
+          actorRole: 'organizer',
+          statusBefore: row.paymentStatus ?? null,
+          statusAfter: 'refunded',
+          note: payload?.registrationRemoved
+            ? 'Refund issued and registration removed by organizer/admin.'
+            : 'Refund issued by organizer/admin.',
+          createdAt: new Date().toISOString(),
+        },
+        ...prev,
+      ].slice(0, 8))
+
       onToast({ msg: 'Refund submitted', kind: 'success' })
     } catch (err: any) {
       onToast({ msg: err?.message ?? 'Refund failed', kind: 'error' })
@@ -359,6 +404,37 @@ export default function PlayersPanel({
           <p className="mt-2 text-2xl font-bold text-slate-900">{paymentSummary.freeManualCount}</p>
           <p className="mt-1 text-sm text-slate-600">Registrants without a payment record</p>
         </div>
+      </div>
+
+      <div className="mt-4 rounded-lg border bg-slate-50 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-600">Recent Payment Actions</h3>
+          <Badge color="blue">{auditEntries.length}</Badge>
+        </div>
+        {auditEntries.length === 0 ? (
+          <p className="mt-3 text-sm text-slate-600">No refund or cancellation actions have been logged for this event yet.</p>
+        ) : (
+          <ul className="mt-3 divide-y rounded border bg-white">
+            {auditEntries.map((entry) => (
+              <li key={entry.id} className="px-4 py-3 text-sm">
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="font-medium capitalize">
+                      {entry.action} · {entry.actorName}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {(entry.statusBefore ?? '—')} → {entry.statusAfter ?? '—'}{entry.actorRole ? ` · ${entry.actorRole}` : ''}
+                    </p>
+                    {entry.note ? <p className="mt-1 text-xs text-slate-500">{entry.note}</p> : null}
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    {entry.createdAt ? new Date(entry.createdAt).toLocaleString() : '—'}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {/* Table */}

@@ -188,6 +188,31 @@ model event_registration_payments {
   @@index([created_at(sort: Desc)])
 }
 
+model payment_action_audit_logs {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kind               String
+  action             String
+  target_id          String
+  actor_user_id      String?  @db.Uuid
+  actor_role         String?
+  event_id           String?  @db.Uuid
+  store_order_id     String?  @db.Uuid
+  payment_id         String?  @db.Uuid
+  registration_id    String?  @db.Uuid
+  status_before      String?
+  status_after       String?
+  stripe_refund_id   String?
+  note               String?
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([created_at(sort: Desc)])
+  @@index([actor_user_id])
+  @@index([event_id])
+  @@index([store_order_id])
+  @@index([payment_id])
+  @@index([registration_id])
+}
+
 // Clubs (for organizer profile + future)
 model clubs {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
