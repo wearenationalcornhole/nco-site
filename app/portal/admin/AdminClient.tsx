@@ -467,6 +467,27 @@ export default function AdminClient() {
           </div>
 
           <div className="rounded-xl border bg-white p-6">
+            <h2 className="text-lg font-semibold text-[#0A3161]">Catalog Operations</h2>
+            <p className="mt-2 text-sm text-gray-600">
+              Manage live store products, pricing, featured placement, inventory status, and imagery without changing code.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Link
+                href="/portal/admin/store"
+                className="rounded bg-[#0A3161] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+              >
+                Open Store Manager
+              </Link>
+              <Link
+                href="/shop"
+                className="rounded border px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-gray-50"
+              >
+                View Public Store
+              </Link>
+            </div>
+          </div>
+
+          <div className="rounded-xl border bg-white p-6">
             <h2 className="text-lg font-semibold text-[#0A3161]">Recent Stripe Checkout Activity</h2>
             {overview.recentCheckouts.length === 0 ? (
               <p className="mt-4 text-sm text-gray-600">

@@ -133,6 +133,47 @@ model registrations {
   @@index([user_id])
 }
 
+model store_products {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title             String
+  slug              String   @unique
+  price_cents       Int
+  category          String
+  description       String
+  short_description String
+  bag_series        String
+  bag_fill          String
+  bag_material      String
+  bag_weight        String
+  bag_size          String
+  bag_break_in      String
+  speed_rating      Int      @default(0)
+  control_rating    Int      @default(0)
+  inventory_status  String   @default("in_stock")
+  featured          Boolean  @default(false)
+  is_active         Boolean  @default(true)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+
+  images store_product_images[]
+
+  @@index([created_at(sort: Desc)])
+  @@index([featured])
+  @@index([is_active])
+}
+
+model store_product_images {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  product_id String   @db.Uuid
+  image_url  String
+  sort_order Int      @default(0)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  product store_products @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([product_id])
+}
+
 model store_orders {
   id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   stripe_session_id String   @unique

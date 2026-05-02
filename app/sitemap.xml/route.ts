@@ -1,8 +1,7 @@
-import products from '@/app/data/products.json'
 import events from '@/app/data/events.json'
 import { getConfiguredSiteUrl } from '@/app/lib/site'
+import { listStoreProducts } from '@/app/lib/store/catalog'
 
-type Product = { link: string }
 type EventItem = { slug: string }
 
 const SITE = getConfiguredSiteUrl()
@@ -10,9 +9,8 @@ const SITE = getConfiguredSiteUrl()
 export async function GET() {
   const baseRoutes = ['/', '/about', '/events', '/portal/login', '/privacy', '/shop', '/terms']
 
-  const productRoutes = (products as Product[])
-    .map(p => p.link)
-    .filter(Boolean)
+  const products = await listStoreProducts()
+  const productRoutes = products.map((product) => `/shop/${product.slug}`)
 
   const eventRoutes = (events as EventItem[])
     .map(e => `/events/${e.slug}`)

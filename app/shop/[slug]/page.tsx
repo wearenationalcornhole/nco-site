@@ -5,10 +5,10 @@ import Badge from '@/components/ui/Badge'
 import AddToCartButton from '../AddToCartButton'
 import {
   formatPrice,
+  getRelatedStoreProducts,
   getInventoryLabel,
   getInventoryTone,
-  getProductBySlug,
-  getRelatedProducts,
+  getStoreProductBySlug,
 } from '@/app/lib/store/catalog'
 
 export default async function ProductPage({
@@ -17,13 +17,13 @@ export default async function ProductPage({
   params: Promise<{ slug: string }>
 }) {
   const { slug } = await params
-  const product = getProductBySlug(slug)
+  const product = await getStoreProductBySlug(slug)
 
   if (!product) {
     notFound()
   }
 
-  const relatedProducts = getRelatedProducts(product.slug, 3)
+  const relatedProducts = await getRelatedStoreProducts(product.slug, 3)
 
   return (
     <main className="min-h-screen bg-[linear-gradient(135deg,#f8fafc,#e2e8f0)]">

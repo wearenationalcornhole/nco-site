@@ -1,10 +1,13 @@
 import type { ReactNode } from 'react'
+import { listStoreProducts } from '@/app/lib/store/catalog'
 import { ShopCartProvider } from './ShopCartProvider'
 import CartDrawer from './CartDrawer'
 
-export default function ShopLayout({ children }: { children: ReactNode }) {
+export default async function ShopLayout({ children }: { children: ReactNode }) {
+  const products = await listStoreProducts()
+
   return (
-    <ShopCartProvider>
+    <ShopCartProvider products={products}>
       {children}
       <CartDrawer />
     </ShopCartProvider>

@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { getAllProducts, type Product } from '@/app/lib/store/catalog'
+import { type Product } from '@/app/lib/store/catalog'
 
 type CartItem = {
   slug: string
@@ -38,7 +38,13 @@ type ShopCartContextValue = {
 const STORAGE_KEY = 'nco-shop-cart'
 const ShopCartContext = createContext<ShopCartContextValue | null>(null)
 
-export function ShopCartProvider({ children }: { children: ReactNode }) {
+export function ShopCartProvider({
+  children,
+  products,
+}: {
+  children: ReactNode
+  products: Product[]
+}) {
   const [items, setItems] = useState<CartItem[]>([])
   const [isOpen, setIsOpen] = useState(false)
   const [hasHydrated, setHasHydrated] = useState(false)
@@ -71,7 +77,6 @@ export function ShopCartProvider({ children }: { children: ReactNode }) {
   }, [hasHydrated, items])
 
   const entries = useMemo(() => {
-    const products = getAllProducts()
     return items
       .map((item) => {
         const product = products.find((candidate) => candidate.slug === item.slug)
@@ -96,7 +101,7 @@ export function ShopCartProvider({ children }: { children: ReactNode }) {
 
   function addItem(slug: string, quantity = 1) {
     if (quantity <= 0) return
-    const product = getAllProducts().find((candidate) => candidate.slug === slug)
+    const product = products.find((candidate) => candidate.slug === slug)
     if (!product || product.inventoryStatus === 'sold_out') return
 
     setItems((current) => {

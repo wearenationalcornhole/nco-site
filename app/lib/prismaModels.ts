@@ -22,6 +22,14 @@ export function getStoreOrderItemsModel(prisma: any) {
   return prisma?.store_order_items ?? prisma?.storeOrderItems ?? null
 }
 
+export function getStoreProductsModel(prisma: any) {
+  return prisma?.store_products ?? prisma?.storeProducts ?? null
+}
+
+export function getStoreProductImagesModel(prisma: any) {
+  return prisma?.store_product_images ?? prisma?.storeProductImages ?? null
+}
+
 export function getEventRegistrationPaymentsModel(prisma: any) {
   return prisma?.event_registration_payments ?? prisma?.eventRegistrationPayments ?? null
 }

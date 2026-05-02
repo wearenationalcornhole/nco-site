@@ -19,6 +19,11 @@ The payment-reporting pass also adds:
 - `/portal/orders` for signed-in users to review store orders and paid event registration history
 - organizer payment summaries inside event registrant lists
 
+The store-admin management pass also adds:
+
+- `/portal/admin/store` for admin-managed product catalog operations
+- runtime support for durable `store_products` and `store_product_images` tables with safe fallback behavior until those tables exist
+
 The refund/cancellation pass adds:
 
 - admin refund actions for persisted store orders
@@ -28,11 +33,13 @@ The refund/cancellation pass adds:
 ## What it does not solve yet
 
 - applying the database migration for `store_orders`, `store_order_items`, and `event_registration_payments`
+- applying the database migration for `store_products` and `store_product_images` if you want admin-managed catalog changes to persist outside the in-memory fallback
 - external log shipping or alerting
 
 The schema direction for the order and payment tables is already captured in:
 
 - `docs/store-order-schema-proposal.md`
+- `docs/store-catalog-rollout-checklist.md`
 - `docs/event-registration-payment-schema-proposal.md`
 - `docs/payment-migration-rollout-checklist.md`
 

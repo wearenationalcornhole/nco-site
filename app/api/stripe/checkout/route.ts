@@ -1,6 +1,6 @@
 import Stripe from 'stripe'
 import { NextResponse } from 'next/server'
-import { getAllProducts } from '@/app/lib/store/catalog'
+import { listStoreProducts } from '@/app/lib/store/catalog'
 
 export const runtime = 'nodejs'
 
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Cart is empty.' }, { status: 400 })
   }
 
-  const products = getAllProducts()
+  const products = await listStoreProducts()
   const origin = getSiteUrl(request)
 
   const lineItems = rawItems.map((item: { slug?: string; quantity?: number }) => {

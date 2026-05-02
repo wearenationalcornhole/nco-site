@@ -1,4 +1,4 @@
-import { getAllProducts } from '@/app/lib/store/catalog'
+import { listStoreProducts } from '@/app/lib/store/catalog'
 import ShopCatalogClient from './ShopCatalogClient'
 
 export const metadata = {
@@ -6,8 +6,8 @@ export const metadata = {
   description: 'Browse NCO competition bags, apparel, and current featured store products.',
 }
 
-export default function ShopPage() {
-  const products = getAllProducts()
+export default async function ShopPage() {
+  const products = await listStoreProducts()
 
   return <ShopCatalogClient products={products} />
 }

@@ -2,7 +2,7 @@ import { getPrisma } from '@/app/lib/safePrisma'
 import { getUsersModel } from '@/app/lib/prismaModels'
 import { devStore } from '@/app/lib/devStore'
 import { getStripeClient } from '@/app/lib/stripe'
-import { getAllProducts } from '@/app/lib/store/catalog'
+import { listStoreProducts } from '@/app/lib/store/catalog'
 import { getConfiguredSiteUrl, getSupabaseServiceRoleKey } from '@/app/lib/site'
 import {
   getPaymentOverviewTotals,
@@ -237,7 +237,7 @@ async function getStripeCheckoutSummaries(): Promise<CheckoutSummary[]> {
 }
 
 export async function getAdminOverview(): Promise<AdminOverviewData> {
-  const products = getAllProducts()
+  const products = await listStoreProducts(true)
   const config = {
     siteUrl: getConfiguredSiteUrl(),
     hasSupabaseUrl: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
