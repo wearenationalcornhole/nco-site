@@ -4,6 +4,7 @@ export const runtime = 'nodejs'
 import { NextResponse } from 'next/server'
 import { getPrisma } from '@/app/lib/safePrisma'
 import { devStore } from '@/app/lib/devStore'
+import { getEventDivisionMembersModel } from '@/app/lib/prismaModels'
 
 type Division = {
   id: string
@@ -163,12 +164,12 @@ export async function DELETE(
       }
 
       // clean up related rows first (optional but nice)
-      await prisma.division_assignments.deleteMany({
-        where: { division_id: divisionId, event_id: eventId },
-      })
-      await prisma.event_division_members.deleteMany({
-        where: { division_id: divisionId, event_id: eventId },
-      })
+      const Members = getEventDivisionMembersModel(prisma)
+      if (Members) {
+        await Members.deleteMany({
+          where: { division_id: divisionId },
+        })
+      }
       await prisma.event_divisions.delete({ where: { id: divisionId } })
       return NextResponse.json({ ok: true })
     }
@@ -178,13 +179,8 @@ export async function DELETE(
 
     // cleanup related devStore rows
     devStore
-      .getAll<any>('division_assignments' as any)
-      .filter((a) => a.event_id === eventId && a.division_id === divisionId)
-      .forEach((a) => a?.id && devStore.remove('division_assignments' as any, a.id))
-
-    devStore
       .getAll<any>('event_division_members' as any)
-      .filter((m) => m.event_id === eventId && m.division_id === divisionId)
+      .filter((m) => m.division_id === divisionId)
       .forEach((m) => m?.id && devStore.remove('event_division_members' as any, m.id))
 
     return NextResponse.json({ ok: true })
