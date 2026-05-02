@@ -23,6 +23,7 @@ model users {
 
   registrations registrations[]
   club_members  club_members[]
+  event_registration_payments event_registration_payments[]
 }
 
 // Events
@@ -41,6 +42,7 @@ model events {
   event_sponsors        event_sponsors[]
   event_bag_submissions event_bag_submissions[]
   event_divisions       event_divisions[]
+  event_registration_payments event_registration_payments[]
 
   @@index([created_at(sort: Desc)])
   @@index([slug])
@@ -125,9 +127,65 @@ model registrations {
 
   events events @relation(fields: [event_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   users  users  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  event_registration_payments event_registration_payments[]
 
   @@index([event_id])
   @@index([user_id])
+}
+
+model store_orders {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  stripe_session_id String   @unique
+  stripe_payment_id String?
+  email             String?
+  status            String   @default("paid")
+  currency          String   @default("usd")
+  subtotal_amount   Int
+  total_amount      Int
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+
+  items store_order_items[]
+
+  @@index([created_at(sort: Desc)])
+}
+
+model store_order_items {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id     String   @db.Uuid
+  product_slug String
+  title        String
+  unit_amount  Int
+  quantity     Int
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  order store_orders @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([order_id])
+  @@index([product_slug])
+}
+
+model event_registration_payments {
+  id                        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  event_id                  String   @db.Uuid
+  user_id                   String   @db.Uuid
+  registration_id           String?  @db.Uuid
+  stripe_checkout_session_id String  @unique
+  stripe_payment_intent_id  String?
+  amount_cents              Int
+  currency                  String   @default("usd")
+  status                    String   @default("pending")
+  created_at                DateTime @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime @updatedAt @db.Timestamptz(6)
+
+  event        events         @relation(fields: [event_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user         users          @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  registration registrations? @relation(fields: [registration_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([event_id])
+  @@index([user_id])
+  @@index([registration_id])
+  @@index([created_at(sort: Desc)])
 }
 
 // Clubs (for organizer profile + future)

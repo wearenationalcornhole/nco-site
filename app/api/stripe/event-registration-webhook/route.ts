@@ -6,6 +6,14 @@ import { getPrisma } from '@/app/lib/safePrisma'
 import { devStore } from '@/app/lib/devStore'
 import { getStripeClient } from '@/app/lib/stripe'
 import { getStripeWebhookSecret } from '@/app/lib/eventRegistration'
+import { upsertEventRegistrationPayment } from '@/app/lib/paymentPersistence'
+
+type RegistrationRecord = {
+  id?: string
+  event_id: string
+  user_id: string
+  created_at: string
+}
 
 async function createRegistrationIfMissing(eventId: string, userId: string) {
   const prisma = await getPrisma()
@@ -15,27 +23,28 @@ async function createRegistrationIfMissing(eventId: string, userId: string) {
       where: { event_id: eventId, user_id: userId },
       select: { id: true },
     })
-    if (existing) return
+    if (existing) return existing.id
 
-    await prisma.registrations.create({
+    const created = await prisma.registrations.create({
       data: {
         event_id: eventId,
         user_id: userId,
       },
     })
-    return
+    return created.id
   }
 
   const existing = devStore
-    .getAll<any>('registrations')
+    .getAll<RegistrationRecord>('registrations')
     .find((registration) => registration.event_id === eventId && registration.user_id === userId)
-  if (existing) return
+  if (existing) return existing.id
 
-  devStore.upsert('registrations', {
+  const created = devStore.upsert<RegistrationRecord>('registrations', {
     event_id: eventId,
     user_id: userId,
     created_at: new Date().toISOString(),
   })
+  return created.id
 }
 
 function isEventRegistrationSession(session: Stripe.Checkout.Session) {
@@ -74,7 +83,20 @@ export async function POST(req: Request) {
         const eventId = session.metadata?.event_id
         const userId = session.metadata?.user_id
         if (eventId && userId) {
-          await createRegistrationIfMissing(eventId, userId)
+          const registrationId = await createRegistrationIfMissing(eventId, userId)
+          await upsertEventRegistrationPayment({
+            eventId,
+            userId,
+            registrationId,
+            stripeCheckoutSessionId: session.id,
+            stripePaymentIntentId:
+              typeof session.payment_intent === 'string'
+                ? session.payment_intent
+                : session.payment_intent?.id ?? null,
+            amountCents: session.amount_total ?? 0,
+            currency: session.currency ?? 'usd',
+            status: session.payment_status ?? session.status ?? 'paid',
+          })
         }
       }
     }

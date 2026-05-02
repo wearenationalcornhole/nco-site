@@ -4,6 +4,11 @@ import { devStore } from '@/app/lib/devStore'
 import { getStripeClient } from '@/app/lib/stripe'
 import { getAllProducts } from '@/app/lib/store/catalog'
 import { getConfiguredSiteUrl, getSupabaseServiceRoleKey } from '@/app/lib/site'
+import {
+  getPersistenceCapabilities,
+  listRecentEventRegistrationPayments,
+  listRecentStoreOrders,
+} from '@/app/lib/paymentPersistence'
 
 type Role = 'player' | 'organizer' | 'admin'
 
@@ -47,6 +52,31 @@ export type AdminOverviewData = {
     amountTotal: number | null
     currency: string | null
     customerEmail: string | null
+    createdAt: string | null
+  }>
+  recentStoreOrders: Array<{
+    id: string
+    stripeSessionId: string
+    email: string | null
+    status: string
+    currency: string
+    subtotalAmount: number
+    totalAmount: number
+    itemCount: number
+    createdAt: string | null
+  }>
+  recentEventPayments: Array<{
+    id: string
+    eventId: string
+    eventTitle: string
+    userId: string
+    userName: string
+    email: string | null
+    registrationId: string | null
+    stripeCheckoutSessionId: string
+    amountCents: number
+    currency: string
+    status: string
     createdAt: string | null
   }>
 }
@@ -102,13 +132,6 @@ function isUpcomingDate(value: string | Date | null | undefined) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   return date.getTime() >= today.getTime()
-}
-
-function getCapabilities() {
-  return {
-    storeOrderPersistence: false,
-    eventPaymentPersistence: false,
-  }
 }
 
 async function getProfilesFromSupabase() {
@@ -194,6 +217,11 @@ export async function getAdminOverview(): Promise<AdminOverviewData> {
   }
 
   const prisma = await getPrisma()
+  const [capabilities, recentStoreOrders, recentEventPayments] = await Promise.all([
+    getPersistenceCapabilities(),
+    listRecentStoreOrders(8),
+    listRecentEventRegistrationPayments(8),
+  ])
 
   if (prisma) {
     const Users = getUsersModel(prisma)
@@ -239,7 +267,7 @@ export async function getAdminOverview(): Promise<AdminOverviewData> {
         featuredProducts: products.filter((product) => product.featured).length,
       },
       config,
-      capabilities: getCapabilities(),
+      capabilities,
       recentRegistrations: (registrations as RegistrationSummary[]).map((registration) => {
         const user = userMap.get(registration.user_id)
         return {
@@ -251,6 +279,8 @@ export async function getAdminOverview(): Promise<AdminOverviewData> {
         }
       }),
       recentCheckouts,
+      recentStoreOrders,
+      recentEventPayments,
     }
   }
 
@@ -289,7 +319,7 @@ export async function getAdminOverview(): Promise<AdminOverviewData> {
       featuredProducts: products.filter((product) => product.featured).length,
     },
     config,
-    capabilities: getCapabilities(),
+    capabilities,
     recentRegistrations: devRegistrations.slice(0, 8).map((registration) => {
       const user = devUsers.get(registration.user_id)
       return {
@@ -301,5 +331,7 @@ export async function getAdminOverview(): Promise<AdminOverviewData> {
       }
     }),
     recentCheckouts,
+    recentStoreOrders,
+    recentEventPayments,
   }
 }

@@ -63,6 +63,31 @@ type Overview = {
   };
   recentRegistrations: RegistrationActivityRow[];
   recentCheckouts: CheckoutRow[];
+  recentStoreOrders: Array<{
+    id: string;
+    stripeSessionId: string;
+    email: string | null;
+    status: string;
+    currency: string;
+    subtotalAmount: number;
+    totalAmount: number;
+    itemCount: number;
+    createdAt: string | null;
+  }>;
+  recentEventPayments: Array<{
+    id: string;
+    eventId: string;
+    eventTitle: string;
+    userId: string;
+    userName: string;
+    email: string | null;
+    registrationId: string | null;
+    stripeCheckoutSessionId: string;
+    amountCents: number;
+    currency: string;
+    status: string;
+    createdAt: string | null;
+  }>;
 };
 
 export default function AdminClient() {
@@ -396,6 +421,87 @@ export default function AdminClient() {
                   </li>
                 ))}
               </ul>
+            )}
+          </div>
+
+          <div className="rounded-xl border bg-white p-6 md:col-span-2">
+            <h2 className="text-lg font-semibold text-[#0A3161]">Persisted Store Orders</h2>
+            {!overview.capabilities.storeOrderPersistence ? (
+              <p className="mt-4 text-sm text-gray-600">
+                Store order persistence is not active yet in this environment. Apply the schema changes before relying on durable order history.
+              </p>
+            ) : overview.recentStoreOrders.length === 0 ? (
+              <p className="mt-4 text-sm text-gray-600">No persisted store orders have been recorded yet.</p>
+            ) : (
+              <div className="mt-4 overflow-hidden rounded border">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:text-left text-gray-600">
+                      <th>Customer</th>
+                      <th>Status</th>
+                      <th>Items</th>
+                      <th>Total</th>
+                      <th>Created</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {overview.recentStoreOrders.map((order) => (
+                      <tr key={order.id} className="[&>td]:px-3 [&>td]:py-2">
+                        <td>
+                          <div className="font-medium">{order.email ?? 'Unknown customer'}</div>
+                          <div className="text-xs text-gray-500">{order.stripeSessionId}</div>
+                        </td>
+                        <td className="capitalize">{order.status}</td>
+                        <td>{order.itemCount}</td>
+                        <td>{formatMoney(order.totalAmount, order.currency)}</td>
+                        <td className="text-gray-500">{order.createdAt ? new Date(order.createdAt).toLocaleString() : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border bg-white p-6 md:col-span-2">
+            <h2 className="text-lg font-semibold text-[#0A3161]">Persisted Event Payments</h2>
+            {!overview.capabilities.eventPaymentPersistence ? (
+              <p className="mt-4 text-sm text-gray-600">
+                Event payment persistence is not active yet in this environment. Apply the schema changes before relying on durable payment history.
+              </p>
+            ) : overview.recentEventPayments.length === 0 ? (
+              <p className="mt-4 text-sm text-gray-600">No persisted event payment records have been recorded yet.</p>
+            ) : (
+              <div className="mt-4 overflow-hidden rounded border">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:text-left text-gray-600">
+                      <th>Event</th>
+                      <th>Player</th>
+                      <th>Status</th>
+                      <th>Amount</th>
+                      <th>Created</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {overview.recentEventPayments.map((payment) => (
+                      <tr key={payment.id} className="[&>td]:px-3 [&>td]:py-2">
+                        <td>
+                          <div className="font-medium">{payment.eventTitle}</div>
+                          <div className="text-xs text-gray-500">{payment.stripeCheckoutSessionId}</div>
+                        </td>
+                        <td>
+                          <div>{payment.userName}</div>
+                          <div className="text-xs text-gray-500">{payment.email ?? payment.userId}</div>
+                        </td>
+                        <td className="capitalize">{payment.status}</td>
+                        <td>{formatMoney(payment.amountCents, payment.currency)}</td>
+                        <td className="text-gray-500">{payment.createdAt ? new Date(payment.createdAt).toLocaleString() : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
 

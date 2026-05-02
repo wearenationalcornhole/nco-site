@@ -6,6 +6,7 @@ import { getPrisma } from '@/app/lib/safePrisma'
 import { devStore } from '@/app/lib/devStore'
 import { getStripeClient } from '@/app/lib/stripe'
 import { getEventRegistrationConfig } from '@/app/lib/eventRegistration'
+import { upsertEventRegistrationPayment } from '@/app/lib/paymentPersistence'
 
 type Body = {
   eventId?: string
@@ -132,6 +133,19 @@ export async function POST(req: Request) {
         user_id: userId,
         user_email: userEmail ?? '',
       },
+    })
+
+    await upsertEventRegistrationPayment({
+      eventId: event.id,
+      userId,
+      stripeCheckoutSessionId: sessionRecord.id,
+      stripePaymentIntentId:
+        typeof sessionRecord.payment_intent === 'string'
+          ? sessionRecord.payment_intent
+          : sessionRecord.payment_intent?.id ?? null,
+      amountCents: Math.round(registrationConfig.amountUsd * 100),
+      currency: registrationConfig.currency,
+      status: sessionRecord.payment_status ?? sessionRecord.status ?? 'pending',
     })
 
     return NextResponse.json({ url: sessionRecord.url }, { status: 201 })

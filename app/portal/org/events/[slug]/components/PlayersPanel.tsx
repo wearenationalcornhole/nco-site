@@ -19,7 +19,32 @@ type Row = {
   userId: string
   divisionId?: string | null
   createdAt?: string
+  paymentStatus?: string | null
+  paymentAmountCents?: number | null
+  paymentCurrency?: string | null
   user?: { id: string; email?: string | null; name?: string | null } | null
+}
+
+function formatMoney(amountCents?: number | null, currency?: string | null) {
+  if (amountCents == null) return null
+
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: (currency ?? 'usd').toUpperCase(),
+    }).format(amountCents / 100)
+  } catch {
+    return `$${(amountCents / 100).toFixed(2)}`
+  }
+}
+
+function renderPaymentSummary(row: Row) {
+  if (!row.paymentStatus) return 'Free / manual'
+
+  const money = formatMoney(row.paymentAmountCents, row.paymentCurrency)
+  const status = row.paymentStatus.replace(/_/g, ' ')
+  const label = status.charAt(0).toUpperCase() + status.slice(1)
+  return money ? `${label} · ${money}` : label
 }
 
 export default function PlayersPanel({
@@ -250,8 +275,9 @@ export default function PlayersPanel({
           <div className="col-span-3">Name</div>
           <div className="col-span-3">Email</div>
           <div className="col-span-2">Division</div>
-          <div className="col-span-2">Registered</div>
-          <div className="col-span-2 text-right">Actions</div>
+          <div className="col-span-2">Payment</div>
+          <div className="col-span-1">Registered</div>
+          <div className="col-span-1 text-right">Actions</div>
         </div>
 
         {loading ? (
@@ -275,9 +301,12 @@ export default function PlayersPanel({
                     <div className="col-span-3 text-gray-700">{r.user?.email ?? '—'}</div>
                     <div className="col-span-2 text-gray-700">{divLabel}</div>
                     <div className="col-span-2 text-gray-700">
+                      {renderPaymentSummary(r)}
+                    </div>
+                    <div className="col-span-1 text-gray-700">
                       {r.createdAt ? new Date(r.createdAt).toLocaleString() : '—'}
                     </div>
-                    <div className="col-span-2 text-right">
+                    <div className="col-span-1 text-right">
                       <button
                         onClick={() => removePlayer(r)}
                         disabled={removing === (r.id ?? r.userId)}

@@ -13,3 +13,15 @@ export function getSponsorCompaniesModel(prisma: any) {
 export function getEventDivisionMembersModel(prisma: any) {
   return prisma?.event_division_members ?? prisma?.division_assignments ?? null
 }
+
+export function getStoreOrdersModel(prisma: any) {
+  return prisma?.store_orders ?? prisma?.storeOrders ?? null
+}
+
+export function getStoreOrderItemsModel(prisma: any) {
+  return prisma?.store_order_items ?? prisma?.storeOrderItems ?? null
+}
+
+export function getEventRegistrationPaymentsModel(prisma: any) {
+  return prisma?.event_registration_payments ?? prisma?.eventRegistrationPayments ?? null
+}
