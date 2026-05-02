@@ -10,6 +10,7 @@ import {
   slugifyEventTitle,
   type EventRecord,
 } from '@/app/lib/eventRecords'
+import { listManagedEventIds, requireRouteRoles } from '@/app/lib/portalRouteAccess'
 
 type EventRowDb = EventRecord & { state?: string | null }
 
@@ -39,8 +40,12 @@ export async function GET(req: Request) {
     const pageSize = Math.min(50, Math.max(1, Number(searchParams.get('pageSize') ?? '12')))
     const state = (searchParams.get('state') ?? '').trim().toUpperCase() || undefined
     const month = (searchParams.get('month') ?? '').trim() || undefined // format: YYYY-MM
+    const managedOnly = searchParams.get('managedOnly') === '1'
 
     const prisma = await getPrisma()
+    const access = managedOnly ? await requireRouteRoles(['organizer', 'admin']) : null
+    if (access && 'error' in access) return access.error
+    const managedEventIds = access ? await listManagedEventIds(access.actor) : null
 
     // DB path
     if (prisma) {
@@ -74,6 +79,10 @@ export async function GET(req: Request) {
 
           where.date = { gte: start, lt: end }
         }
+      }
+
+      if (managedOnly && managedEventIds !== null) {
+        where.id = { in: managedEventIds }
       }
 
       const [total, rows] = await Promise.all([
@@ -128,6 +137,11 @@ export async function GET(req: Request) {
       return matchesQ && matchesState && matchesMonth
     })
 
+    if (managedOnly && managedEventIds !== null) {
+      const managedIds = new Set(managedEventIds)
+      filtered = filtered.filter((event) => managedIds.has(event.id))
+    }
+
     const total = filtered.length
     const start = (page - 1) * pageSize
     filtered = filtered.slice(start, start + pageSize)
@@ -157,6 +171,9 @@ type CreateBody = Partial<{
 
 export async function POST(req: Request) {
   try {
+    const access = await requireRouteRoles(['organizer', 'admin'])
+    if ('error' in access) return access.error
+
     const body: CreateBody = await req.json()
     const title = String(body.title ?? '').trim()
     if (!title) {
@@ -188,6 +205,24 @@ export async function POST(req: Request) {
           logo_url,
         } as any,
       })
+
+      const { error: adminLinkError } = await access.actor.supabase
+        .from('event_admins')
+        .upsert(
+          {
+            event_id: created.id,
+            user_id: access.actor.user.id,
+          },
+          { onConflict: 'event_id,user_id' },
+        )
+
+      if (adminLinkError && access.actor.role !== 'admin') {
+        await prisma.events.delete({ where: { id: created.id } }).catch(() => null)
+        return NextResponse.json(
+          { error: 'Event created but organizer access could not be linked. Please try again.' },
+          { status: 500 },
+        )
+      }
 
       return NextResponse.json(serializeEventRecord(created), { status: 201 })
     }

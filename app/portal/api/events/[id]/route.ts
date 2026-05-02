@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server'
 import { getPrisma } from '@/app/lib/safePrisma'
 import { devStore } from '@/app/lib/devStore'
 import { normalizeDateOnly, serializeEventRecord } from '@/app/lib/eventRecords'
+import { canManageEvent, requireRouteRoles } from '@/app/lib/portalRouteAccess'
 
 type Body = Partial<{
   title: string
@@ -39,6 +40,10 @@ export async function PATCH(req: Request, context: any) {
   try {
     const id = context?.params?.id as string
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+    const access = await requireRouteRoles(['organizer', 'admin'])
+    if ('error' in access) return access.error
+    const allowedActor = await canManageEvent(access.actor, id)
+    if (!allowedActor) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     const body: Body = await req.json()
 
     const allowed: Body = {}
@@ -101,10 +106,15 @@ export async function DELETE(_req: Request, context: any) {
   try {
     const id = context?.params?.id as string
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+    const access = await requireRouteRoles(['organizer', 'admin'])
+    if ('error' in access) return access.error
+    const allowedActor = await canManageEvent(access.actor, id)
+    if (!allowedActor) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const prisma = await getPrisma()
     if (prisma) {
       await prisma.events.delete({ where: { id } })
+      await access.actor.supabase.from('event_admins').delete().eq('event_id', id)
       return NextResponse.json({ ok: true })
     }
 
@@ -129,6 +139,7 @@ export async function DELETE(_req: Request, context: any) {
 
     const ok = devStore.remove('events', id)
     if (!ok) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    await access.actor.supabase.from('event_admins').delete().eq('event_id', id)
     return NextResponse.json({ ok: true })
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? 'Server error' }, { status: 500 })

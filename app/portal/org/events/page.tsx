@@ -3,6 +3,7 @@ export const revalidate = 0;
 export const dynamic = 'force-dynamic';
 
 import Link from 'next/link';
+import { cookies } from 'next/headers';
 import SearchBar from './components/SearchBar';
 import DeleteEventButton from './components/DeleteEventButton';
 import EditEventDialog from './components/EditEventDialog';
@@ -33,11 +34,17 @@ function fmtDate(iso?: string | null) {
 async function fetchEvents(query: string): Promise<Event[]> {
   try {
     const base = await getRequestOrigin()
+    const cookieHeader = (await cookies())
+      .getAll()
+      .map(({ name, value }) => `${name}=${value}`)
+      .join('; ')
     const search = new URLSearchParams()
     if (query) search.set('q', query)
     search.set('pageSize', '50')
+    search.set('managedOnly', '1')
     const response = await fetch(`${base}/portal/api/events?${search.toString()}`, {
       cache: 'no-store',
+      headers: cookieHeader ? { cookie: cookieHeader } : undefined,
     })
     if (response.ok) {
       const payload = await response.json()

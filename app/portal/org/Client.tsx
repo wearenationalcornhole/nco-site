@@ -52,7 +52,7 @@ export default function OrganizerClient() {
           router.replace('/portal/dashboard'); return;
         }
 
-        const res = await fetch('/portal/api/events', { cache: 'no-store' });
+        const res = await fetch('/portal/api/events?managedOnly=1&pageSize=50', { cache: 'no-store' });
         const json = res.ok ? await res.json() : [];
         const list: Event[] = Array.isArray(json) ? json : (json.events ?? []);
         if (!alive) return;
