@@ -61,6 +61,7 @@ export default function PlayersPanel({
   const [name, setName] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [removing, setRemoving] = useState<string | null>(null)
+  const [paymentActionRowId, setPaymentActionRowId] = useState<string | null>(null)
 
   // divisions
   const [divisions, setDivisions] = useState<Division[]>([])
@@ -206,6 +207,11 @@ export default function PlayersPanel({
 
   // Remove player
   async function removePlayer(row: Row) {
+    if (row.paymentStatus?.toLowerCase() === 'paid') {
+      onToast({ msg: 'Use Refund for paid registrations so payment history stays accurate.', kind: 'error' })
+      return
+    }
+
     const confirmDelete = window.confirm(
       `Remove ${row.user?.name || row.user?.email || row.userId}?`
     )
@@ -227,6 +233,47 @@ export default function PlayersPanel({
       onToast({ msg: err?.message ?? 'Remove failed', kind: 'error' })
     } finally {
       setRemoving(null)
+    }
+  }
+
+  async function refundAndRemove(row: Row) {
+    if (!row.paymentStatus || row.paymentStatus.toLowerCase() !== 'paid') return
+    const rowKey = row.id ?? row.userId
+    const confirmed = window.confirm(
+      `Refund ${row.user?.name || row.user?.email || row.userId} and remove the registration from this event?`,
+    )
+    if (!confirmed) return
+
+    try {
+      setPaymentActionRowId(rowKey)
+      const response = await fetch('/portal/api/payments/actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'event_registration',
+          id: row.id,
+          action: 'refund',
+          removeRegistration: true,
+        }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload?.error ?? 'Refund failed')
+
+      if (payload?.registrationRemoved) {
+        setRows((prev) => (prev ?? []).filter((candidate) => candidate !== row))
+      } else {
+        setRows((prev) =>
+          (prev ?? []).map((candidate) =>
+            candidate === row ? { ...candidate, paymentStatus: 'refunded' } : candidate,
+          ),
+        )
+      }
+
+      onToast({ msg: 'Refund submitted', kind: 'success' })
+    } catch (err: any) {
+      onToast({ msg: err?.message ?? 'Refund failed', kind: 'error' })
+    } finally {
+      setPaymentActionRowId(null)
     }
   }
 
@@ -352,13 +399,24 @@ export default function PlayersPanel({
                       {r.createdAt ? new Date(r.createdAt).toLocaleString() : '—'}
                     </div>
                     <div className="col-span-1 text-right">
-                      <button
-                        onClick={() => removePlayer(r)}
-                        disabled={removing === (r.id ?? r.userId)}
-                        className="rounded border px-3 py-1 text-sm hover:bg-gray-50 disabled:opacity-50"
-                      >
-                        {removing === (r.id ?? r.userId) ? '...' : 'Remove'}
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        {r.id && r.paymentStatus?.toLowerCase() === 'paid' ? (
+                          <button
+                            onClick={() => refundAndRemove(r)}
+                            disabled={paymentActionRowId === (r.id ?? r.userId)}
+                            className="rounded border px-3 py-1 text-sm hover:bg-gray-50 disabled:opacity-50"
+                          >
+                            {paymentActionRowId === (r.id ?? r.userId) ? '...' : 'Refund'}
+                          </button>
+                        ) : null}
+                        <button
+                          onClick={() => removePlayer(r)}
+                          disabled={removing === (r.id ?? r.userId)}
+                          className="rounded border px-3 py-1 text-sm hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          {removing === (r.id ?? r.userId) ? '...' : 'Remove'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </li>

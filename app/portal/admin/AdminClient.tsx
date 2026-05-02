@@ -48,10 +48,13 @@ type Overview = {
     storeProducts: number;
     featuredProducts: number;
     storeOrderCount: number;
+    refundedStoreOrderCount: number;
     storeRevenueCents: number;
     eventPaymentCount: number;
     paidEventPaymentCount: number;
     pendingEventPaymentCount: number;
+    refundedEventPaymentCount: number;
+    cancelledEventPaymentCount: number;
     eventRevenueCents: number;
   };
   config: {
@@ -124,6 +127,7 @@ export default function AdminClient() {
   const [copiedFor, setCopiedFor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [paymentActionKey, setPaymentActionKey] = useState<string | null>(null);
 
   // Load base data once
   useEffect(() => {
@@ -194,6 +198,41 @@ export default function AdminClient() {
       setOverview(payload);
     } catch {
       // Keep the current overview visible if the refresh fails.
+    }
+  }
+
+  async function runPaymentAction(
+    kind: 'store_order' | 'event_registration',
+    id: string,
+    action: 'refund' | 'cancel',
+    removeRegistration?: boolean,
+  ) {
+    const actionKey = `${kind}:${id}:${action}`;
+    const label =
+      action === 'refund'
+        ? 'This will issue a full Stripe refund and update the persisted payment status.'
+        : 'This will mark the payment record as cancelled.'
+
+    if (!window.confirm(label)) return
+
+    try {
+      setPaymentActionKey(actionKey)
+      const response = await fetch('/portal/api/payments/actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind, id, action, removeRegistration }),
+      })
+
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload?.error ?? 'Payment action failed')
+      }
+
+      await refreshOverview()
+    } catch (error: any) {
+      alert(error?.message ?? 'Payment action failed')
+    } finally {
+      setPaymentActionKey(null)
     }
   }
 
@@ -377,8 +416,8 @@ export default function AdminClient() {
               <OverviewCard label="Events" value={`${overview.stats.events}`} detail={`${overview.stats.upcomingEvents} upcoming on the calendar`} />
               <OverviewCard label="Registrations" value={String(overview.stats.registrations)} detail="Total event registrations captured" />
               <OverviewCard label="Store Catalog" value={String(overview.stats.storeProducts)} detail={`${overview.stats.featuredProducts} featured products live`} />
-              <OverviewCard label="Store Orders" value={String(overview.stats.storeOrderCount)} detail={`${formatMoney(overview.stats.storeRevenueCents, 'usd')} persisted gross revenue`} />
-              <OverviewCard label="Event Payments" value={String(overview.stats.eventPaymentCount)} detail={`${overview.stats.paidEventPaymentCount} settled · ${overview.stats.pendingEventPaymentCount} pending`} />
+              <OverviewCard label="Store Orders" value={String(overview.stats.storeOrderCount)} detail={`${formatMoney(overview.stats.storeRevenueCents, 'usd')} active revenue · ${overview.stats.refundedStoreOrderCount} refunded`} />
+              <OverviewCard label="Event Payments" value={String(overview.stats.eventPaymentCount)} detail={`${overview.stats.paidEventPaymentCount} settled · ${overview.stats.pendingEventPaymentCount} pending · ${overview.stats.refundedEventPaymentCount} refunded`} />
               <OverviewCard label="Event Revenue" value={formatMoney(overview.stats.eventRevenueCents, 'usd')} detail="Settled paid-registration volume" />
             </div>
           </div>
@@ -452,6 +491,7 @@ export default function AdminClient() {
                       <th>Items</th>
                       <th>Total</th>
                       <th>Created</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -465,6 +505,19 @@ export default function AdminClient() {
                         <td>{order.itemCount}</td>
                         <td>{formatMoney(order.totalAmount, order.currency)}</td>
                         <td className="text-gray-500">{order.createdAt ? new Date(order.createdAt).toLocaleString() : '—'}</td>
+                        <td>
+                          {order.status.toLowerCase() === 'refunded' ? (
+                            <span className="text-xs text-gray-500">Refunded</span>
+                          ) : (
+                            <button
+                              onClick={() => runPaymentAction('store_order', order.id, 'refund')}
+                              disabled={paymentActionKey === `store_order:${order.id}:refund`}
+                              className="rounded border px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-50"
+                            >
+                              {paymentActionKey === `store_order:${order.id}:refund` ? 'Refunding…' : 'Refund'}
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -491,6 +544,7 @@ export default function AdminClient() {
                       <th>Status</th>
                       <th>Amount</th>
                       <th>Created</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -507,6 +561,27 @@ export default function AdminClient() {
                         <td className="capitalize">{payment.status}</td>
                         <td>{formatMoney(payment.amountCents, payment.currency)}</td>
                         <td className="text-gray-500">{payment.createdAt ? new Date(payment.createdAt).toLocaleString() : '—'}</td>
+                        <td>
+                          {payment.status.toLowerCase() === 'paid' ? (
+                            <button
+                              onClick={() => runPaymentAction('event_registration', payment.id, 'refund', true)}
+                              disabled={paymentActionKey === `event_registration:${payment.id}:refund`}
+                              className="rounded border px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-50"
+                            >
+                              {paymentActionKey === `event_registration:${payment.id}:refund` ? 'Refunding…' : 'Refund'}
+                            </button>
+                          ) : payment.status.toLowerCase() === 'pending' ? (
+                            <button
+                              onClick={() => runPaymentAction('event_registration', payment.id, 'cancel', false)}
+                              disabled={paymentActionKey === `event_registration:${payment.id}:cancel`}
+                              className="rounded border px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-50"
+                            >
+                              {paymentActionKey === `event_registration:${payment.id}:cancel` ? 'Cancelling…' : 'Cancel'}
+                            </button>
+                          ) : (
+                            <span className="text-xs text-gray-500 capitalize">{payment.status}</span>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

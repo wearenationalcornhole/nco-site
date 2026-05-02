@@ -25,10 +25,13 @@ export type AdminOverviewData = {
     storeProducts: number
     featuredProducts: number
     storeOrderCount: number
+    refundedStoreOrderCount: number
     storeRevenueCents: number
     eventPaymentCount: number
     paidEventPaymentCount: number
     pendingEventPaymentCount: number
+    refundedEventPaymentCount: number
+    cancelledEventPaymentCount: number
     eventRevenueCents: number
   }
   config: {
@@ -275,10 +278,13 @@ export async function getAdminOverview(): Promise<AdminOverviewData> {
         storeProducts: products.length,
         featuredProducts: products.filter((product) => product.featured).length,
         storeOrderCount: paymentTotals.storeOrderCount,
+        refundedStoreOrderCount: paymentTotals.refundedStoreOrderCount,
         storeRevenueCents: paymentTotals.storeRevenueCents,
         eventPaymentCount: paymentTotals.eventPaymentCount,
         paidEventPaymentCount: paymentTotals.paidEventPaymentCount,
         pendingEventPaymentCount: paymentTotals.pendingEventPaymentCount,
+        refundedEventPaymentCount: paymentTotals.refundedEventPaymentCount,
+        cancelledEventPaymentCount: paymentTotals.cancelledEventPaymentCount,
         eventRevenueCents: paymentTotals.eventRevenueCents,
       },
       config,
@@ -333,10 +339,13 @@ export async function getAdminOverview(): Promise<AdminOverviewData> {
       storeProducts: products.length,
       featuredProducts: products.filter((product) => product.featured).length,
       storeOrderCount: paymentTotals.storeOrderCount,
+      refundedStoreOrderCount: paymentTotals.refundedStoreOrderCount,
       storeRevenueCents: paymentTotals.storeRevenueCents,
       eventPaymentCount: paymentTotals.eventPaymentCount,
       paidEventPaymentCount: paymentTotals.paidEventPaymentCount,
       pendingEventPaymentCount: paymentTotals.pendingEventPaymentCount,
+      refundedEventPaymentCount: paymentTotals.refundedEventPaymentCount,
+      cancelledEventPaymentCount: paymentTotals.cancelledEventPaymentCount,
       eventRevenueCents: paymentTotals.eventRevenueCents,
     },
     config,
