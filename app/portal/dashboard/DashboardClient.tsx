@@ -109,7 +109,7 @@ export default function DashboardClient() {
         )}
 
         <div className="mt-4">
-          <Link href="/portal/onboarding" className="text-sm text-[#0A3161] underline underline-offset-2">
+          <Link href="/portal/profile" className="text-sm text-[#0A3161] underline underline-offset-2">
             Edit profile
           </Link>
         </div>
@@ -131,6 +131,13 @@ export default function DashboardClient() {
               cta="View registrations"
               href="/portal/my-registrations"
               color="#0A3161"
+            />
+            <Card
+              title="Community Profile"
+              desc="Manage your public name, visibility, and club affiliation."
+              cta="Edit profile"
+              href="/portal/profile"
+              color="#B31942"
             />
           </>
         ) : (

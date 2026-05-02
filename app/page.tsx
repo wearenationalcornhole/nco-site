@@ -47,7 +47,7 @@ export default async function Home() {
               <Link href="/events">Find Events</Link>
             </Button>
             <Button asChild size="lg" variant="outline" className="bg-white/10 backdrop-blur hover:bg-white/20">
-              <Link href="/portal/login?redirect=%2Fportal">Join Community</Link>
+              <Link href="/community">Join Community</Link>
             </Button>
           </div>
         </div>
@@ -67,10 +67,10 @@ export default async function Home() {
               <h2 className="mt-2 text-xl font-bold text-gray-900">Explore tournament gear</h2>
               <p className="mt-2 text-sm text-gray-600">View current product drops and signature bags.</p>
             </Link>
-            <Link href="/portal/login?redirect=%2Fportal" className="rounded-2xl border border-gray-200 bg-white p-5 transition hover:-translate-y-0.5 hover:shadow-lg">
+            <Link href="/community" className="rounded-2xl border border-gray-200 bg-white p-5 transition hover:-translate-y-0.5 hover:shadow-lg">
               <p className="text-sm font-semibold uppercase tracking-wide text-usaBlue">Join Community</p>
-              <h2 className="mt-2 text-xl font-bold text-gray-900">Create your player access</h2>
-              <p className="mt-2 text-sm text-gray-600">Sign in with a magic link to register and manage your portal activity.</p>
+              <h2 className="mt-2 text-xl font-bold text-gray-900">Discover clubs and member tools</h2>
+              <p className="mt-2 text-sm text-gray-600">Start at the community hub, then sign in to unlock the player directory and profile tools.</p>
             </Link>
             <Link href="/portal/login?redirect=%2Fportal%2Forg" className="rounded-2xl border border-gray-200 bg-white p-5 transition hover:-translate-y-0.5 hover:shadow-lg">
               <p className="text-sm font-semibold uppercase tracking-wide text-usaBlue">Organize Events</p>
