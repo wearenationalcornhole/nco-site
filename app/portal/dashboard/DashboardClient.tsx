@@ -3,13 +3,20 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createBrowserClient} from '@supabase/ssr';
 
 type Role = 'organizer' | 'player' | 'admin';
 
 export default function DashboardClient() {
   const router = useRouter();
-  const supabase = createClientComponentClient();
+  const supabase = useMemo(
+    () =>
+      createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      ),
+    []
+  );
 
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState<string | null>(null);
