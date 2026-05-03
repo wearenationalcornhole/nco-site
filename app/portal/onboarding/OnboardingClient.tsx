@@ -130,18 +130,22 @@ export default function OnboardingClient() {
         }
       }
 
-      // Persist profile (IMPORTANT: include role)
+      // Persist profile and mark onboarding complete
       const { error } = await supabase
         .from('profiles')
         .update({
-          role, // 👈 critical to break loops
+          role,
           first_name: first,
           last_name: last,
           phone: phone || null,
           organization: role === 'organizer' ? org : null,
-          city, region, country,
+          city,
+          region,
+          country,
           avatar_url: newAvatarUrl,
           primary_club_id: role === 'player' ? (clubId || null) : null,
+          is_profile_complete: true,
+          updated_at: new Date().toISOString(),
         })
         .eq('id', user.id);
 
