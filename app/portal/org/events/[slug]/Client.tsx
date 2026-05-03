@@ -175,8 +175,7 @@ export default function Client({ slug }: { slug: string }) {
             <h3 className="text-sm font-semibold text-gray-700">Tournament Logo</h3>
             <div className="mt-3">
               <LogoPanel
-                eventId={event.id}
-                currentLogoUrl={event.logo_url ?? null}
+                slug={event.slug ?? event.id}
                 onSaved={(newUrl) => {
                   setEvent((prev) => (prev ? { ...prev, logo_url: newUrl ?? null } : prev))
                   setToast({ msg: newUrl ? 'Logo updated' : 'Logo cleared', kind: 'success' })
