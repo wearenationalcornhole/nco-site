@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { getSupabaseBrowser } from '@/app/lib/supabaseBrowser';
 import { getEventRegistrationConfig } from '@/app/lib/eventRegistration';
 
 type Role = 'organizer' | 'player' | 'admin';
