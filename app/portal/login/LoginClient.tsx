@@ -32,7 +32,9 @@ export default function LoginClient() {
         email,
         options: {
           // IMPORTANT: this must be allowlisted in Supabase → Auth → Redirect URLs
-          emailRedirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(
+          emailRedirectTo: `${window.location.origin}/auth/callback?redirect=/portal`,
+          ###emailRedirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(
+          
             redirect
           )}`,
         },
