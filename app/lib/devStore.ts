@@ -21,6 +21,13 @@ export type TableName =
   | 'division_assignments'
   | 'clubs'
   | 'club_members' // <-- NEW for organizer profiles
+  | 'store_products'
+  | 'store_product_images'
+  | 'store_orders'
+  | 'store_order_items'
+  | 'event_registration_payments'
+  | 'payment_action_audit_logs'
+  | 'webhook_delivery_logs'
 
 type StoreShape = Record<TableName, AnyRecord[]>
 
@@ -44,6 +51,13 @@ function createDefaultData(): StoreShape {
     division_assignments: [],
     clubs: [], // ✅ Added
     club_members: [], // ✅ Added
+    store_products: [],
+    store_product_images: [],
+    store_orders: [],
+    store_order_items: [],
+    event_registration_payments: [],
+    payment_action_audit_logs: [],
+    webhook_delivery_logs: [],
   }
 }
 

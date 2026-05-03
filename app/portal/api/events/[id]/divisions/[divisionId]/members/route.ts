@@ -4,6 +4,7 @@ export const runtime = 'nodejs'
 import { NextResponse } from 'next/server'
 import { getPrisma } from '@/app/lib/safePrisma'
 import { devStore } from '@/app/lib/devStore'
+import { getEventDivisionMembersModel } from '@/app/lib/prismaModels'
 
 /** Public shape returned to client */
 type Member = {
@@ -17,7 +18,6 @@ type Member = {
 /** DB/dev shape (snake_case) */
 type MemberRow = {
   id?: string
-  event_id: string
   division_id: string
   user_id: string
   created_at: string | Date | null
@@ -41,14 +41,24 @@ export async function GET(
     const prisma = await getPrisma()
 
     if (prisma) {
-      const rows = (await prisma.event_division_members.findMany({
-        where: { event_id: eventId, division_id: divisionId },
+      const Members = getEventDivisionMembersModel(prisma)
+      if (!Members) throw new Error('Model event_division_members not found')
+      const division = await prisma.event_divisions.findUnique({
+        where: { id: divisionId },
+        select: { event_id: true },
+      }).catch(() => null)
+      if (!division || division.event_id !== eventId) {
+        return NextResponse.json({ error: 'Division not found' }, { status: 404 })
+      }
+
+      const rows = (await Members.findMany({
+        where: { division_id: divisionId },
         orderBy: { created_at: 'desc' },
       })) as unknown as MemberRow[]
 
       const out: Member[] = rows.map((r) => ({
         id: r.id!,
-        eventId: r.event_id,
+        eventId,
         divisionId: r.division_id,
         userId: r.user_id,
         createdAt: asIso(r.created_at),
@@ -59,12 +69,12 @@ export async function GET(
     // dev fallback
     const rows = devStore
       .getAll<MemberRow>('event_division_members' as any)
-      .filter((r) => r.event_id === eventId && r.division_id === divisionId)
+      .filter((r) => r.division_id === divisionId)
       .sort((a, b) => (asIso(b.created_at) ?? '').localeCompare(asIso(a.created_at) ?? ''))
 
     const out: Member[] = rows.map((r) => ({
       id: r.id!,
-      eventId: r.event_id,
+      eventId,
       divisionId: r.division_id,
       userId: r.user_id,
       createdAt: asIso(r.created_at),
@@ -95,13 +105,23 @@ export async function POST(
 
     const prisma = await getPrisma()
     if (prisma) {
-      const created = (await prisma.event_division_members.create({
-        data: { event_id: eventId, division_id: divisionId, user_id: userId },
+      const Members = getEventDivisionMembersModel(prisma)
+      if (!Members) throw new Error('Model event_division_members not found')
+      const division = await prisma.event_divisions.findUnique({
+        where: { id: divisionId },
+        select: { event_id: true },
+      }).catch(() => null)
+      if (!division || division.event_id !== eventId) {
+        return NextResponse.json({ error: 'Division not found' }, { status: 404 })
+      }
+
+      const created = (await Members.create({
+        data: { division_id: divisionId, user_id: userId },
       })) as unknown as MemberRow
 
       const out: Member = {
         id: created.id!,
-        eventId: created.event_id,
+        eventId,
         divisionId: created.division_id,
         userId: created.user_id,
         createdAt: asIso(created.created_at),
@@ -111,7 +131,6 @@ export async function POST(
 
     // dev fallback — omit id so devStore generates one
     const created = devStore.upsert<MemberRow>('event_division_members' as any, {
-      event_id: eventId,
       division_id: divisionId,
       user_id: userId,
       created_at: new Date(),
@@ -119,7 +138,7 @@ export async function POST(
 
     const out: Member = {
       id: created.id!,
-      eventId: created.event_id,
+      eventId,
       divisionId: created.division_id,
       userId: created.user_id,
       createdAt: asIso(created.created_at),
@@ -154,11 +173,20 @@ export async function DELETE(
 
     const prisma = await getPrisma()
     if (prisma) {
+      const Members = getEventDivisionMembersModel(prisma)
+      if (!Members) throw new Error('Model event_division_members not found')
+      const division = await prisma.event_divisions.findUnique({
+        where: { id: divisionId },
+        select: { event_id: true },
+      }).catch(() => null)
+      if (!division || division.event_id !== eventId) {
+        return NextResponse.json({ error: 'Division not found' }, { status: 404 })
+      }
       if (memberId) {
-        await prisma.event_division_members.delete({ where: { id: memberId } })
+        await Members.delete({ where: { id: memberId } })
       } else {
-        await prisma.event_division_members.deleteMany({
-          where: { event_id: eventId, division_id: divisionId, user_id: userId! },
+        await Members.deleteMany({
+          where: { division_id: divisionId, user_id: userId! },
         })
       }
       return NextResponse.json({ ok: true })
@@ -171,7 +199,6 @@ export async function DELETE(
       const all = devStore.getAll<MemberRow>('event_division_members' as any)
       const toRemove = all.find(
         (r) =>
-          r.event_id === eventId &&
           r.division_id === divisionId &&
           r.user_id === userId
       )

@@ -4,6 +4,7 @@ export const runtime = 'nodejs'
 import { NextResponse } from 'next/server'
 import { getPrisma } from '@/app/lib/safePrisma'
 import { devStore } from '@/app/lib/devStore'
+import { getEventRegistrationPaymentsModel } from '@/app/lib/prismaModels'
 
 /* ─────────────────────────────────────────────────────────────
    Types
@@ -27,7 +28,21 @@ type Row = {
   eventId: string
   userId: string
   createdAt: string | null
+  paymentStatus?: string | null
+  paymentAmountCents?: number | null
+  paymentCurrency?: string | null
   user?: { id: string; email?: string | null; name?: string | null } | null
+}
+
+type PaymentDb = {
+  id?: string
+  event_id: string
+  user_id: string
+  registration_id?: string | null
+  amount_cents?: number | null
+  currency?: string | null
+  status?: string | null
+  created_at?: string | Date | null
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -43,14 +58,39 @@ function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
-function toApiRow(r: RowDb, user?: UserDb | null): Row {
+function toApiRow(r: RowDb, user?: UserDb | null, payment?: PaymentDb | null): Row {
   return {
     id: r.id!, // set by prisma or devStore
     eventId: r.event_id,
     userId: r.user_id,
     createdAt: asIso(r.created_at),
+    paymentStatus: payment?.status ?? null,
+    paymentAmountCents: payment?.amount_cents ?? null,
+    paymentCurrency: payment?.currency ?? null,
     user: user ? { id: user.id, email: user.email, name: user.name ?? null } : null,
   }
+}
+
+function keyForRegistration(registrationId: string | null | undefined, userId: string) {
+  return registrationId ? `registration:${registrationId}` : `user:${userId}`
+}
+
+function buildPaymentMap(payments: PaymentDb[]) {
+  const map = new Map<string, PaymentDb>()
+
+  for (const payment of payments) {
+    const paymentKey = keyForRegistration(payment.registration_id, payment.user_id)
+    if (!map.has(paymentKey)) {
+      map.set(paymentKey, payment)
+    }
+
+    const userKey = `user:${payment.user_id}`
+    if (!map.has(userKey)) {
+      map.set(userKey, payment)
+    }
+  }
+
+  return map
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -63,6 +103,7 @@ export async function GET(_req: Request, context: any) {
     const prisma = await getPrisma()
 
     if (prisma) {
+      const EventRegistrationPayments = getEventRegistrationPaymentsModel(prisma)
       const regs = (await prisma.registrations.findMany({
         where: { event_id: id },
         orderBy: { created_at: 'desc' },
@@ -78,8 +119,24 @@ export async function GET(_req: Request, context: any) {
             })) as unknown as UserDb[])
           : []
       const userMap = new Map(users.map((u) => [u.id, u]))
+      const payments =
+        EventRegistrationPayments
+          ? ((await EventRegistrationPayments.findMany({
+              where: { event_id: id },
+              orderBy: { created_at: 'desc' },
+            }).catch(() => [])) as PaymentDb[])
+          : []
+      const paymentMap = buildPaymentMap(payments)
 
-      return NextResponse.json(regs.map((r) => toApiRow(r, userMap.get(r.user_id))))
+      return NextResponse.json(
+        regs.map((r) =>
+          toApiRow(
+            r,
+            userMap.get(r.user_id),
+            paymentMap.get(keyForRegistration(r.id, r.user_id)) ?? null,
+          ),
+        ),
+      )
     }
 
     // devStore fallback
@@ -92,8 +149,21 @@ export async function GET(_req: Request, context: any) {
     const userIds = Array.from(new Set(regs.map((r) => r.user_id)))
     const users = devStore.getAll<UserDb>('users').filter((u) => userIds.includes(u.id))
     const userMap = new Map(users.map((u) => [u.id, u]))
+    const payments = devStore
+      .getAll<PaymentDb>('event_registration_payments')
+      .filter((payment) => payment.event_id === id)
+      .sort((a, b) => (asIso(b.created_at ?? null) ?? '').localeCompare(asIso(a.created_at ?? null) ?? ''))
+    const paymentMap = buildPaymentMap(payments)
 
-    return NextResponse.json(regs.map((r) => toApiRow(r, userMap.get(r.user_id))))
+    return NextResponse.json(
+      regs.map((r) =>
+        toApiRow(
+          r,
+          userMap.get(r.user_id),
+          paymentMap.get(keyForRegistration(r.id, r.user_id)) ?? null,
+        ),
+      ),
+    )
   } catch (e: any) {
     console.error('GET /portal/api/events/[id]/registrations error:', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

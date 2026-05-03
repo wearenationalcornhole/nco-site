@@ -2,10 +2,11 @@ export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
 import { devStore } from '@/app/lib/devStore'
+import { getSupabaseServiceRoleKey } from '@/app/lib/site'
 
 async function getSupa() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE
+  const key = getSupabaseServiceRoleKey()
   if (!url || !key) return null
   const { createClient } = await import('@supabase/supabase-js')
   return createClient(url, key)

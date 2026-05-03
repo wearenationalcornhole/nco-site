@@ -5,9 +5,7 @@ export const dynamic = 'force-dynamic';
 import { redirect, notFound } from 'next/navigation';
 import { getSupabaseServer } from '@/app/lib/supabaseServer';
 import GalleryClient from '../ui/GalleryClient';
-
-// Import the config ONCE under a unique name and normalize to a single object.
-import * as GalleriesConfig from '../config';
+import { GALLERIES } from '../config';
 
 type DemoGallery = {
   title: string;
@@ -15,12 +13,7 @@ type DemoGallery = {
   images: { src: string; caption?: string; filename?: string }[];
 };
 
-const STATIC_GALLERIES: Record<string, DemoGallery> =
-  // @ts-ignore – tolerate either export name
-  (GalleriesConfig as any).GALLERIES ??
-  // @ts-ignore – or this one
-  (GalleriesConfig as any).DEMO_GALLERIES ??
-  {};
+const STATIC_GALLERIES: Record<string, DemoGallery> = GALLERIES;
 
 type Params = { slug: string };
 

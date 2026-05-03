@@ -109,7 +109,7 @@ export default function DashboardClient() {
         )}
 
         <div className="mt-4">
-          <Link href="/portal/onboarding" className="text-sm text-[#0A3161] underline underline-offset-2">
+          <Link href="/portal/profile" className="text-sm text-[#0A3161] underline underline-offset-2">
             Edit profile
           </Link>
         </div>
@@ -129,7 +129,21 @@ export default function DashboardClient() {
               title="My Registrations"
               desc="Your entries & statuses."
               cta="View registrations"
-              href="/portal/players"
+              href="/portal/my-registrations"
+              color="#0A3161"
+            />
+            <Card
+              title="Community Profile"
+              desc="Manage your public name, visibility, and club affiliation."
+              cta="Edit profile"
+              href="/portal/profile"
+              color="#B31942"
+            />
+            <Card
+              title="Orders & Payments"
+              desc="Review store checkouts and paid event history."
+              cta="Open billing"
+              href="/portal/orders"
               color="#0A3161"
             />
           </>
@@ -170,8 +184,15 @@ export default function DashboardClient() {
               title="My Registrations"
               desc="Divisions, statuses & bags."
               cta="View registrations"
-              href="/portal/players"
+              href="/portal/my-registrations"
               color="#0A3161"
+            />
+            <Card
+              title="Orders & Payments"
+              desc="Review store orders and paid registration history."
+              cta="Open billing"
+              href="/portal/orders"
+              color="#B31942"
             />
           </>
         )}

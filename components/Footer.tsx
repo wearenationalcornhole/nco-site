@@ -27,6 +27,12 @@ export default function Footer() {
             <Link href="/events" className="hover:text-accent transition-colors">
               Events
             </Link>
+            <Link href="/community" className="hover:text-accent transition-colors">
+              Community
+            </Link>
+            <Link href="/clubs" className="hover:text-accent transition-colors">
+              Clubs
+            </Link>
             <Link href="/shop" className="hover:text-accent transition-colors">
               Shop
             </Link>

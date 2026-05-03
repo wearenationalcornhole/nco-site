@@ -4,6 +4,7 @@ export const runtime = 'nodejs'
 import { NextResponse } from 'next/server'
 import { getPrisma } from '@/app/lib/safePrisma'
 import { devStore } from '@/app/lib/devStore'
+import { getEventDivisionMembersModel, getUsersModel } from '@/app/lib/prismaModels'
 
 type Status = 'assigned' | 'waitlisted'
 
@@ -21,10 +22,8 @@ type Row = {
 // DB/devStore row (snake_case)
 type RowDb = {
   id?: string
-  event_id: string
   division_id: string
   user_id: string
-  status: Status
   created_at: string | Date | null
 }
 
@@ -36,7 +35,9 @@ function asIso(d: string | Date | null): string | null {
 
 async function getUserById(prisma: any | null, userId: string) {
   if (prisma) {
-    const u = await prisma.users.findUnique({
+    const Users = getUsersModel(prisma)
+    if (!Users) throw new Error('Model users not found')
+    const u = await Users.findUnique({
       where: { id: userId },
       select: { id: true, name: true, email: true },
     }).catch(() => null)
@@ -48,34 +49,52 @@ async function getUserById(prisma: any | null, userId: string) {
 }
 
 async function listAssignments(prisma: any | null, eventId: string, divisionId: string): Promise<Row[]> {
+  let cap: number | null = null
+  if (prisma) {
+    const division = await prisma.event_divisions.findUnique({
+      where: { id: divisionId },
+      select: { event_id: true, cap: true },
+    }).catch(() => null)
+    if (!division || division.event_id !== eventId) return []
+    cap = division.cap ?? null
+  } else {
+    const division = devStore.getById<any>('event_divisions', divisionId)
+    if (!division || division.event_id !== eventId) return []
+    cap = division.cap ?? null
+  }
+
   let rows: RowDb[] = []
   if (prisma) {
-    rows = (await prisma.division_assignments.findMany({
-      where: { event_id: eventId, division_id: divisionId },
+    const Members = getEventDivisionMembersModel(prisma)
+    if (!Members) throw new Error('Model event_division_members not found')
+    rows = (await Members.findMany({
+      where: { division_id: divisionId },
       orderBy: { created_at: 'desc' },
     })) as unknown as RowDb[]
   } else {
     rows = devStore
-      .getAll<RowDb>('division_assignments')
-      .filter((a) => a.event_id === eventId && a.division_id === divisionId)
+      .getAll<RowDb>('event_division_members')
+      .filter((a) => a.division_id === divisionId)
       .sort((a, b) => (asIso(b.created_at) ?? '').localeCompare(asIso(a.created_at) ?? ''))
   }
 
   // stitch user info
+  const ordered = [...rows].sort((a, b) => (asIso(a.created_at) ?? '').localeCompare(asIso(b.created_at) ?? ''))
   const out: Row[] = []
-  for (const r of rows) {
+  for (let index = 0; index < ordered.length; index += 1) {
+    const r = ordered[index]
     const user = await getUserById(prisma, r.user_id)
     out.push({
       id: r.id!,
-      eventId: r.event_id,
+      eventId,
       divisionId: r.division_id,
       userId: r.user_id,
-      status: r.status,
+      status: cap !== null && index >= cap ? 'waitlisted' : 'assigned',
       createdAt: asIso(r.created_at),
       user,
     })
   }
-  return out
+  return out.sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
 }
 
 // GET: list assignments for a division (with user info)
@@ -117,13 +136,13 @@ export async function POST(req: Request, ctx: any) {
     // compute assigned count
     let assignedCount = 0
     if (prisma) {
-      assignedCount = await prisma.division_assignments.count({
-        where: { event_id: eventId, division_id: divisionId, status: 'assigned' },
-      })
+      const Members = getEventDivisionMembersModel(prisma)
+      if (!Members) throw new Error('Model event_division_members not found')
+      assignedCount = await Members.count({ where: { division_id: divisionId } })
     } else {
       assignedCount = devStore
-        .getAll<RowDb>('division_assignments')
-        .filter((a) => a.event_id === eventId && a.division_id === divisionId && a.status === 'assigned').length
+        .getAll<RowDb>('event_division_members')
+        .filter((a) => a.division_id === divisionId).length
     }
     const status: Status = cap !== null && assignedCount >= cap ? 'waitlisted' : 'assigned'
 
@@ -147,15 +166,17 @@ export async function POST(req: Request, ctx: any) {
       // exclude already assigned/waitlisted in this division
       const already = new Set<string>()
       if (prisma) {
-        const asn = (await prisma.division_assignments.findMany({
-          where: { event_id: eventId, division_id: divisionId },
+        const Members = getEventDivisionMembersModel(prisma)
+        if (!Members) throw new Error('Model event_division_members not found')
+        const members = (await Members.findMany({
+          where: { division_id: divisionId },
           select: { user_id: true },
         })) as { user_id: string }[]
-        asn.forEach((a) => already.add(a.user_id))
+        members.forEach((member) => already.add(member.user_id))
       } else {
         devStore
-          .getAll<RowDb>('division_assignments')
-          .filter((a) => a.event_id === eventId && a.division_id === divisionId)
+          .getAll<RowDb>('event_division_members')
+          .filter((a) => a.division_id === divisionId)
           .forEach((a) => already.add(a.user_id))
       }
 
@@ -164,22 +185,37 @@ export async function POST(req: Request, ctx: any) {
       userId = nextReg.user_id
     }
 
+    if (prisma) {
+      const Members = getEventDivisionMembersModel(prisma)
+      if (!Members) throw new Error('Model event_division_members not found')
+      const existing = await Members.findFirst({
+        where: { division_id: divisionId, user_id: userId },
+      })
+      if (existing) {
+        return NextResponse.json({ error: 'Player is already in this division' }, { status: 409 })
+      }
+    }
+
     let created: RowDb
     if (prisma) {
-      created = (await prisma.division_assignments.create({
+      const Members = getEventDivisionMembersModel(prisma)
+      if (!Members) throw new Error('Model event_division_members not found')
+      created = (await Members.create({
         data: {
-          event_id: eventId,
           division_id: divisionId,
           user_id: userId,
-          status,
         },
       })) as unknown as RowDb
     } else {
-      created = devStore.upsert<RowDb>('division_assignments', {
-        event_id: eventId,
+      const existing = devStore
+        .getAll<RowDb>('event_division_members')
+        .find((row) => row.division_id === divisionId && row.user_id === userId)
+      if (existing) {
+        return NextResponse.json({ error: 'Player is already in this division' }, { status: 409 })
+      }
+      created = devStore.upsert<RowDb>('event_division_members', {
         division_id: divisionId,
         user_id: userId,
-        status,
         created_at: new Date(),
       })
     }
@@ -188,10 +224,10 @@ export async function POST(req: Request, ctx: any) {
 
     const out: Row = {
       id: created.id!,
-      eventId: created.event_id,
+      eventId,
       divisionId: created.division_id,
       userId: created.user_id,
-      status: created.status,
+      status,
       createdAt: asIso(created.created_at),
       user,
     }
@@ -213,17 +249,30 @@ export async function DELETE(req: Request, ctx: any) {
     const prisma = await getPrisma()
     if (prisma) {
       // ensure it belongs to event/division
-      const row = await prisma.division_assignments.findUnique({ where: { id: assignmentId } }).catch(() => null)
-      if (!row || row.event_id !== eventId || row.division_id !== divisionId) {
+      const Members = getEventDivisionMembersModel(prisma)
+      if (!Members) throw new Error('Model event_division_members not found')
+      const row = await Members.findUnique({ where: { id: assignmentId } }).catch(() => null)
+      if (!row || row.division_id !== divisionId) {
         return NextResponse.json({ error: 'Not found' }, { status: 404 })
       }
-      await prisma.division_assignments.delete({ where: { id: assignmentId } })
+      const division = await prisma.event_divisions.findUnique({
+        where: { id: divisionId },
+        select: { event_id: true },
+      }).catch(() => null)
+      if (!division || division.event_id !== eventId) {
+        return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      }
+      await Members.delete({ where: { id: assignmentId } })
     } else {
-      const row = devStore.getById<RowDb>('division_assignments', assignmentId)
-      if (!row || row.event_id !== eventId || row.division_id !== divisionId) {
+      const row = devStore.getById<RowDb>('event_division_members', assignmentId)
+      if (!row || row.division_id !== divisionId) {
         return NextResponse.json({ error: 'Not found' }, { status: 404 })
       }
-      devStore.remove('division_assignments', assignmentId)
+      const division = devStore.getById<any>('event_divisions', divisionId)
+      if (!division || division.event_id !== eventId) {
+        return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      }
+      devStore.remove('event_division_members', assignmentId)
     }
 
     return NextResponse.json({ ok: true })

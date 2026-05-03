@@ -4,6 +4,16 @@ export const runtime = 'nodejs'
 import { NextResponse } from 'next/server'
 import { getPrisma } from '@/app/lib/safePrisma'
 import { devStore } from '@/app/lib/devStore'
+import { getUsersModel } from '@/app/lib/prismaModels'
+
+function toPlayer(row: any) {
+  return {
+    id: String(row.id),
+    name: row.name ?? null,
+    email: row.email ?? null,
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at ?? null,
+  }
+}
 
 /**
  * GET /portal/api/players?q=&page=&pageSize=
@@ -19,6 +29,8 @@ export async function GET(req: Request) {
 
     const prisma = await getPrisma()
     if (prisma) {
+      const Users = getUsersModel(prisma)
+      if (!Users) throw new Error('Model users not found')
       const where = q
         ? {
             OR: [
@@ -29,14 +41,14 @@ export async function GET(req: Request) {
         : {}
 
       const [items, total] = await Promise.all([
-        prisma.user.findMany({
-          where, orderBy: { createdAt: 'desc' }, skip: offset, take: pageSize,
-          select: { id: true, name: true, email: true, createdAt: true },
+        Users.findMany({
+          where, orderBy: { created_at: 'desc' }, skip: offset, take: pageSize,
+          select: { id: true, name: true, email: true, created_at: true },
         }),
-        prisma.user.count({ where }),
+        Users.count({ where }),
       ])
 
-      return NextResponse.json({ items, total, page, pageSize, source: 'prisma' })
+      return NextResponse.json({ items: items.map(toPlayer), total, page, pageSize, source: 'prisma' })
     }
 
     // dev fallback
@@ -49,8 +61,9 @@ export async function GET(req: Request) {
       : all
     const total = filtered.length
     const items = filtered
-      .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
+      .sort((a, b) => (b.created_at ?? b.createdAt ?? '').localeCompare(a.created_at ?? a.createdAt ?? ''))
       .slice(offset, offset + pageSize)
+      .map(toPlayer)
 
     return NextResponse.json({ items, total, page, pageSize, source: 'devStore' })
   } catch (e: any) {
@@ -72,14 +85,16 @@ export async function POST(req: Request) {
 
     const prisma = await getPrisma()
     if (prisma) {
-      const existing = await prisma.user.findUnique({ where: { email } })
-      if (existing) return NextResponse.json(existing)
+      const Users = getUsersModel(prisma)
+      if (!Users) throw new Error('Model users not found')
+      const existing = await Users.findUnique({ where: { email } })
+      if (existing) return NextResponse.json(toPlayer(existing))
 
-      const created = await prisma.user.create({
+      const created = await Users.create({
         data: { email, name: name || null },
-        select: { id: true, name: true, email: true, createdAt: true },
+        select: { id: true, name: true, email: true, created_at: true },
       })
-      return NextResponse.json(created, { status: 201 })
+      return NextResponse.json(toPlayer(created), { status: 201 })
     }
 
     // dev fallback
@@ -89,9 +104,9 @@ export async function POST(req: Request) {
     const created = devStore.upsert('users', {
       email,
       name: name || null,
-      createdAt: new Date().toISOString(),
+      created_at: new Date().toISOString(),
     })
-    return NextResponse.json(created, { status: 201 })
+    return NextResponse.json(toPlayer(created), { status: 201 })
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? 'Invalid payload' }, { status: 400 })
   }

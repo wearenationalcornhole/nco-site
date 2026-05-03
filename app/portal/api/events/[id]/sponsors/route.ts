@@ -3,6 +3,7 @@ export const runtime = 'nodejs'
 import { NextResponse } from 'next/server'
 import { getPrisma } from '@/app/lib/safePrisma'
 import { devStore } from '@/app/lib/devStore'
+import { getEventSponsorsModel, getSponsorCompaniesModel } from '@/app/lib/prismaModels'
 
 type SponsorPayload = {
   name: string
@@ -22,39 +23,44 @@ export async function GET(
     const prisma = await getPrisma()
 
     if (prisma) {
-      const rows = await prisma.eventSponsor.findMany({
-        where: { eventId },
-        include: { company: true },
-        orderBy: { createdAt: 'desc' },
+      const EventSponsors = getEventSponsorsModel(prisma)
+      if (!EventSponsors) throw new Error('Model event_sponsors not found')
+      const rows = await EventSponsors.findMany({
+        where: { event_id: eventId },
+        include: { sponsor_companies: true },
+        orderBy: { created_at: 'desc' },
       })
       return NextResponse.json(
         rows.map((r: any) => ({
           id: r.id,                    // link id (event_sponsors)
-          companyId: r.companyId,
-          name: r.company?.name ?? '—',
-          url: r.company?.website ?? null,
-          logo: r.company?.logoUrl ?? null,
-          logoHash: r.company?.logoHash ?? null,
+          companyId: r.company_id,
+          name: r.sponsor_companies?.name ?? '—',
+          url: r.sponsor_companies?.website ?? null,
+          logo: r.sponsor_companies?.logo_url ?? null,
+          logoHash: r.sponsor_companies?.logo_hash ?? null,
           tier: r.tier ?? null,
-          createdAt: r.createdAt,
+          createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : r.created_at ?? null,
         }))
       )
     }
 
     // dev fallback
-    const links = devStore.getAll<any>('event_sponsors').filter((x) => x.eventId === eventId)
+    const links = devStore
+      .getAll<any>('event_sponsors')
+      .filter((x) => (x.event_id ?? x.eventId) === eventId)
     const companies = devStore.getAll<any>('sponsor_companies')
     const out = links.map((lnk: any) => {
-      const c = companies.find((c: any) => c.id === lnk.companyId)
+      const companyId = lnk.company_id ?? lnk.companyId
+      const c = companies.find((c: any) => c.id === companyId)
       return {
         id: lnk.id,
-        companyId: lnk.companyId,
+        companyId,
         name: c?.name ?? '—',
         url: c?.website ?? null,
-        logo: c?.logoUrl ?? null,
-        logoHash: c?.logoHash ?? null,
+        logo: c?.logo_url ?? c?.logoUrl ?? null,
+        logoHash: c?.logo_hash ?? c?.logoHash ?? null,
         tier: lnk.tier ?? null,
-        createdAt: lnk.createdAt,
+        createdAt: lnk.created_at ?? lnk.createdAt ?? null,
       }
     })
     return NextResponse.json(out)
@@ -76,34 +82,38 @@ export async function POST(
 
     const prisma = await getPrisma()
     if (prisma) {
+      const EventSponsors = getEventSponsorsModel(prisma)
+      const SponsorCompanies = getSponsorCompaniesModel(prisma)
+      if (!EventSponsors) throw new Error('Model event_sponsors not found')
+      if (!SponsorCompanies) throw new Error('Model sponsor_companies not found')
       // 1) find company by hash or name
       let company = null as any
       if (logoHash) {
-        company = await prisma.sponsorCompany.findFirst({ where: { logoHash } })
+        company = await SponsorCompanies.findFirst({ where: { logo_hash: logoHash } })
       }
       if (!company) {
-        company = await prisma.sponsorCompany.findFirst({
+        company = await SponsorCompanies.findFirst({
           where: { name: { equals: name.trim(), mode: 'insensitive' } },
         })
       }
 
       // 2) create or update minimal fields if missing
       if (!company) {
-        company = await prisma.sponsorCompany.create({
+        company = await SponsorCompanies.create({
           data: {
             name: name.trim(),
             website: url ?? null,
-            logoUrl: logo ?? null,
-            logoHash: logoHash ?? null,
+            logo_url: logo ?? null,
+            logo_hash: logoHash ?? null,
           },
         })
       } else {
         const updates: any = {}
         if (url && !company.website) updates.website = url
-        if (logo && !company.logoUrl) updates.logoUrl = logo
-        if (logoHash && !company.logoHash) updates.logoHash = logoHash
+        if (logo && !company.logo_url) updates.logo_url = logo
+        if (logoHash && !company.logo_hash) updates.logo_hash = logoHash
         if (Object.keys(updates).length) {
-          company = await prisma.sponsorCompany.update({
+          company = await SponsorCompanies.update({
             where: { id: company.id },
             data: updates,
           })
@@ -111,30 +121,30 @@ export async function POST(
       }
 
       // 3) link to event (avoid composite upsert type issues by findFirst→create/update)
-      const existingLink = await prisma.eventSponsor.findFirst({
-        where: { eventId, companyId: company.id },
+      const existingLink = await EventSponsors.findFirst({
+        where: { event_id: eventId, company_id: company.id },
       })
       const link = existingLink
-        ? await prisma.eventSponsor.update({
+        ? await EventSponsors.update({
             where: { id: existingLink.id },
             data: { tier: tier ?? existingLink.tier ?? null },
-            include: { company: true },
+            include: { sponsor_companies: true },
           })
-        : await prisma.eventSponsor.create({
-            data: { eventId, companyId: company.id, tier: tier ?? null },
-            include: { company: true },
+        : await EventSponsors.create({
+            data: { event_id: eventId, company_id: company.id, tier: tier ?? null },
+            include: { sponsor_companies: true },
           })
 
       return NextResponse.json(
         {
           id: link.id,
-          companyId: link.companyId,
-          name: link.company.name,
-          url: link.company.website,
-          logo: link.company.logoUrl,
-          logoHash: link.company.logoHash,
+          companyId: link.company_id,
+          name: link.sponsor_companies.name,
+          url: link.sponsor_companies.website,
+          logo: link.sponsor_companies.logo_url,
+          logoHash: link.sponsor_companies.logo_hash,
           tier: link.tier,
-          createdAt: link.createdAt,
+          createdAt: link.created_at instanceof Date ? link.created_at.toISOString() : link.created_at ?? null,
         },
         { status: 201 }
       )
@@ -150,29 +160,29 @@ export async function POST(
         id: crypto.randomUUID(),
         name: name.trim(),
         website: url ?? null,
-        logoUrl: logo ?? null,
-        logoHash: logoHash ?? null,
-        createdAt: new Date().toISOString(),
+        logo_url: logo ?? null,
+        logo_hash: logoHash ?? null,
+        created_at: new Date().toISOString(),
       })
     }
     const existingLink = devStore.getAll<any>('event_sponsors')
-      .find((x) => x.eventId === eventId && x.companyId === company.id)
+      .find((x) => (x.event_id ?? x.eventId) === eventId && (x.company_id ?? x.companyId) === company.id)
     const link = existingLink ?? devStore.upsert('event_sponsors', {
       id: crypto.randomUUID(),
-      eventId,
-      companyId: company.id,
+      event_id: eventId,
+      company_id: company.id,
       tier: tier ?? null,
-      createdAt: new Date().toISOString(),
+      created_at: new Date().toISOString(),
     })
     return NextResponse.json({
       id: link.id,
       companyId: company.id,
       name: company.name,
       url: company.website,
-      logo: company.logoUrl,
-      logoHash: company.logoHash,
+      logo: company.logo_url ?? company.logoUrl ?? null,
+      logoHash: company.logo_hash ?? company.logoHash ?? null,
       tier: link.tier,
-      createdAt: link.createdAt,
+      createdAt: link.created_at ?? link.createdAt ?? null,
     }, { status: 201 })
   } catch (e: any) {
     console.error('POST /events/[eventId]/sponsors error', e)
