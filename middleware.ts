@@ -42,13 +42,11 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  // Keep private/demo surfaces out of search indices.
   if (pathname.startsWith('/demo-gallery') || pathname.startsWith('/portal')) {
     res.headers.set('X-Robots-Tag', 'noindex, nofollow')
     return res
   }
 
-  // Everything else (including /portal) → untouched
   return res
 }
 
