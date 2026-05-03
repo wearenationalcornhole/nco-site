@@ -10,6 +10,8 @@ function sanitizeRedirect(value: string | null) {
 export async function GET(req: Request) {
   const url = new URL(req.url)
   const code = url.searchParams.get('code')
+  const tokenHash = url.searchParams.get('token_hash')
+  const type = url.searchParams.get('type')
   const nextPath = sanitizeRedirect(url.searchParams.get('redirect'))
 
   let response = NextResponse.redirect(new URL(nextPath, url.origin))
@@ -34,6 +36,16 @@ export async function GET(req: Request) {
 
   if (code) {
     await supabase.auth.exchangeCodeForSession(code)
+  } else if (tokenHash) {
+    await supabase.auth.verifyOtp({
+      token_hash: tokenHash,
+      type:
+        type === 'recovery' ||
+        type === 'invite' ||
+        type === 'email_change'
+          ? type
+          : 'email',
+    })
   }
 
   return response
