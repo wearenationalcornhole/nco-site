@@ -10,7 +10,7 @@ export async function middleware(req: NextRequest) {
     },
   })
 
-  if (pathname.startsWith('/portal')) {
+  if (pathname.startsWith('/portal') && !pathname.startsWith('/portal/login')) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
