@@ -31,7 +31,7 @@ function fmtDate(iso?: string | null) {
 }
 
 export default function EventsPageClient() {
-  const supabase = createClientComponentClient();
+  const [supabase] = useState(() => getSupabaseBrowser());
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
