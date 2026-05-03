@@ -16,11 +16,13 @@ export async function GET(req: Request) {
   const type = url.searchParams.get('type')
   const nextPath = sanitizeRedirect(url.searchParams.get('redirect'))
 
-  //let response = NextResponse.redirect(new URL(nextPath, url.origin))
-  let response = NextResponse.redirect(
-  new URL('/portal/login?debug=callback_success', url.origin)
-)
   const cookieStore = await cookies()
+
+  let supabaseResponse = NextResponse.next({
+    request: {
+      headers: req.headers,
+    },
+  })
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -32,7 +34,7 @@ export async function GET(req: Request) {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, options)
+            supabaseResponse.cookies.set(name, value, options)
           })
         },
       },
@@ -43,8 +45,6 @@ export async function GET(req: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (error) {
-      console.error('Auth callback exchangeCodeForSession error:', error.message)
-
       return NextResponse.redirect(
         new URL(
           `/portal/login?error=${encodeURIComponent(error.message)}`,
@@ -52,11 +52,7 @@ export async function GET(req: Request) {
         ),
       )
     }
-
-    return response
-  }
-
-  if (tokenHash) {
+  } else if (tokenHash) {
     const { error } = await supabase.auth.verifyOtp({
       token_hash: tokenHash,
       type:
@@ -68,8 +64,6 @@ export async function GET(req: Request) {
     })
 
     if (error) {
-      console.error('Auth callback verifyOtp error:', error.message)
-
       return NextResponse.redirect(
         new URL(
           `/portal/login?error=${encodeURIComponent(error.message)}`,
@@ -77,11 +71,17 @@ export async function GET(req: Request) {
         ),
       )
     }
-
-    return response
+  } else {
+    return NextResponse.redirect(
+      new URL('/portal/login?error=missing_auth_code', url.origin),
+    )
   }
 
-  return NextResponse.redirect(
-    new URL('/portal/login?error=missing_auth_code', url.origin),
-  )
+  const redirectResponse = NextResponse.redirect(new URL(nextPath, url.origin))
+
+  supabaseResponse.cookies.getAll().forEach((cookie) => {
+    redirectResponse.cookies.set(cookie)
+  })
+
+  return redirectResponse
 }
