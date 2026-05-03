@@ -7,7 +7,7 @@ import { getSupabaseBrowser } from '@/app/lib/supabaseBrowser';
 type Role = 'admin' | 'organizer' | 'player';
 
 export default function SecurityClient({ role }: { role: Role }) {
-  const supabase = createClientComponentClient();
+  const [supabase] = useState(() => getSupabaseBrowser());
   const [supported, setSupported] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
