@@ -33,7 +33,7 @@ export default function DashboardClient() {
           data: { user },
         } = await supabase.auth.getUser();
         if (!user) {
-          router.replace('/portal/login');
+          router.replace('/portal/login?error=no_user_in_dashboard_client');
           return;
         }
         setEmail(user.email ?? null);
