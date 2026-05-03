@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { getEventRegistrationConfig } from '@/app/lib/eventRegistration';
 
 type Role = 'organizer' | 'player' | 'admin';
 
@@ -121,6 +122,9 @@ export default function EventsPageClient() {
               <h2 className="text-lg font-semibold text-gray-900">{e.title}</h2>
               <p className="text-sm text-gray-600">{e.city ?? 'TBD'}</p>
               <p className="text-sm text-gray-600 mt-1">{fmtDate(e.date)}</p>
+              <p className="mt-2 text-sm text-gray-500">
+                Registration: {getEventRegistrationConfig({ id: e.id, slug: e.slug }).amountLabel}
+              </p>
               <div className="mt-3">
                 <Link
                   href={`/portal/events/${e.slug ?? e.id}`}

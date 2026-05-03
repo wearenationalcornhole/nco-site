@@ -1,15 +1,17 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Spinner from '@/components/ui/Spinner'
+import { slugifyEventTitle } from '@/app/lib/eventRecords'
 
 type Event = {
   id: string
   slug: string | null
   title: string
-  city?: string | null
-  date?: string | null
-  image?: string | null
+  city: string | null
+  date: string | null
+  image: string | null
+  logo_url?: string | null
 }
 
 export default function EditDetailsPanel({
@@ -22,6 +24,7 @@ export default function EditDetailsPanel({
   onToast: (t: { msg: string; kind: 'success' | 'error' }) => void
 }) {
   const [title, setTitle] = useState(event.title)
+  const [slug, setSlug] = useState(event.slug ?? '')
   const [city, setCity] = useState(event.city ?? '')
   const [date, setDate] = useState(event.date ?? '')
   const [imageUrl, setImageUrl] = useState(event.image ?? '')
@@ -29,15 +32,25 @@ export default function EditDetailsPanel({
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
 
+  useEffect(() => {
+    setTitle(event.title)
+    setSlug(event.slug ?? '')
+    setCity(event.city ?? '')
+    setDate(event.date ?? '')
+    setImageUrl(event.image ?? '')
+    setFile(null)
+  }, [event.id, event.title, event.slug, event.city, event.date, event.image])
+
   const hasChanges = useMemo(() => {
     return (
       title !== event.title ||
+      (slug || null) !== (event.slug ?? null) ||
       (city || null) !== (event.city ?? null) ||
       (date || null) !== (event.date ?? null) ||
       (imageUrl || null) !== (event.image ?? null) ||
       !!file
     )
-  }, [title, city, date, imageUrl, file, event])
+  }, [title, slug, city, date, imageUrl, file, event])
 
   async function uploadToSupabase(file: File): Promise<string> {
     setUploading(true)
@@ -86,6 +99,7 @@ export default function EditDetailsPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: title.trim(),
+          slug: slug.trim() || slugifyEventTitle(title),
           city: city.trim() || null,
           date: date.trim() || null,
           image: finalImage ?? null,
@@ -116,8 +130,24 @@ export default function EditDetailsPanel({
           <input
             className="rounded border px-3 py-2 text-sm"
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => {
+              const nextTitle = e.target.value
+              setTitle(nextTitle)
+              if (!slug || slug === slugifyEventTitle(title)) {
+                setSlug(slugifyEventTitle(nextTitle))
+              }
+            }}
             required
+          />
+        </label>
+
+        <label className="grid gap-1">
+          <span className="text-sm text-gray-600">Slug</span>
+          <input
+            className="rounded border px-3 py-2 text-sm"
+            value={slug}
+            onChange={(e) => setSlug(slugifyEventTitle(e.target.value))}
+            placeholder="event-slug"
           />
         </label>
 
@@ -145,7 +175,7 @@ export default function EditDetailsPanel({
 
         {/* Image URL */}
         <label className="grid gap-1">
-          <span className="text-sm text-gray-600">Tournament Logo URL (optional)</span>
+          <span className="text-sm text-gray-600">Hero Image URL (optional)</span>
           <input
             className="rounded border px-3 py-2 text-sm"
             value={imageUrl}
@@ -156,7 +186,7 @@ export default function EditDetailsPanel({
 
         {/* Or upload */}
         <div className="grid gap-2">
-          <span className="text-sm text-gray-600">Or upload a logo</span>
+          <span className="text-sm text-gray-600">Or upload a hero image</span>
           <input
             type="file"
             accept="image/*"
@@ -181,7 +211,7 @@ export default function EditDetailsPanel({
                   className="h-full w-full object-cover"
                 />
               ) : imageUrl ? (
-                <img src={imageUrl} alt="Tournament logo" className="h-full w-full object-contain" />
+                <img src={imageUrl} alt="Tournament hero" className="h-full w-full object-contain" />
               ) : null}
             </div>
             <span className="text-xs text-gray-500">Preview</span>

@@ -1,70 +1,20 @@
 // app/events/[slug]/page.tsx
 import Link from 'next/link'
 import RegisterButton from '@/components/RegisterButton'
-import { headers } from 'next/headers'
+import {
+  fetchEventBySlug,
+  fetchEventSponsors,
+  formatEventDate,
+} from '@/app/lib/publicEvents'
+import { getEventRegistrationConfigByRecord } from '@/app/lib/eventRegistration'
 
-type Event = {
-  id: string
-  slug: string | null
-  title: string
-  city?: string | null
-  date?: string | null
-  image?: string | null
-  createdAt?: string | null
-}
-
-type SponsorLink = {
-  id: string
-  event_id: string
-  company_id: string
-  tier?: string | null
-  created_at?: string | null
-  sponsor_companies?: {
-    id: string
-    name: string
-    website?: string | null
-    logo_url?: string | null
-  } | null
-}
-
-function fmtDate(iso?: string | null) {
-  if (!iso) return 'TBD'
-  const [y, m, d] = iso.split('-').map(Number)
-  const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1))
-  return dt.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
-}
-
-async function baseUrl() {
-  const h = await headers()
-  const proto = h.get('x-forwarded-proto') ?? 'https'
-  const host = h.get('host') ?? process.env.VERCEL_URL ?? 'localhost:3000'
-  return `${proto}://${host}`
-}
-
-async function getEventBySlug(slug: string): Promise<Event | null> {
-  const res = await fetch(`/portal/api/events/by-slug/${encodeURIComponent(slug)}`, {
-    cache: 'no-store',
-  })
-  if (!res.ok) return null
-  return res.json()
-}
-
-async function getSponsors(eventId: string): Promise<SponsorLink[]> {
-  const res = await fetch(`/portal/api/event-sponsors?eventId=${encodeURIComponent(eventId)}`, {
-    cache: 'no-store',
-  })
-  if (!res.ok) return []
-  return res.json()
-}
-
-export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ slug: string }>
+}) {
   const { slug } = await params
-  const event = await getEventBySlug(slug)
+  const event = await fetchEventBySlug(slug)
 
   if (!event) {
     return (
@@ -80,7 +30,8 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
     )
   }
 
-  const sponsors = await getSponsors(event.id)
+  const sponsors = await fetchEventSponsors(event.id)
+  const registrationConfig = getEventRegistrationConfigByRecord(event)
 
   return (
     <div className="min-h-screen">
@@ -98,10 +49,24 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
             {event.title}
           </h1>
           <p className="mt-3 text-white/90">
-            {event.city ?? 'TBD'} • {fmtDate(event.date)}
+            {event.city ?? 'TBD'} • {formatEventDate(event.date)}
           </p>
-          <div className="mt-6">
-            <RegisterButton eventId={event.id} />
+          <div className="mt-6 max-w-md rounded-2xl bg-white/10 p-4 backdrop-blur">
+            <p className="text-sm font-semibold uppercase tracking-wide text-white/80">
+              Registration Status
+            </p>
+            <p className="mt-2 text-sm text-white">
+              {registrationConfig.description}
+            </p>
+            <div className="mt-4">
+              <RegisterButton
+                eventId={event.id}
+                redirectTo={`/events/${event.slug ?? event.id}`}
+                label={registrationConfig.buttonLabel}
+                mode={registrationConfig.mode}
+                helperText={registrationConfig.description}
+              />
+            </div>
           </div>
         </div>
       </section>
@@ -112,7 +77,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
           <article className="lg:col-span-2">
             <h2 className="text-xl font-semibold">About this Event</h2>
             <p className="mt-3 text-gray-700">
-              Get ready to throw! Register now to secure your spot. Check back for divisions, prize pools, and schedule.
+              Get ready to throw. Public event details are live now, and online registration is available after sign-in.
             </p>
 
             {event.image && (
@@ -133,11 +98,15 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
               <dl className="mt-3 text-sm">
                 <div className="flex justify-between py-2 border-b">
                   <dt className="text-gray-500">Date</dt>
-                  <dd className="font-medium">{fmtDate(event.date)}</dd>
+                  <dd className="font-medium">{formatEventDate(event.date)}</dd>
                 </div>
                 <div className="flex justify-between py-2 border-b">
-                  <dt className="text-gray-500">City</dt>
+                  <dt className="text-gray-500">Venue</dt>
                   <dd className="font-medium">{event.city ?? 'TBD'}</dd>
+                </div>
+                <div className="flex justify-between py-2 border-b">
+                  <dt className="text-gray-500">Registration</dt>
+                  <dd className="font-medium">{registrationConfig.amountLabel}</dd>
                 </div>
                 <div className="flex justify-between py-2">
                   <dt className="text-gray-500">Slug</dt>
@@ -145,7 +114,13 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                 </div>
               </dl>
               <div className="mt-4">
-                <RegisterButton eventId={event.id} />
+                <RegisterButton
+                  eventId={event.id}
+                  redirectTo={`/events/${event.slug ?? event.id}`}
+                  label={registrationConfig.buttonLabel}
+                  mode={registrationConfig.mode}
+                  helperText={registrationConfig.description}
+                />
               </div>
             </div>
           </aside>

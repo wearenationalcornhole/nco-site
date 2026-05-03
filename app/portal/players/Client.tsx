@@ -196,7 +196,7 @@ export default function Client() {
         </div>
         <div className="flex gap-2">
           <Link
-            href="/portal/onboarding"  // ← correct route
+            href="/portal/profile"
             className="rounded border px-3 py-1.5 text-sm hover:bg-gray-50"
           >
             Edit profile

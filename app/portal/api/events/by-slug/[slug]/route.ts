@@ -4,6 +4,7 @@ export const runtime = 'nodejs'
 import { NextResponse } from 'next/server'
 import { getPrisma } from '@/app/lib/safePrisma'
 import { devStore } from '@/app/lib/devStore'
+import { serializeEventRecord } from '@/app/lib/eventRecords'
 
 export async function GET(_req: Request, context: any) {
   try {
@@ -15,9 +16,11 @@ export async function GET(_req: Request, context: any) {
     const prisma = await getPrisma()
     if (prisma) {
       // In your schema, the table is `events` with a `slug` column
-      const event = await prisma.events.findFirst({ where: { slug } })
+      const event =
+        (await prisma.events.findFirst({ where: { slug } })) ??
+        (await prisma.events.findUnique({ where: { id: slug } }).catch(() => null))
       if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-      return NextResponse.json(event)
+      return NextResponse.json(serializeEventRecord(event))
     }
 
     // devStore fallback
@@ -27,7 +30,7 @@ export async function GET(_req: Request, context: any) {
       items.find((e) => e.id === slug)
 
     if (!match) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    return NextResponse.json(match)
+    return NextResponse.json(serializeEventRecord(match))
   } catch (e) {
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
