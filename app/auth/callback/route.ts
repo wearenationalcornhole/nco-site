@@ -16,7 +16,10 @@ export async function GET(req: Request) {
   const type = url.searchParams.get('type')
   const nextPath = sanitizeRedirect(url.searchParams.get('redirect'))
 
-  let response = NextResponse.redirect(new URL(nextPath, url.origin))
+  //let response = NextResponse.redirect(new URL(nextPath, url.origin))
+  let response = NextResponse.redirect(
+  new URL('/portal/login?debug=callback_success', url.origin)
+)
   const cookieStore = await cookies()
 
   const supabase = createServerClient(
