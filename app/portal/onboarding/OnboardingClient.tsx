@@ -25,7 +25,7 @@ type Club = { id: string; name: string };
 
 export default function OnboardingClient() {
   const router = useRouter();
-  const supabase = createClientComponentClient();
+  const [supabase] = useState(() => getSupabaseBrowser());
 
   // User + load state
   const [email, setEmail] = useState<string | null>(null);
