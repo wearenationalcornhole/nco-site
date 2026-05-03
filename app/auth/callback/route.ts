@@ -1,20 +1,40 @@
-// app/auth/callback/route.ts
-import { cookies } from 'next/headers';
-import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers'
+import { NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
+
+function sanitizeRedirect(value: string | null) {
+  if (!value || !value.startsWith('/')) return '/portal'
+  return value
+}
 
 export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const code = url.searchParams.get('code');
-  const next = url.searchParams.get('redirect') || '/portal';
+  const url = new URL(req.url)
+  const code = url.searchParams.get('code')
+  const nextPath = sanitizeRedirect(url.searchParams.get('redirect'))
 
-  const supabase = createRouteHandlerClient({ cookies });
+  let response = NextResponse.redirect(new URL(nextPath, url.origin))
+  const cookieStore = await cookies()
 
-  // Server-side exchange: this sets the sb- cookies on your domain
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll().map(({ name, value }) => ({ name, value }))
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options)
+          })
+        },
+      },
+    },
+  )
+
   if (code) {
-    await supabase.auth.exchangeCodeForSession(code);
+    await supabase.auth.exchangeCodeForSession(code)
   }
 
-  // Even if there's no code (rare), just send them on; session may already exist
-  return NextResponse.redirect(new URL(next, url.origin));
+  return response
 }
