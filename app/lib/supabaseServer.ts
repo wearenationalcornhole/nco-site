@@ -10,7 +10,6 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  * Use route handlers (e.g., app/auth/callback/route.ts) for auth writes.
  */
 export async function getSupabaseServer(): Promise<SupabaseClient> {
-  // In your setup, cookies() is async → await it
   const cookieStore = await cookies();
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -18,12 +17,19 @@ export async function getSupabaseServer(): Promise<SupabaseClient> {
 
   return createServerClient(url, anon, {
     cookies: {
-      get(name: string) {
-        return cookieStore.get(name)?.value;
+      getAll() {
+        return cookieStore.getAll().map(({ name, value }) => ({ name, value }));
       },
-      // No-ops so server components never attempt cookie writes
-      set() {},
-      remove() {},
+      // Server components cannot persist cookie writes, but Supabase SSR expects this hook.
+      setAll(cookiesToSet) {
+        try {
+          for (const { name, value, options } of cookiesToSet) {
+            cookieStore.set(name, value, options);
+          }
+        } catch {
+          // Ignore write attempts from server components.
+        }
+      },
     },
   });
 }
