@@ -4,6 +4,13 @@ import { createServerClient } from '@supabase/ssr'
 
 function sanitizeRedirect(value: string | null) {
   if (!value || !value.startsWith('/')) return '/portal'
+
+  // Do not allow auth to "successfully" redirect back to login.
+  if (value.startsWith('/portal/login')) return '/portal'
+
+  // Avoid protocol-relative redirects like //evil.com
+  if (value.startsWith('//')) return '/portal'
+
   return value
 }
 
@@ -14,7 +21,7 @@ export async function GET(req: Request) {
   const type = url.searchParams.get('type')
   const nextPath = sanitizeRedirect(url.searchParams.get('redirect'))
 
-  let response = NextResponse.redirect(new URL(nextPath, url.origin))
+  const response = NextResponse.redirect(new URL(nextPath, url.origin))
   const cookieStore = await cookies()
 
   const supabase = createServerClient(
@@ -35,9 +42,24 @@ export async function GET(req: Request) {
   )
 
   if (code) {
-    await supabase.auth.exchangeCodeForSession(code)
-  } else if (tokenHash) {
-    await supabase.auth.verifyOtp({
+    const { error } = await supabase.auth.exchangeCodeForSession(code)
+
+    if (error) {
+      console.error('Auth callback exchangeCodeForSession error:', error.message)
+
+      return NextResponse.redirect(
+        new URL(
+          `/portal/login?error=${encodeURIComponent(error.message)}`,
+          url.origin,
+        ),
+      )
+    }
+
+    return response
+  }
+
+  if (tokenHash) {
+    const { error } = await supabase.auth.verifyOtp({
       token_hash: tokenHash,
       type:
         type === 'recovery' ||
@@ -46,7 +68,22 @@ export async function GET(req: Request) {
           ? type
           : 'email',
     })
+
+    if (error) {
+      console.error('Auth callback verifyOtp error:', error.message)
+
+      return NextResponse.redirect(
+        new URL(
+          `/portal/login?error=${encodeURIComponent(error.message)}`,
+          url.origin,
+        ),
+      )
+    }
+
+    return response
   }
 
-  return response
+  return NextResponse.redirect(
+    new URL('/portal/login?error=missing_auth_code', url.origin),
+  )
 }
