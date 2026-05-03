@@ -9,13 +9,18 @@ export async function getSupabaseServer() {
 
   return createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
-      // READ-ONLY adapters for server components:
-      get(name: string) {
-        return cookieStore.get(name)?.value
+      getAll() {
+        return cookieStore.getAll().map(({ name, value }) => ({ name, value }))
       },
-      // noop: don’t write cookies from server components
-      set() {},
-      remove() {},
+      setAll(cookiesToSet) {
+        try {
+          for (const { name, value, options } of cookiesToSet) {
+            cookieStore.set(name, value, options)
+          }
+        } catch {
+          // Ignore server-component cookie writes.
+        }
+      },
     },
   })
 }
