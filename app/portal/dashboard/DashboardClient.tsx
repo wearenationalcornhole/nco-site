@@ -40,11 +40,11 @@ export default function DashboardClient() {
         if (perr) throw perr;
 
         if (!p?.role) {
-          router.replace('/portal/onboarding');
+          router.replace('/portal/onboarding?debug=missing_profile_or_role');
           return;
         }
         if (!p?.is_profile_complete) {
-          router.replace('/portal/onboarding/profile');
+          router.replace('/portal/onboarding/profile?debug=incomplete_profile');
           return;
         }
 
