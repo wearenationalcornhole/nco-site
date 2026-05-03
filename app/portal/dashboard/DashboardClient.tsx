@@ -1,22 +1,15 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createBrowserClient} from '@supabase/ssr';
+import { getSupabaseBrowser } from '@/app/lib/supabaseBrowser';
 
 type Role = 'organizer' | 'player' | 'admin';
 
 export default function DashboardClient() {
   const router = useRouter();
-  const supabase = useMemo(
-    () =>
-      createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      ),
-    []
-  );
+  const [supabase] = useState(() => getSupabaseBrowser());
 
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState<string | null>(null);
