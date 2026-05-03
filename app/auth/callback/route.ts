@@ -16,7 +16,7 @@ export async function GET(req: Request) {
   const type = url.searchParams.get('type')
   const nextPath = sanitizeRedirect(url.searchParams.get('redirect'))
 
-  const response = NextResponse.redirect(new URL(nextPath, url.origin))
+  let response = NextResponse.redirect(new URL(nextPath, url.origin))
   const cookieStore = await cookies()
 
   const supabase = createServerClient(
