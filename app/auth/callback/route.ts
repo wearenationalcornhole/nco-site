@@ -4,13 +4,8 @@ import { createServerClient } from '@supabase/ssr'
 
 function sanitizeRedirect(value: string | null) {
   if (!value || !value.startsWith('/')) return '/portal'
-
-  // Do not allow auth to "successfully" redirect back to login.
-  if (value.startsWith('/portal/login')) return '/portal'
-
-  // Avoid protocol-relative redirects like //evil.com
   if (value.startsWith('//')) return '/portal'
-
+  if (value.startsWith('/portal/login')) return '/portal'
   return value
 }
 
