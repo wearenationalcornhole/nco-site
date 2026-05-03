@@ -8,7 +8,7 @@ type Role = 'organizer'|'player';
 
 export default function ProfileClient() {
   const router = useRouter();
-  const supabase = createClientComponentClient();
+  const [supabase] = useState(() => getSupabaseBrowser());
 
   const [role, setRole] = useState<Role>('player');
   const [email, setEmail] = useState<string | null>(null);
