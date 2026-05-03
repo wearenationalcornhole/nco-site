@@ -82,6 +82,7 @@ export default function ProfileClient() {
       const { error } = await supabase
         .from('profiles')
         .update({
+          role,
           first_name: form.first_name,
           last_name: form.last_name,
           phone: form.phone || null,
@@ -89,13 +90,15 @@ export default function ProfileClient() {
           city: form.city,
           region: form.region,
           country: form.country || 'US',
+          is_profile_complete: true,
+          updated_at: new Date().toISOString(),
         })
         .eq('id', user.id);
 
       if (error) throw error;
 
-      // DB trigger will set is_profile_complete. Route by role.
-      router.replace(role === 'organizer' ? '/portal/events' : '/portal/players');
+      // Profile is now complete. Route by role.
+      router.replace('/portal/dashboard');
     } catch (e: any) {
       setErr(e?.message || 'Could not save profile');
       setSaving(false);
