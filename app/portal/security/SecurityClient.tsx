@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { getSupabaseBrowser } from '@/app/lib/supabaseBrowser';
 
 type Role = 'admin' | 'organizer' | 'player';
 
