@@ -13,14 +13,24 @@ export default function LoginClient() {
   const [redirect, setRedirect] = useState('/portal');
 
   useEffect(() => {
-    // Capture ?redirect=/some/path from the URL
-    try {
-      const url = new URL(window.location.href);
-      setRedirect(url.searchParams.get('redirect') || '/portal');
-    } catch {
-      setRedirect('/portal');
+  try {
+    const url = new URL(window.location.href);
+
+    setRedirect(url.searchParams.get('redirect') || '/portal');
+
+    const error = url.searchParams.get('error');
+    const debug = url.searchParams.get('debug');
+
+    if (error) {
+      setStatus('error');
+      setMsg(`Auth debug: ${error}`);
+    } else if (debug) {
+      setMsg(`Auth debug: ${debug}`);
     }
-  }, []);
+  } catch {
+    setRedirect('/portal');
+  }
+}, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
