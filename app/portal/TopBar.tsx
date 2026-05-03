@@ -4,12 +4,12 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { getSupabaseBrowser } from '@/app/lib/supabaseBrowser';
 
 type Role = 'player' | 'organizer' | 'admin';
 
 export default function TopBar() {
-  const supabase = createClientComponentClient();
+  const [supabase] = useState(() => getSupabaseBrowser());
   const router = useRouter();
   const pathname = usePathname();
 
@@ -93,12 +93,14 @@ export default function TopBar() {
           {email && (
             <span className="hidden sm:inline-block text-xs text-white/80">{email}</span>
           )}
-          <button
-            onClick={signOut}
-            className="rounded bg-[#B31942] px-3 py-1.5 text-sm hover:opacity-90"
-          >
-            Sign out
-          </button>
+          {email && (
+            <button
+              onClick={signOut}
+              className="rounded bg-[#B31942] px-3 py-1.5 text-sm hover:opacity-90"
+            >
+              Sign out
+            </button>
+          )}
         </div>
       </div>
     </nav>
