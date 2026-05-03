@@ -2,10 +2,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { getSupabaseBrowser } from '@/app/lib/supabaseBrowser';
 
 export default function LoginClient() {
-  const supabase = createClientComponentClient();
+  const supabase = getSupabaseBrowser();
 
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
