@@ -15,7 +15,8 @@ export default async function PortalIndex() {
 
   // Not logged in → send to login (then bounce back to dashboard)
   if (!user) {
-    redirect('/portal/login?redirect=%2Fportal%2Fdashboard');
+    //redirect('/portal/login?redirect=%2Fportal%2Fdashboard');
+    redirect('/portal/login?error=no_user_after_callback&redirect=%2Fportal%2Fdashboard');
   }
 
   // Logged in → redirect to dashboard (dashboard handles onboarding/profile routing)
