@@ -97,7 +97,7 @@ export default function ProfileClient() {
 
       if (error) throw error;
 
-      // Profile is now complete. Route by role.
+      // Profile is now complete.
       router.replace('/portal/dashboard');
     } catch (e: any) {
       setErr(e?.message || 'Could not save profile');
@@ -111,7 +111,7 @@ export default function ProfileClient() {
     <main className="min-h-screen bg-gray-50 p-8">
       <div className="mx-auto max-w-xl bg-white rounded-2xl shadow p-8">
         <div className="text-center mb-6">
-          <img src="/images/nco-logo.png" alt="NCO" className="h-14 mx-auto mb-3" />
+          <img src="/images/nco-mark.png" alt="NCO" className="h-14 mx-auto mb-3" />
           <h1 className="text-2xl font-semibold text-[#0A3161]">Complete your profile</h1>
           <p className="text-gray-600">{email}</p>
           <p className="mt-1 text-xs text-gray-500">Role: <strong>{role}</strong></p>
