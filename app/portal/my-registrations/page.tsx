@@ -7,16 +7,29 @@ import { getSupabaseServer } from '@/app/lib/supabaseServer'
 type RegistrationRow = {
   id: string
   status: string | null
-  created_at: string | null
-  event_id: string | null
-  events?: {
-    title?: string | null
-    name?: string | null
-    slug?: string | null
-    starts_at?: string | null
-    start_date?: string | null
-    location?: string | null
-  } | null
+  checked_in: boolean | null
+  notes: string | null
+  created_at: string
+  event_id: string
+  division_id: string | null
+}
+
+type EventRow = {
+  id: string
+  slug: string | null
+  title: string
+  city: string | null
+  date: string | null
+  start_time: string | null
+  location: string | null
+  image: string | null
+}
+
+type DivisionRow = {
+  id: string
+  event_id: string
+  name: string
+  fee_cents: number | null
 }
 
 export default async function MyRegistrationsPage() {
@@ -49,13 +62,41 @@ export default async function MyRegistrationsPage() {
   }
 
   const { data: registrations, error: registrationsError } = await supabase
-    .from('event_registrations')
-    .select(
-      'id,status,created_at,event_id,events(title,name,slug,starts_at,start_date,location)'
-    )
+    .from('registrations')
+    .select('id,status,checked_in,notes,created_at,event_id,division_id')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .returns<RegistrationRow[]>()
+
+  const eventIds = Array.from(
+    new Set((registrations ?? []).map((registration) => registration.event_id).filter(Boolean))
+  )
+
+  const divisionIds = Array.from(
+    new Set((registrations ?? []).map((registration) => registration.division_id).filter(Boolean))
+  ) as string[]
+
+  const { data: events, error: eventsError } =
+    eventIds.length > 0
+      ? await supabase
+          .from('events')
+          .select('id,slug,title,city,date,start_time,location,image')
+          .in('id', eventIds)
+          .returns<EventRow[]>()
+      : { data: [] as EventRow[], error: null }
+
+  const { data: divisions, error: divisionsError } =
+    divisionIds.length > 0
+      ? await supabase
+          .from('event_divisions')
+          .select('id,event_id,name,fee_cents')
+          .in('id', divisionIds)
+          .returns<DivisionRow[]>()
+      : { data: [] as DivisionRow[], error: null }
+
+  const loadError = registrationsError || eventsError || divisionsError
+  const eventsById = new Map((events ?? []).map((event) => [event.id, event]))
+  const divisionsById = new Map((divisions ?? []).map((division) => [division.id, division]))
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
@@ -67,7 +108,7 @@ export default async function MyRegistrationsPage() {
         </p>
       </div>
 
-      {registrationsError ? (
+      {loadError ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
           We could not load your registrations yet. The portal knows you are signed in, but the
           registration history table/query still needs to be wired up.
@@ -75,9 +116,11 @@ export default async function MyRegistrationsPage() {
       ) : registrations && registrations.length > 0 ? (
         <div className="space-y-4">
           {registrations.map((registration) => {
-            const event = registration.events
-            const title = event?.title || event?.name || 'Registered event'
-            const eventDate = event?.starts_at || event?.start_date
+            const event = eventsById.get(registration.event_id)
+            const division = registration.division_id ? divisionsById.get(registration.division_id) : null
+            const title = event?.title || 'Registered event'
+            const eventDate = event?.date
+            const registrationDate = registration.created_at
 
             return (
               <article
@@ -87,22 +130,54 @@ export default async function MyRegistrationsPage() {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
+                    {division ? (
+                      <p className="mt-1 text-sm text-slate-600">Division: {division.name}</p>
+                    ) : null}
                     {event?.location ? (
                       <p className="mt-1 text-sm text-slate-600">{event.location}</p>
                     ) : null}
+                    {event?.city ? (
+                      <p className="mt-1 text-sm text-slate-600">{event.city}</p>
+                    ) : null}
                     {eventDate ? (
                       <p className="mt-1 text-sm text-slate-600">
-                        {new Date(eventDate).toLocaleDateString(undefined, {
+                        Event date:{' '}
+                        {new Date(`${eventDate}T00:00:00`).toLocaleDateString(undefined, {
                           year: 'numeric',
                           month: 'long',
                           day: 'numeric',
                         })}
                       </p>
                     ) : null}
+                    {registrationDate ? (
+                      <p className="mt-1 text-sm text-slate-500">
+                        Registered:{' '}
+                        {new Date(registrationDate).toLocaleDateString(undefined, {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                        })}
+                      </p>
+                    ) : null}
+                    {event?.slug ? (
+                      <a
+                        href={`/events/${event.slug}`}
+                        className="mt-3 inline-flex text-sm font-semibold text-blue-700 hover:text-blue-800"
+                      >
+                        View event
+                      </a>
+                    ) : null}
                   </div>
-                  <span className="inline-flex w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-700">
-                    {registration.status || 'registered'}
-                  </span>
+                  <div className="flex flex-col items-start gap-2 sm:items-end">
+                    <span className="inline-flex w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-700">
+                      {registration.status || 'registered'}
+                    </span>
+                    {registration.checked_in ? (
+                      <span className="inline-flex w-fit rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-800">
+                        Checked in
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
               </article>
             )
