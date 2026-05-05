@@ -1,5 +1,0 @@
-User-agent: *
-Allow: /
-Sitemap: https://wearenationalcornhole.com/sitemap.xml
-
-Disallow: /demo-gallery/
