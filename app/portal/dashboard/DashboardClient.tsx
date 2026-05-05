@@ -33,19 +33,42 @@ export default function DashboardClient() {
 
         const { data: p, error: perr } = await supabase
           .from('profiles')
-          .select('role,is_profile_complete,first_name,avatar_url,primary_club_id')
+          .select(
+            'role,is_profile_complete,first_name,last_name,organization,city,region,avatar_url,primary_club_id'
+          )
           .eq('id', user.id)
           .maybeSingle();
 
         if (perr) throw perr;
 
-        if (!p?.role) {
-          router.replace('/portal/onboarding?debug=missing_profile_or_role');
+        if (!p) {
+          router.replace('/portal/onboarding?debug=missing_profile');
           return;
         }
-        if (!p?.is_profile_complete) {
-          router.replace('/portal/onboarding/profile?debug=incomplete_profile');
+
+        const hasRequiredBasics =
+          Boolean(p.role) &&
+          Boolean(p.first_name) &&
+          Boolean(p.last_name) &&
+          Boolean(p.city) &&
+          Boolean(p.region) &&
+          (p.role !== 'organizer' || Boolean(p.organization));
+
+        if (!hasRequiredBasics) {
+          router.replace('/portal/onboarding?debug=incomplete_profile');
           return;
+        }
+
+        if (!p.is_profile_complete) {
+          const { error: completeErr } = await supabase
+            .from('profiles')
+            .update({
+              is_profile_complete: true,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', user.id);
+
+          if (completeErr) throw completeErr;
         }
 
         setRole(p.role as Role);
