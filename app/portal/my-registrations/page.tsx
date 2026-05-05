@@ -18,12 +18,21 @@ export default async function MyRegistrationsPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, is_profile_complete')
+    .select('role, is_profile_complete, first_name, last_name, organization, city, region')
     .eq('id', user.id)
     .maybeSingle()
 
-  if (!profile?.role) redirect('/portal/onboarding')
-  if (!profile?.is_profile_complete) redirect('/portal/onboarding/profile')
+  const hasRequiredBasics =
+    Boolean(profile?.role) &&
+    Boolean(profile?.first_name) &&
+    Boolean(profile?.last_name) &&
+    Boolean(profile?.city) &&
+    Boolean(profile?.region) &&
+    (profile?.role !== 'organizer' || Boolean(profile?.organization))
+
+  if (!hasRequiredBasics) {
+    redirect('/portal/onboarding?debug=incomplete_profile')
+  }
 
   return <Client />
 }
