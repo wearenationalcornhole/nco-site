@@ -15,5 +15,5 @@ export default async function PortalProfilePage() {
     redirect('/portal/login?redirect=%2Fportal%2Fprofile')
   }
 
-  return <ProfileEditorClient />
+  return <ProfileEditorClient userId={user.id} userEmail={user.email ?? null} />
 }
