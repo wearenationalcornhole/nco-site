@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { getSupabaseBrowser } from '@/app/lib/supabaseBrowser'
 
 type Role = 'player' | 'organizer' | 'admin'
 
@@ -26,9 +26,15 @@ type Visibility = 'public' | 'members' | 'private'
 
 const SKILL_LEVELS = ['Beginner', 'Intermediate', 'Competitive', 'Advanced'] as const
 
-export default function ProfileEditorClient() {
-  const supabase = createClientComponentClient()
+export default function ProfileEditorClient({
+  userId,
+  userEmail,
+}: {
+  userId: string
+  userEmail: string | null
+}) {
   const router = useRouter()
+  const [supabase] = useState(() => getSupabaseBrowser())
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -54,25 +60,14 @@ export default function ProfileEditorClient() {
 
     async function load() {
       try {
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser()
-
-        if (userError) throw userError
-        if (!user) {
-          router.replace('/portal/login?redirect=%2Fportal%2Fprofile')
-          return
-        }
-
         if (!alive) return
-        setEmail(user.email ?? null)
+        setEmail(userEmail)
 
         const [{ data: profile, error: profileError }, { data: clubRows, error: clubError }] = await Promise.all([
           supabase
             .from('profiles')
             .select('role,first_name,last_name,city,region,primary_club_id,avatar_url')
-            .eq('id', user.id)
+            .eq('id', userId)
             .maybeSingle<ProfileRow>(),
           supabase.from('clubs').select('id,name').order('name', { ascending: true }),
         ])
@@ -81,7 +76,11 @@ export default function ProfileEditorClient() {
         if (clubError) throw clubError
         if (!alive) return
 
-        const metadata = (user.user_metadata ?? {}) as Record<string, string | null | undefined>
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+
+        const metadata = (user?.user_metadata ?? {}) as Record<string, string | null | undefined>
 
         setRole((profile?.role as Role | null) ?? 'player')
         setClubs((clubRows ?? []) as Club[])
@@ -108,7 +107,7 @@ export default function ProfileEditorClient() {
     return () => {
       alive = false
     }
-  }, [router, supabase])
+  }, [supabase, userEmail, userId])
 
   function updateField(field: keyof typeof form, value: string) {
     setForm((current) => ({ ...current, [field]: value }))
@@ -125,11 +124,6 @@ export default function ProfileEditorClient() {
         data: { user },
       } = await supabase.auth.getUser()
 
-      if (!user) {
-        router.replace('/portal/login?redirect=%2Fportal%2Fprofile')
-        return
-      }
-
       if (!form.first_name || !form.last_name || !form.city || !form.region) {
         throw new Error('First name, last name, city, and region are required.')
       }
@@ -142,8 +136,10 @@ export default function ProfileEditorClient() {
           city: form.city,
           region: form.region,
           primary_club_id: form.primary_club_id || null,
+          is_profile_complete: true,
+          updated_at: new Date().toISOString(),
         })
-        .eq('id', user.id)
+        .eq('id', userId)
 
       if (profileError) throw profileError
 
