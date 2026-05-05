@@ -1,0 +1,13 @@
+{
+  "name": "National Cornhole Organization",
+  "short_name": "NCO",
+  "theme_color": "#0A3161",
+  "background_color": "#FFFFFF",
+  "display": "standalone",
+  "scope": "/",
+  "start_url": "/",
+  "icons": [
+    { "src": "/icon.png", "sizes": "any", "type": "image/png" },
+    { "src": "/apple-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}

@@ -1,0 +1,5 @@
+[
+  { "name": "Acme Boards",   "logo": "/images/sponsors/acme.png",   "url": "https://example.com/acme" },
+  { "name": "TopSpin Drinks","logo": "/images/sponsors/topspin.png","url": "https://example.com/topspin" },
+  { "name": "GameTime Tape","logo": "/images/sponsors/gametime.png","url": "https://example.com/gametime" }
+]
