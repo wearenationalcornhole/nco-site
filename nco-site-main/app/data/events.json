@@ -1,0 +1,6 @@
+[
+  { "title": "NCO Regional — Northeast",  "slug": "nco-regional-northeast-2025-01-18", "city": "Boston, MA", "date": "2025-01-18", "image": "/images/tournament-1.jpg" },
+  { "title": "NCO Regional — Southeast", "slug": "nco-regional-southeast-2025-02-08", "city": "Atlanta, GA", "date": "2025-02-08", "image": "/images/tournament-2.jpg" },
+  { "title": "NCO Regional — Midwest",   "slug": "nco-regional-midwest-2025-02-22",  "city": "Chicago, IL", "date": "2025-02-22", "image": "/images/tournament-3.jpg" },
+  { "title": "NCO Invitational Qualifier","slug": "nco-invitational-qualifier-2025-04-12","city": "Dallas, TX", "date": "2025-04-12", "image": "/images/tournament-1.jpg" }
+]

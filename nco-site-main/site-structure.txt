@@ -1,0 +1,98 @@
+.
+├── app
+│   ├── apple-icon.png
+│   ├── components
+│   │   └── RegisterButton.tsx
+│   ├── data
+│   │   ├── clubs.json
+│   │   ├── events.json
+│   │   ├── products.json
+│   │   ├── sponsors.json
+│   │   └── team.json
+│   ├── error.tsx
+│   ├── events
+│   │   ├── [slug]
+│   │   └── page.tsx
+│   ├── global-error.tsx
+│   ├── globals.css
+│   ├── HideOnPortal.tsx
+│   ├── icon.png
+│   ├── layout.tsx
+│   ├── lib
+│   │   ├── auth.ts
+│   │   ├── devAuth.tsx
+│   │   ├── devStore.ts
+│   │   ├── safePrisma.ts
+│   │   ├── supabaseAdmin.ts
+│   │   ├── supabaseClient.ts
+│   │   └── supabaseServer.ts
+│   ├── manifest.json
+│   ├── not-found.tsx
+│   ├── opengraph-image.png
+│   ├── page.tsx
+│   ├── portal
+│   │   ├── api
+│   │   ├── components
+│   │   ├── error.tsx
+│   │   ├── events
+│   │   ├── layout.tsx
+│   │   ├── login
+│   │   ├── logout
+│   │   ├── not-found.tsx
+│   │   ├── org
+│   │   ├── OrgTopBar.tsx
+│   │   ├── page.tsx
+│   │   ├── players
+│   │   ├── Providers.tsx
+│   │   └── TopBar.tsx
+│   ├── robots.ts
+│   ├── shop
+│   │   ├── [slug]
+│   │   └── page.tsx
+│   ├── sitemap.xml
+│   │   └── route.ts
+│   └── twitter-image.png
+├── components
+│   ├── EventCard.tsx
+│   ├── Footer.tsx
+│   ├── Header.tsx
+│   ├── RegisterButton.tsx
+│   └── ui
+│       ├── Badge.tsx
+│       ├── Button.tsx
+│       ├── Spinner.tsx
+│       └── Toast.tsx
+├── favicon.ico
+├── next-env.d.ts
+├── next.config.ts
+├── package-lock.json
+├── package.json
+├── postcss.config.js
+├── prisma
+│   └── schema.prisma
+├── public
+│   ├── apple-icon.png
+│   ├── favicon-16.png
+│   ├── favicon-32.png
+│   ├── favicon.ico
+│   ├── images
+│   │   ├── hero-cornhole.jpg
+│   │   ├── hero-cornhole.png
+│   │   ├── hero-cornhole.webp
+│   │   ├── nco-mark.png
+│   │   ├── nco-mark.svg
+│   │   ├── nco-mark.webp
+│   │   ├── tournament-1.jpg
+│   │   ├── tournament-1.webp
+│   │   ├── tournament-2.jpg
+│   │   ├── tournament-2.webp
+│   │   ├── tournament-3.jpg
+│   │   └── tournament-3.webp
+│   ├── robots.txt
+│   └── site.webmanifest
+├── README.md
+├── site-structure.txt
+├── tailwind.config.ts
+└── tsconfig.json
+
+23 directories, 73 files

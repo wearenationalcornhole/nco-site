@@ -1,0 +1,15 @@
+node_modules/
+.next/
+out/
+.vercel/
+.env
+.env.*.local
+.env.local
+.DS_Store
+*.log
+dist/
+coverage/
+*.orig
+
+/generated/prisma
+.DS_Store
