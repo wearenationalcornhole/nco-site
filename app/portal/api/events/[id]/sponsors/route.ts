@@ -16,10 +16,10 @@ type SponsorPayload = {
 // GET: sponsors attached to an event (flattened for UI)
 export async function GET(
   _req: Request,
-  ctx: { params: Promise<{ eventId: string }> }
+  ctx: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { eventId } = await ctx.params
+    const { id: eventId } = await ctx.params
     const prisma = await getPrisma()
 
     if (prisma) {
@@ -65,7 +65,7 @@ export async function GET(
     })
     return NextResponse.json(out)
   } catch (e) {
-    console.error('GET /events/[eventId]/sponsors error', e)
+    console.error('GET /events/[id]/sponsors error', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
@@ -73,10 +73,10 @@ export async function GET(
 // POST: upsert company (by logoHash or case-insensitive name) then link to event
 export async function POST(
   req: Request,
-  ctx: { params: Promise<{ eventId: string }> }
+  ctx: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { eventId } = await ctx.params
+    const { id: eventId } = await ctx.params
     const { name, url, logo, logoHash, tier }: SponsorPayload = await req.json()
     if (!name?.trim()) return NextResponse.json({ error: 'name required' }, { status: 400 })
 
@@ -185,7 +185,7 @@ export async function POST(
       createdAt: link.created_at ?? link.createdAt ?? null,
     }, { status: 201 })
   } catch (e: any) {
-    console.error('POST /events/[eventId]/sponsors error', e)
+    console.error('POST /events/[id]/sponsors error', e)
     return NextResponse.json({ error: e?.message ?? 'Invalid payload' }, { status: 400 })
   }
 }
