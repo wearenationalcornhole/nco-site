@@ -207,22 +207,11 @@ export async function POST(req: Request) {
       })
 
       try {
-        const EventAdmins = (prisma as any).event_admins
-        if (!EventAdmins) throw new Error('Model event_admins not found')
-
-        await EventAdmins.upsert({
-          where: {
-            event_id_user_id: {
-              event_id: created.id,
-              user_id: access.actor.user.id,
-            },
-          },
-          update: {},
-          create: {
-            event_id: created.id,
-            user_id: access.actor.user.id,
-          },
-        })
+        await (prisma as any).$executeRaw`
+          insert into event_admins (event_id, user_id)
+          values (${created.id}::uuid, ${access.actor.user.id}::uuid)
+          on conflict (event_id, user_id) do nothing
+        `
       } catch (adminLinkError) {
         console.error('POST /portal/api/events event_admins link error:', adminLinkError)
 
