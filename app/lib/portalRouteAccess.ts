@@ -1,17 +1,16 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
+import { getSupabaseServer } from '@/app/lib/supabaseServer'
 
 type AllowedRole = 'admin' | 'organizer' | 'player'
 
 export type RouteActor = {
-  supabase: ReturnType<typeof createRouteHandlerClient>
+  supabase: Awaited<ReturnType<typeof getSupabaseServer>>
   user: { id: string; email?: string | null }
   role: string | null
 }
 
 export async function getRouteActor() {
-  const supabase = createRouteHandlerClient({ cookies })
+  const supabase = await getSupabaseServer()
   const {
     data: { user },
   } = await supabase.auth.getUser()
