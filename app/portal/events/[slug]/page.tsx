@@ -1,12 +1,14 @@
 // app/portal/events/[slug]/page.tsx
 import Link from 'next/link'
-import RegisterButton from '@/components/RegisterButton'
+import { redirect } from 'next/navigation'
+import RegisterButton from '@/app/portal/components/RegisterButton'
 import {
   fetchEventBySlug,
   fetchEventSponsors,
   formatEventDate,
 } from '@/app/lib/publicEvents'
 import { getEventRegistrationConfigByRecord } from '@/app/lib/eventRegistration'
+import { getSupabaseServer } from '@/app/lib/supabaseServer'
 
 export default async function Page({
   params,
@@ -14,6 +16,14 @@ export default async function Page({
   params: Promise<{ slug: string }>
 }) {
   const { slug } = await params
+  const supabase = await getSupabaseServer()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    redirect(`/portal/login?redirect=${encodeURIComponent(`/portal/events/${slug}`)}`)
+  }
   const event = await fetchEventBySlug(slug)
 
   if (!event) {
@@ -75,13 +85,10 @@ export default async function Page({
             </p>
             <p className="mt-2 text-sm text-white">{registrationConfig.description}</p>
             <div className="mt-4">
-            <RegisterButton
-              eventId={event.id}
-              redirectTo={`/portal/events/${event.slug ?? event.id}`}
-              label={registrationConfig.buttonLabel}
-              mode={registrationConfig.mode}
-              helperText={registrationConfig.description}
-            />
+              <RegisterButton
+                eventId={event.id}
+                userId={user.id}
+              />
             </div>
           </div>
         </div>
@@ -134,10 +141,7 @@ export default async function Page({
               <div className="mt-4">
                 <RegisterButton
                   eventId={event.id}
-                  redirectTo={`/portal/events/${event.slug ?? event.id}`}
-                  label={registrationConfig.buttonLabel}
-                  mode={registrationConfig.mode}
-                  helperText={registrationConfig.description}
+                  userId={user.id}
                 />
               </div>
             </div>
