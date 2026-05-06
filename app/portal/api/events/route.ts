@@ -206,22 +206,33 @@ export async function POST(req: Request) {
         } as any,
       })
 
-      const { error: adminLinkError } = await access.actor.supabase
-        .from('event_admins')
-        .upsert(
-          {
+      try {
+        const EventAdmins = (prisma as any).event_admins
+        if (!EventAdmins) throw new Error('Model event_admins not found')
+
+        await EventAdmins.upsert({
+          where: {
+            event_id_user_id: {
+              event_id: created.id,
+              user_id: access.actor.user.id,
+            },
+          },
+          update: {},
+          create: {
             event_id: created.id,
             user_id: access.actor.user.id,
           },
-          { onConflict: 'event_id,user_id' },
-        )
+        })
+      } catch (adminLinkError) {
+        console.error('POST /portal/api/events event_admins link error:', adminLinkError)
 
-      if (adminLinkError && access.actor.role !== 'admin') {
-        await prisma.events.delete({ where: { id: created.id } }).catch(() => null)
-        return NextResponse.json(
-          { error: 'Event created but organizer access could not be linked. Please try again.' },
-          { status: 500 },
-        )
+        if (access.actor.role !== 'admin') {
+          await prisma.events.delete({ where: { id: created.id } }).catch(() => null)
+          return NextResponse.json(
+            { error: 'Event created but organizer access could not be linked. Please try again.' },
+            { status: 500 },
+          )
+        }
       }
 
       return NextResponse.json(serializeEventRecord(created), { status: 201 })
