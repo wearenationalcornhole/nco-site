@@ -1,9 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 type Event = {
   id: string;
@@ -27,8 +25,6 @@ function fmtDate(iso?: string | null) {
 }
 
 export default function OrganizerClient() {
-  const supabase = createClientComponentClient();
-  const router = useRouter();
 
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<Event[]>([]);
@@ -39,19 +35,6 @@ export default function OrganizerClient() {
     let alive = true;
     (async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) { router.replace('/portal/login?redirect=%2Fportal%2Forg'); return; }
-
-        const { data: me, error: perr } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', user.id)
-          .maybeSingle();
-        if (perr) throw perr;
-        if (!me || (me.role !== 'organizer' && me.role !== 'admin')) {
-          router.replace('/portal/dashboard'); return;
-        }
-
         const res = await fetch('/portal/api/events?managedOnly=1&pageSize=50', { cache: 'no-store' });
         const json = res.ok ? await res.json() : [];
         const list: Event[] = Array.isArray(json) ? json : (json.events ?? []);
@@ -65,7 +48,7 @@ export default function OrganizerClient() {
       }
     })();
     return () => { alive = false; };
-  }, [router, supabase]);
+  }, []);
 
   const filtered = useMemo(() => {
     const term = search.toLowerCase().trim();
