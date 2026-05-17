@@ -96,7 +96,10 @@ export default function ClubsClient({
                 </div>
                 <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
                   {club.logoUrl ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element -- Club logos are dynamic remote assets and may come from environment-specific storage hosts. */}
                     <img src={club.logoUrl} alt={`${club.name} logo`} className="h-full w-full object-cover" />
+                    </>
                   ) : (
                     <span className="text-xs font-medium text-slate-400">NCO</span>
                   )}

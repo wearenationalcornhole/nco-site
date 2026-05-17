@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic'
 
+import Image from 'next/image'
 import Link from 'next/link'
 
 const tournaments = [
@@ -23,7 +24,7 @@ const tournaments = [
     name: "Raventek's Cornament",
     img: '/demo-bags/Raventek2025/images/Logo.png',
   },
-{
+  {
     slug: 'SHMC2025',
     name: "Strength & Honor MC Tournament",
     img: '/demo-bags/SHMC2025/images/logo.jpg',
@@ -36,10 +37,12 @@ export default function DemoBagsIndex() {
       <meta name="robots" content="noindex,nofollow" />
 
       <header className="text-center mb-12">
-        <img
+        <Image
           src="/images/nco-mark.webp"
           alt="National Cornhole Logo"
-          className="mx-auto mb-4 h-16"
+          width={64}
+          height={64}
+          className="mx-auto mb-4 h-16 w-16"
         />
         <h1 className="text-3xl font-semibold text-[#0A3161]">
           Cornhole Tournament Bag Demos
@@ -56,10 +59,12 @@ export default function DemoBagsIndex() {
             href={`/portal/demo-bags/${t.slug}`}
             className="group block bg-white rounded-2xl shadow-md hover:-translate-y-1 hover:shadow-xl transition transform text-center p-6"
           >
-            <img
+            <Image
               src={t.img}
               alt={t.name}
-              className="mx-auto mb-4 h-32 object-contain rounded-lg"
+              width={256}
+              height={128}
+              className="mx-auto mb-4 h-32 w-auto object-contain rounded-lg"
             />
             <p className="text-gray-800 font-medium group-hover:text-[#0A3161]">
               {t.name}

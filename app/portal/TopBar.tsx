@@ -1,19 +1,19 @@
 // app/portal/TopBar.tsx
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { getSupabaseBrowser } from '@/app/lib/supabaseBrowser';
-
-type Role = 'player' | 'organizer' | 'admin';
+import { canUseAdminTools, canUseOrganizerTools, type ProfileRole } from '@/app/lib/profileCapabilities';
 
 export default function TopBar() {
   const [supabase] = useState(() => getSupabaseBrowser());
   const router = useRouter();
   const pathname = usePathname();
 
-  const [role, setRole] = useState<Role | null>(null);
+  const [role, setRole] = useState<ProfileRole | null>(null);
   const [email, setEmail] = useState<string | null>(null);
 
   useEffect(() => {
@@ -33,7 +33,7 @@ export default function TopBar() {
 
       if (!alive) return;
       if (profile?.role === 'admin' || profile?.role === 'organizer' || profile?.role === 'player') {
-        setRole(profile.role);
+        setRole(profile.role as ProfileRole);
       } else {
         setRole('player');
       }
@@ -61,7 +61,7 @@ export default function TopBar() {
             ← Back to NCO
           </Link>
           <div className="flex items-center gap-2">
-            <img src="/images/nco-mark.png" alt="NCO" className="h-6 w-6" />
+            <Image src="/images/nco-mark.png" alt="NCO" width={24} height={24} className="h-6 w-6" />
             <span className="font-semibold">Community Portal</span>
           </div>
         </div>
@@ -75,12 +75,12 @@ export default function TopBar() {
           <Link href="/portal/profile" className={linkClass('/portal/profile')}>Profile</Link>
 
           {/* Organizer console (exists as /portal/org) */}
-          {(role === 'organizer' || role === 'admin') && (
+          {canUseOrganizerTools(role) && (
             <Link href="/portal/org" className={linkClass('/portal/org')}>Organizer Console</Link>
           )}
 
           {/* Admin console (exists as /portal/admin) */}
-          {role === 'admin' && (
+          {canUseAdminTools(role) && (
             <>
               <Link href="/portal/demo-bags" className={linkClass('/portal/demo-bags')}>Demo Bags</Link>
               <Link href="/portal/admin" className={linkClass('/portal/admin')}>Admin</Link>

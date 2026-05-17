@@ -37,6 +37,7 @@ export default async function Page({
     <div className="min-h-screen">
       {/* Hero */}
       <section className="relative isolate overflow-hidden bg-usaBlue/75 text-white">
+        {/* eslint-disable-next-line @next/next/no-img-element -- Event hero artwork can come from organizer-managed remote URLs outside configured Next image hosts. */}
         <img
           src={event.image ?? '/images/hero-cornhole.webp'}
           alt={event.title}
@@ -82,6 +83,7 @@ export default async function Page({
 
             {event.image && (
               <div className="mt-6 overflow-hidden rounded-2xl">
+                {/* eslint-disable-next-line @next/next/no-img-element -- Event detail artwork can come from organizer-managed remote URLs outside configured Next image hosts. */}
                 <img
                   src={event.image}
                   alt=""
@@ -139,12 +141,15 @@ export default async function Page({
                   return (
                     <li key={link.id} className="flex items-center justify-center">
                       {c?.logo_url ? (
+                        <>
+                          {/* eslint-disable-next-line @next/next/no-img-element -- Sponsor logos are dynamic remote assets and may come from third-party or storage URLs. */}
                         <img
                           src={c.logo_url}
                           alt={c.name}
                           className="h-12 w-auto object-contain grayscale hover:grayscale-0 transition"
                           loading="lazy"
                         />
+                        </>
                       ) : (
                         <span className="text-sm text-gray-600">{c?.name ?? 'Sponsor'}</span>
                       )}

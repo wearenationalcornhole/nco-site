@@ -1,7 +1,9 @@
 'use client'
 import { useState } from 'react'
+import { getSupabaseBrowser } from '@/app/lib/supabaseBrowser'
 
 export default function RegisterButton({ eventId, userId }: { eventId: string; userId: string }) {
+  const [supabase] = useState(() => getSupabaseBrowser())
   const [loading, setLoading] = useState(false)
   const [registered, setRegistered] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -10,11 +12,7 @@ export default function RegisterButton({ eventId, userId }: { eventId: string; u
     try {
       setLoading(true)
       setError(null)
-      const res = await fetch(`/portal/api/events/${eventId}/registrations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
-      })
+      const res = await fetch(`/portal/api/events/${eventId}/register`, { method: 'POST' })
       if (!res.ok) throw new Error('Failed to register')
       setRegistered(true)
     } catch (e: any) {
@@ -28,12 +26,17 @@ export default function RegisterButton({ eventId, userId }: { eventId: string; u
     try {
       setLoading(true)
       setError(null)
-      // fetch user registrations first to find the one to cancel
-      const regs = await fetch(`/portal/api/events/${eventId}/registrations`)
-      const all = await regs.json()
-      const match = all.find((r: any) => r.userId === userId)
+      const { data: match, error: matchError } = await supabase
+        .from('registrations')
+        .select('id')
+        .eq('event_id', eventId)
+        .eq('user_id', userId)
+        .maybeSingle<{ id: string }>()
+
+      if (matchError) throw matchError
       if (!match) throw new Error('No registration found')
-      await fetch(`/portal/api/registrations/${match.id}`, { method: 'DELETE' })
+      const res = await fetch(`/portal/api/registrations/${match.id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Failed to cancel registration')
       setRegistered(false)
     } catch (e: any) {
       setError(e?.message ?? 'Cancel failed')

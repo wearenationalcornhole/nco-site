@@ -4,8 +4,28 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getSupabaseBrowser } from '@/app/lib/supabaseBrowser';
+import {
+  canUseAdminTools,
+  canUseOrganizerTools,
+  formatProfileValueLabel,
+  getProfileDisplayName,
+  isProfileReadyForPortal,
+  type ProfileRole,
+} from '@/app/lib/profileCapabilities';
 
-type Role = 'organizer' | 'player' | 'admin';
+type DashboardProfile = {
+  role: ProfileRole | null;
+  is_profile_complete: boolean | null;
+  first_name: string | null;
+  last_name: string | null;
+  display_name: string | null;
+  email?: string | null;
+  organization: string | null;
+  city: string | null;
+  region: string | null;
+  avatar_url: string | null;
+  primary_club_id: string | null;
+};
 
 export default function DashboardClient() {
   const router = useRouter();
@@ -13,9 +33,9 @@ export default function DashboardClient() {
 
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState<string | null>(null);
-  const [role, setRole] = useState<Role>('player');
+  const [role, setRole] = useState<ProfileRole>('player');
   const [avatar, setAvatar] = useState<string | null>(null);
-  const [first, setFirst] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState<string>('NCO Player');
   const [clubName, setClubName] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -34,10 +54,10 @@ export default function DashboardClient() {
         const { data: p, error: perr } = await supabase
           .from('profiles')
           .select(
-            'role,is_profile_complete,first_name,last_name,organization,city,region,avatar_url,primary_club_id'
+            'role,is_profile_complete,first_name,last_name,display_name,organization,city,region,avatar_url,primary_club_id'
           )
           .eq('id', user.id)
-          .maybeSingle();
+          .maybeSingle<DashboardProfile>();
 
         if (perr) throw perr;
 
@@ -46,15 +66,7 @@ export default function DashboardClient() {
           return;
         }
 
-        const hasRequiredBasics =
-          Boolean(p.role) &&
-          Boolean(p.first_name) &&
-          Boolean(p.last_name) &&
-          Boolean(p.city) &&
-          Boolean(p.region) &&
-          (p.role !== 'organizer' || Boolean(p.organization));
-
-        if (!hasRequiredBasics) {
+        if (!isProfileReadyForPortal(p)) {
           router.replace('/portal/onboarding?debug=incomplete_profile');
           return;
         }
@@ -71,8 +83,8 @@ export default function DashboardClient() {
           if (completeErr) throw completeErr;
         }
 
-        setRole(p.role as Role);
-        setFirst(p.first_name ?? null);
+        setRole((p.role as ProfileRole | null) ?? 'player');
+        setDisplayName(getProfileDisplayName({ ...p, email: user.email ?? null }));
         setAvatar(p.avatar_url ?? null);
 
         if (p.primary_club_id) {
@@ -119,13 +131,14 @@ export default function DashboardClient() {
         <img src="/images/nco-mark.png" alt="NCO" className="mx-auto mb-4 h-16" />
         <h1 className="text-3xl font-semibold text-[#0A3161]">National Cornhole Portal</h1>
         <p className="mt-2 text-gray-600">
-          Welcome{first ? `, ${first}` : email ? `, ${email}` : ''}!{' '}
+          Welcome{displayName ? `, ${displayName}` : email ? `, ${email}` : ''}!{' '}
           <span className="ml-2 inline-flex items-center gap-2 rounded-full bg-[#0A3161]/10 px-3 py-0.5 text-sm text-[#0A3161]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             {avatar ? <img src={avatar} alt="" className="h-5 w-5 rounded-full border" /> : null}
-            {role}
+            {formatProfileValueLabel(role)}
           </span>
         </p>
-        {clubName && role === 'player' && (
+        {clubName && (
           <p className="text-sm text-gray-600 mt-1">
             Club: <strong>{clubName}</strong>
           </p>
@@ -139,44 +152,49 @@ export default function DashboardClient() {
       </header>
 
       <section className="mx-auto grid max-w-5xl gap-6 sm:grid-cols-2">
-        {role === 'player' ? (
+        <Card
+          title="Player Hub"
+          desc="Open your shared player dashboard, identity fields, and registration history."
+          cta="Open player hub"
+          href="/portal/players"
+          color="#0A3161"
+        />
+        <Card
+          title="Find & Join Events"
+          desc="Browse upcoming tournaments."
+          cta="Browse events"
+          href="/portal/events"
+          color="#0A3161"
+        />
+        <Card
+          title="My Registrations"
+          desc="Your entries, statuses, and event history."
+          cta="View registrations"
+          href="/portal/my-registrations"
+          color="#0A3161"
+        />
+        <Card
+          title="Shared Profile"
+          desc="Manage your personal NCO identity, visibility, club affiliation, and player details."
+          cta="Edit profile"
+          href="/portal/profile"
+          color="#B31942"
+        />
+        <Card
+          title="Orders & Payments"
+          desc="Review store checkouts and paid event history."
+          cta="Open billing"
+          href="/portal/orders"
+          color="#0A3161"
+        />
+
+        {canUseOrganizerTools(role) && (
           <>
             <Card
-              title="Find & Join Events"
-              desc="Browse upcoming tournaments."
-              cta="Browse events"
-              href="/portal/events"
-              color="#0A3161"
-            />
-            <Card
-              title="My Registrations"
-              desc="Your entries & statuses."
-              cta="View registrations"
-              href="/portal/my-registrations"
-              color="#0A3161"
-            />
-            <Card
-              title="Community Profile"
-              desc="Manage your public name, visibility, and club affiliation."
-              cta="Edit profile"
-              href="/portal/profile"
-              color="#B31942"
-            />
-            <Card
-              title="Orders & Payments"
-              desc="Review store checkouts and paid event history."
-              cta="Open billing"
-              href="/portal/orders"
-              color="#0A3161"
-            />
-          </>
-        ) : (
-          <>
-            <Card
-              title="My Events"
-              desc="Create & manage tournaments."
-              cta="Go to events"
-              href="/portal/events"
+              title="Organizer Console"
+              desc="Manage events and organizer-only tools without splitting your personal profile."
+              cta="Open organizer tools"
+              href="/portal/org"
               color="#0A3161"
             />
             <Card
@@ -186,7 +204,6 @@ export default function DashboardClient() {
               href="/portal/demo-bags"
               color="#B31942"
             />
-            {/* Security & Passkeys (organizer/admin) */}
             <Card
               title="Security & Passkeys"
               desc="Register passkeys and manage device trust."
@@ -194,30 +211,17 @@ export default function DashboardClient() {
               href="/portal/security"
               color="#0A3161"
             />
-            {role === 'admin' && (
-              <Card
-                title="Admin Console"
-                desc="Manage organizers & demo access."
-                cta="Open admin"
-                href="/portal/admin"
-                color="#0A3161"
-              />
-            )}
-            <Card
-              title="My Registrations"
-              desc="Divisions, statuses & bags."
-              cta="View registrations"
-              href="/portal/my-registrations"
-              color="#0A3161"
-            />
-            <Card
-              title="Orders & Payments"
-              desc="Review store orders and paid registration history."
-              cta="Open billing"
-              href="/portal/orders"
-              color="#B31942"
-            />
           </>
+        )}
+
+        {canUseAdminTools(role) && (
+          <Card
+            title="Admin Console"
+            desc="Manage organizers, demo access, and admin workflows."
+            cta="Open admin"
+            href="/portal/admin"
+            color="#0A3161"
+          />
         )}
       </section>
 

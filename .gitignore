@@ -12,3 +12,4 @@ coverage/
 *.orig
 
 /generated/prisma
+.DS_Store

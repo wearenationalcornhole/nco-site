@@ -28,12 +28,12 @@ export default function InsightsPanel({ eventId }: { eventId: string }) {
           fetch(`/portal/api/events/${encodeURIComponent(eventId)}/bags`, { cache: 'no-store' }),
         ])
 
-        const p = pRes.ok ? await pRes.json() : []
+        const pPayload = pRes.ok ? await pRes.json() : []
         const s = sRes.ok ? await sRes.json() : []
         const bPayload = bRes.ok ? await bRes.json() : { rows: [] }
 
         if (!alive) return
-        setPlayers(Array.isArray(p) ? p : [])
+        setPlayers(Array.isArray(pPayload) ? pPayload : Array.isArray(pPayload?.items) ? pPayload.items : [])
         setSponsors(Array.isArray(s) ? s : [])
         setBags(Array.isArray(bPayload?.rows) ? bPayload.rows : [])
       } catch (e: any) {

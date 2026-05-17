@@ -25,8 +25,6 @@ export default function OrgBreadcrumbs() {
   const [eventTitle, setEventTitle] = useState<string | null>(null)
   const lastFetchedSlugRef = useRef<string | null>(null)
 
-  if (!pathname.startsWith('/portal/org')) return null
-
   const parts = useMemo(
     () => pathname.split('/').filter(Boolean),
     [pathname]
@@ -91,6 +89,8 @@ export default function OrgBreadcrumbs() {
       return { href, label, isLast }
     })
     .filter(c => c.label)
+
+  if (!pathname.startsWith('/portal/org')) return null
 
   // Hide on super-short paths (Portal > Organizer only)
   if (crumbs.length <= 2) return null

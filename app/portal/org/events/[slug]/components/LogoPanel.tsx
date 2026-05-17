@@ -91,6 +91,7 @@ export default function LogoPanel({ slug, onSaved }: Props) {
 
         {preview && (
           <div className="mt-2">
+            {/* eslint-disable-next-line @next/next/no-img-element -- Required for local editor preview/blob URL rendering before upload. */}
             <img src={preview} alt="preview" className="h-24 rounded border object-contain" />
           </div>
         )}

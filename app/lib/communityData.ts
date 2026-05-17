@@ -1,5 +1,6 @@
 import clubsSeed from '@/app/data/clubs.json'
 import { getSupabaseServer } from '@/app/lib/supabaseServer'
+import { canUsePlayerFeatures, getProfileDisplayName, type ProfileVisibility } from '@/app/lib/profileCapabilities'
 
 export type ClubDirectoryItem = {
   id: string
@@ -21,7 +22,7 @@ export type PlayerDirectoryItem = {
   clubName: string | null
   favoriteBag: string | null
   skillLevel: string | null
-  profileVisibility: 'public' | 'members' | 'private'
+  profileVisibility: ProfileVisibility
   isOwnProfile: boolean
 }
 
@@ -36,6 +37,7 @@ type ClubsRow = {
 
 type ProfileRow = {
   id: string
+  email: string | null
   role: string | null
   is_profile_complete: boolean | null
   first_name: string | null
@@ -44,13 +46,10 @@ type ProfileRow = {
   region: string | null
   avatar_url: string | null
   primary_club_id: string | null
-}
-
-type AuthMetadata = {
-  display_name?: string | null
-  favorite_bag?: string | null
-  skill_level?: string | null
-  profile_visibility?: 'public' | 'members' | 'private' | null
+  display_name: string | null
+  favorite_bag_style: string | null
+  skill_level: string | null
+  profile_visibility: ProfileVisibility | null
 }
 
 async function getSupabaseAdminSafe() {
@@ -72,25 +71,6 @@ function normalizeSeedClubs(): ClubDirectoryItem[] {
     logoUrl: club.logo ?? null,
     memberCount: 0,
   }))
-}
-
-async function listAuthMetadataByUserId() {
-  const admin = await getSupabaseAdminSafe()
-  if (!admin) return new Map<string, AuthMetadata>()
-
-  try {
-    const metadata = new Map<string, AuthMetadata>()
-    const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
-    if (error) throw error
-
-    for (const user of data?.users ?? []) {
-      metadata.set(user.id, (user.user_metadata ?? {}) as AuthMetadata)
-    }
-
-    return metadata
-  } catch {
-    return new Map<string, AuthMetadata>()
-  }
 }
 
 export async function listCommunityClubs(): Promise<ClubDirectoryItem[]> {
@@ -137,11 +117,12 @@ export async function listCommunityPlayers(viewerId: string | null): Promise<Pla
   if (!admin) return []
 
   try {
-    const metadataByUserId = await listAuthMetadataByUserId()
     const [{ data: profiles }, { data: clubs }] = await Promise.all([
       admin
         .from('profiles')
-        .select('id,role,is_profile_complete,first_name,last_name,city,region,avatar_url,primary_club_id')
+        .select(
+          'id,email,role,is_profile_complete,first_name,last_name,city,region,avatar_url,primary_club_id,display_name,favorite_bag_style,skill_level,profile_visibility',
+        )
         .order('first_name', { ascending: true }),
       admin.from('clubs').select('id,name'),
     ])
@@ -152,22 +133,21 @@ export async function listCommunityPlayers(viewerId: string | null): Promise<Pla
     }
 
     return ((profiles ?? []) as ProfileRow[])
-      .filter((profile) => profile.role === 'player' && profile.is_profile_complete)
+      .filter((profile) => canUsePlayerFeatures(profile.role) && profile.is_profile_complete)
       .map((profile) => {
-        const metadata = metadataByUserId.get(profile.id) ?? {}
-        const profileVisibility = metadata.profile_visibility ?? 'members'
-        const firstLast = [profile.first_name, profile.last_name].filter(Boolean).join(' ').trim()
-        const displayName = metadata.display_name?.trim() || null
+        const profileVisibility = (profile.profile_visibility ?? 'public') as ProfileVisibility
+        const displayName = profile.display_name?.trim() || null
+        const displayNameOrFallback = getProfileDisplayName(profile)
         return {
           id: profile.id,
-          name: firstLast || displayName || 'Community Member',
+          name: displayNameOrFallback,
           displayName,
           city: profile.city ?? null,
           region: profile.region ?? null,
           avatarUrl: profile.avatar_url ?? null,
           clubName: profile.primary_club_id ? clubNames.get(profile.primary_club_id) ?? null : null,
-          favoriteBag: metadata.favorite_bag?.trim() || null,
-          skillLevel: metadata.skill_level?.trim() || null,
+          favoriteBag: profile.favorite_bag_style?.trim() || null,
+          skillLevel: profile.skill_level?.trim() || null,
           profileVisibility,
           isOwnProfile: profile.id === viewerId,
         }

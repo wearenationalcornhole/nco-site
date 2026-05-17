@@ -6,8 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getSupabaseBrowser } from '@/app/lib/supabaseBrowser';
 import { getEventRegistrationConfig } from '@/app/lib/eventRegistration';
-
-type Role = 'organizer' | 'player' | 'admin';
+import { canUseOrganizerTools, type ProfileRole } from '@/app/lib/profileCapabilities';
 
 type EventRow = {
   id: string;
@@ -35,7 +34,7 @@ export default function EventsPageClient() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
-  const [role, setRole] = useState<Role>('player');
+  const [role, setRole] = useState<ProfileRole>('player');
   const [events, setEvents] = useState<EventRow[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,8 +56,8 @@ export default function EventsPageClient() {
           .eq('id', session.user.id)
           .maybeSingle();
         if (roleErr) throw roleErr;
-        if (me?.role === 'admin' || me?.role === 'organizer') {
-          if (alive) setRole(me.role as Role);
+        if (canUseOrganizerTools(me?.role)) {
+          if (alive && me?.role) setRole(me.role as ProfileRole);
         }
 
         // 3) Load events via your API (keeps DB rules simple)
@@ -100,7 +99,7 @@ export default function EventsPageClient() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">All Events</h1>
 
-        {(role === 'organizer' || role === 'admin') && (
+        {canUseOrganizerTools(role) && (
           <Link
             href="/portal/org"
             className="rounded bg-usaBlue text-white px-4 py-2 text-sm hover:opacity-90"

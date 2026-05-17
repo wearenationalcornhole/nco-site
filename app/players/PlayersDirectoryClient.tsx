@@ -51,7 +51,10 @@ export default function PlayersDirectoryClient({ players }: { players: PlayerDir
               <div className="flex items-start gap-4">
                 <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
                   {player.avatarUrl ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element -- Player avatars are dynamic remote images from profile storage and user-managed hosts. */}
                     <img src={player.avatarUrl} alt="" className="h-full w-full object-cover" />
+                    </>
                   ) : (
                     <span className="text-lg font-semibold text-slate-400">
                       {player.name.slice(0, 1).toUpperCase()}

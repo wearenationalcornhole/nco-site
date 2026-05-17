@@ -287,7 +287,12 @@ function SponsorsTab({ event, onToast }: { event: Event; onToast: (t: { msg: str
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
                   <div className="col-span-5 flex items-center gap-3">
                     <div className="h-10 w-14 rounded bg-gray-100 overflow-hidden">
-                      {s.logo ? <img src={s.logo} alt="" className="h-full w-full object-cover" /> : <div className="h-full w-full grid place-content-center text-xs text-gray-400">Logo</div>}
+                      {s.logo ? (
+                        <>
+                          {/* eslint-disable-next-line @next/next/no-img-element -- Legacy organizer sponsor previews use arbitrary remote logo URLs. */}
+                          <img src={s.logo} alt="" className="h-full w-full object-cover" />
+                        </>
+                      ) : <div className="h-full w-full grid place-content-center text-xs text-gray-400">Logo</div>}
                     </div>
                     <div className="font-medium">{s.name}</div>
                   </div>
@@ -325,7 +330,12 @@ function BagsTab({ event, onToast }: { event: Event; onToast: (t: { msg: string;
         {rows.map((b) => (
           <li key={b.id} className="rounded-xl border overflow-hidden bg-white">
             <div className="aspect-[16/9] bg-gray-100">
-              {b.image ? <img src={b.image} alt="" className="h-full w-full object-cover" /> : null}
+              {b.image ? (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- Legacy organizer bag previews use mixed local and remote image URLs. */}
+                  <img src={b.image} alt="" className="h-full w-full object-cover" />
+                </>
+              ) : null}
             </div>
             <div className="p-4">
               <div className="flex items-center justify-between gap-3">

@@ -4,12 +4,22 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { formatProfileValueLabel, getProfileDisplayName } from '@/app/lib/profileCapabilities';
 
 type Profile = {
   first_name: string | null;
   last_name: string | null;
+  display_name: string | null;
+  bio: string | null;
   avatar_url: string | null;
   primary_club_id: string | null;
+  city: string | null;
+  region: string | null;
+  skill_level: string | null;
+  favorite_bag_style: string | null;
+  dominant_hand: string | null;
+  home_venue: string | null;
+  profile_visibility: string | null;
 };
 
 type Club = { id: string; name: string; logo_url: string | null };
@@ -39,6 +49,11 @@ type MyRegistration = {
   checked_in: boolean | null;
 };
 
+function formatProfileValue(value: string | null | undefined) {
+  if (!value?.trim()) return 'Not set yet';
+  return value.trim();
+}
+
 export default function Client() {
   const supabase = createClientComponentClient();
 
@@ -59,11 +74,29 @@ export default function Client() {
         const { data: { user }, error: uerr } = await supabase.auth.getUser();
         if (uerr) throw uerr;
         setEmail(user?.email ?? null);
+        if (!user?.id) {
+          throw new Error('You must be signed in to view your player page.');
+        }
 
-        // Profile header
+        // Profile header and player identity fields
         const { data: p, error: perr } = await supabase
           .from('profiles')
-          .select('first_name,last_name,avatar_url,primary_club_id')
+          .select(`
+            first_name,
+            last_name,
+            display_name,
+            bio,
+            avatar_url,
+            primary_club_id,
+            city,
+            region,
+            skill_level,
+            favorite_bag_style,
+            dominant_hand,
+            home_venue,
+            profile_visibility
+          `)
+          .eq('id', user.id)
           .maybeSingle<Profile>();
         if (perr) throw perr;
         setProfile(p);
@@ -78,10 +111,11 @@ export default function Client() {
           if (c) setClub(c);
         }
 
-        // My registrations (RLS should limit to me via user_id)
+        // My registrations
         const { data: r, error: rerr } = await supabase
           .from('registrations')
           .select('id,event_id,division_id,created_at,user_id,status,checked_in,notes')
+          .eq('user_id', user.id)
           .order('created_at', { ascending: false });
 
         let mine: RegistrationRow[] = [];
@@ -168,14 +202,15 @@ export default function Client() {
     );
   }
 
-  const fullName =
-    [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'Player';
+  const fullName = getProfileDisplayName({ ...profile, email });
+  const location = [profile?.city, profile?.region].filter(Boolean).join(', ');
 
   return (
     <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-4">
+          {/* eslint-disable-next-line @next/next/no-img-element -- Player avatars can be remote storage URLs or fallback assets chosen at runtime. */}
           <img
             src={profile?.avatar_url || '/images/nco-mark.webp'}
             alt=""
@@ -184,10 +219,14 @@ export default function Client() {
           <div>
             <h1 className="text-2xl font-semibold">{fullName}</h1>
             <p className="text-sm text-gray-600">{email}</p>
+            {location ? <p className="text-sm text-gray-600">{location}</p> : null}
             {club && (
               <p className="text-sm text-gray-600 flex items-center gap-2 mt-1">
                 {club.logo_url ? (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- Club logos are dynamic remote assets and may come from environment-specific storage hosts. */}
                   <img src={club.logo_url} alt="" className="h-4 w-4 object-contain rounded border" />
+                  </>
                 ) : null}
                 Club: <strong>{club.name}</strong>
               </p>
@@ -209,6 +248,74 @@ export default function Client() {
           </Link>
         </div>
       </div>
+
+      {/* Player identity */}
+      <section className="mt-8 grid gap-4 lg:grid-cols-3">
+        <div className="rounded-2xl border bg-white p-5 shadow-sm lg:col-span-2">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold">Player Identity</h2>
+              <p className="mt-1 text-sm text-gray-600">
+                Build out your NCO player presence so people know who they are throwing against.
+              </p>
+            </div>
+            <Link
+              href="/portal/profile"
+              className="shrink-0 rounded border px-3 py-1.5 text-sm hover:bg-gray-50"
+            >
+              Update
+            </Link>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl bg-gray-50 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Skill level</p>
+              <p className="mt-1 font-medium text-gray-900">{formatProfileValueLabel(profile?.skill_level)}</p>
+            </div>
+            <div className="rounded-xl bg-gray-50 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Favorite bag style</p>
+              <p className="mt-1 font-medium text-gray-900">{formatProfileValue(profile?.favorite_bag_style)}</p>
+            </div>
+            <div className="rounded-xl bg-gray-50 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Dominant hand</p>
+              <p className="mt-1 font-medium text-gray-900">{formatProfileValueLabel(profile?.dominant_hand)}</p>
+            </div>
+            <div className="rounded-xl bg-gray-50 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Home venue</p>
+              <p className="mt-1 font-medium text-gray-900">{formatProfileValue(profile?.home_venue)}</p>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-xl bg-gray-50 p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Bio</p>
+            <p className="mt-1 text-sm text-gray-700">
+              {profile?.bio?.trim() || 'Add a short player bio, preferred throwing style, or just enough personality to make bracket day more interesting.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-4">
+          <div className="rounded-2xl border bg-white p-5 shadow-sm">
+            <h2 className="text-lg font-semibold">Badges</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Earn badges for registrations, events, clubs, and future NCO achievements.
+            </p>
+            <div className="mt-4 rounded-xl border border-dashed p-4 text-sm text-gray-500">
+              Badge system coming soon. First up: First Event, Founding Member, Club Player, and Event Organizer.
+            </div>
+          </div>
+
+          <div className="rounded-2xl border bg-white p-5 shadow-sm">
+            <h2 className="text-lg font-semibold">Community Activity</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Recent follows, badge unlocks, registrations, and club activity will live here.
+            </p>
+            <div className="mt-4 rounded-xl border border-dashed p-4 text-sm text-gray-500">
+              Activity feed coming soon. No cornhole drama has been detected yet. Suspicious, frankly.
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Registrations */}
       <section className="mt-8">

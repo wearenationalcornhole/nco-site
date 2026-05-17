@@ -6,7 +6,6 @@ import { usePathname } from 'next/navigation'
 const NAV = [
   { href: '/portal/org',         label: 'Dashboard' },
   { href: '/portal/org/events',  label: 'Events' },
-  { href: '/portal/org/profile', label: 'Organizer Profile' },
 ]
 
 export default function OrgSidebar() {

@@ -3,10 +3,9 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getSupabaseBrowser } from '@/app/lib/supabaseBrowser';
+import { canUseOrganizerTools, type ProfileRole } from '@/app/lib/profileCapabilities';
 
-type Role = 'admin' | 'organizer' | 'player';
-
-export default function SecurityClient({ role }: { role: Role }) {
+export default function SecurityClient({ role }: { role: ProfileRole }) {
   const [supabase] = useState(() => getSupabaseBrowser());
   const [supported, setSupported] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -51,7 +50,7 @@ export default function SecurityClient({ role }: { role: Role }) {
         <div className="rounded-xl border bg-white p-6">
           <h2 className="text-lg font-semibold">Passkeys (FaceID / TouchID)</h2>
           {supported ? (
-            role === 'admin' || role === 'organizer' ? (
+            canUseOrganizerTools(role) ? (
               <>
                 <p className="text-sm text-gray-700 mt-1">
                   Register a passkey on this device to sign in without email. Works with FaceID, TouchID, Windows Hello, and hardware keys.

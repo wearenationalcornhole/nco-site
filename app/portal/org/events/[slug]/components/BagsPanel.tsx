@@ -244,7 +244,10 @@ export default function BagsPanel({
                   <div className="col-span-5 flex items-center gap-3">
                     <div className="h-12 w-16 rounded bg-gray-100 overflow-hidden">
                       {b.image_url ? (
+                        <>
+                          {/* eslint-disable-next-line @next/next/no-img-element -- Bag submission images can come from uploaded storage assets or pasted remote URLs. */}
                         <img src={b.image_url} alt={b.name} className="h-full w-full object-cover" />
+                        </>
                       ) : (
                         <div className="h-full w-full grid place-content-center text-xs text-gray-400">
                           No image

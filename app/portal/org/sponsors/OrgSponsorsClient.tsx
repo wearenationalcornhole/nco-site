@@ -65,7 +65,10 @@ export default function OrgSponsorsClient() {
                   <div className="col-span-5 flex items-center gap-3">
                     <div className="h-10 w-14 rounded bg-gray-100 overflow-hidden">
                       {c.logo ? (
+                        <>
+                          {/* eslint-disable-next-line @next/next/no-img-element -- Sponsor logos are dynamic remote assets and may come from third-party or storage URLs. */}
                         <img src={c.logo} alt={`${c.name} logo`} className="h-full w-full object-cover" />
+                        </>
                       ) : (
                         <div className="h-full w-full grid place-content-center text-xs text-gray-400">
                           No logo

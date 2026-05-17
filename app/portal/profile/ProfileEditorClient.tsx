@@ -4,27 +4,43 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { getSupabaseBrowser } from '@/app/lib/supabaseBrowser'
-
-type Role = 'player' | 'organizer' | 'admin'
+import {
+  DOMINANT_HAND_OPTIONS,
+  PROFILE_SKILL_LEVEL_OPTIONS,
+  PROFILE_VISIBILITY_OPTIONS,
+  canUseOrganizerTools,
+  formatProfileValueLabel,
+  type ProfileRole,
+  type ProfileVisibility,
+  type SharedProfile,
+} from '@/app/lib/profileCapabilities'
 
 type Club = {
   id: string
   name: string
 }
 
-type ProfileRow = {
-  role: Role | null
+type ProfileRow = SharedProfile & {
+  role: ProfileRole | null
   first_name: string | null
   last_name: string | null
+  phone: string | null
   city: string | null
   region: string | null
+  country: string | null
+  organization: string | null
   primary_club_id: string | null
   avatar_url: string | null
+  display_name: string | null
+  bio: string | null
+  skill_level: string | null
+  favorite_bag_style: string | null
+  dominant_hand: string | null
+  home_venue: string | null
+  profile_visibility: string | null
+  is_profile_complete: boolean | null
+  completed_at?: string | null
 }
-
-type Visibility = 'public' | 'members' | 'private'
-
-const SKILL_LEVELS = ['Beginner', 'Intermediate', 'Competitive', 'Advanced'] as const
 
 export default function ProfileEditorClient({
   userId,
@@ -41,18 +57,25 @@ export default function ProfileEditorClient({
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [email, setEmail] = useState<string | null>(null)
-  const [role, setRole] = useState<Role>('player')
+  const [role, setRole] = useState<ProfileRole>('player')
   const [clubs, setClubs] = useState<Club[]>([])
+  const [profileWasComplete, setProfileWasComplete] = useState(false)
   const [form, setForm] = useState({
     first_name: '',
     last_name: '',
+    phone: '',
     city: '',
     region: '',
+    country: 'US',
+    organization: '',
     primary_club_id: '',
     display_name: '',
-    favorite_bag: '',
+    bio: '',
+    favorite_bag_style: '',
     skill_level: '',
-    profile_visibility: 'members' as Visibility,
+    dominant_hand: '',
+    home_venue: '',
+    profile_visibility: 'public' as ProfileVisibility,
   })
 
   useEffect(() => {
@@ -66,7 +89,9 @@ export default function ProfileEditorClient({
         const [{ data: profile, error: profileError }, { data: clubRows, error: clubError }] = await Promise.all([
           supabase
             .from('profiles')
-            .select('role,first_name,last_name,city,region,primary_club_id,avatar_url')
+            .select(
+              'role,first_name,last_name,phone,city,region,country,organization,primary_club_id,avatar_url,display_name,bio,skill_level,favorite_bag_style,dominant_hand,home_venue,profile_visibility,is_profile_complete,completed_at',
+            )
             .eq('id', userId)
             .maybeSingle<ProfileRow>(),
           supabase.from('clubs').select('id,name').order('name', { ascending: true }),
@@ -76,24 +101,25 @@ export default function ProfileEditorClient({
         if (clubError) throw clubError
         if (!alive) return
 
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-
-        const metadata = (user?.user_metadata ?? {}) as Record<string, string | null | undefined>
-
-        setRole((profile?.role as Role | null) ?? 'player')
+        setRole(profile?.role ?? 'player')
+        setProfileWasComplete(Boolean(profile?.is_profile_complete))
         setClubs((clubRows ?? []) as Club[])
         setForm({
           first_name: profile?.first_name ?? '',
           last_name: profile?.last_name ?? '',
+          phone: profile?.phone ?? '',
           city: profile?.city ?? '',
           region: profile?.region ?? '',
+          country: profile?.country ?? 'US',
+          organization: profile?.organization ?? '',
           primary_club_id: profile?.primary_club_id ?? '',
-          display_name: metadata.display_name ?? '',
-          favorite_bag: metadata.favorite_bag ?? '',
-          skill_level: metadata.skill_level ?? '',
-          profile_visibility: (metadata.profile_visibility as Visibility | undefined) ?? 'members',
+          display_name: profile?.display_name ?? '',
+          bio: profile?.bio ?? '',
+          favorite_bag_style: profile?.favorite_bag_style ?? '',
+          skill_level: profile?.skill_level ?? '',
+          dominant_hand: profile?.dominant_hand ?? '',
+          home_venue: profile?.home_venue ?? '',
+          profile_visibility: (profile?.profile_visibility as ProfileVisibility | null) ?? 'public',
         })
       } catch (e: any) {
         if (!alive) return
@@ -120,40 +146,44 @@ export default function ProfileEditorClient({
     setError(null)
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
       if (!form.first_name || !form.last_name || !form.city || !form.region) {
         throw new Error('First name, last name, city, and region are required.')
       }
 
+      if (canUseOrganizerTools(role) && !form.organization.trim()) {
+        throw new Error('Organization is required for organizer and admin profiles.')
+      }
+
+      const now = new Date().toISOString()
+      const profilePayload = {
+        first_name: form.first_name,
+        last_name: form.last_name,
+        phone: form.phone || null,
+        city: form.city,
+        region: form.region,
+        country: form.country || 'US',
+        organization: canUseOrganizerTools(role) ? form.organization || null : null,
+        primary_club_id: form.primary_club_id || null,
+        display_name: form.display_name || null,
+        bio: form.bio || null,
+        favorite_bag_style: form.favorite_bag_style || null,
+        skill_level: form.skill_level || null,
+        dominant_hand: form.dominant_hand || null,
+        home_venue: form.home_venue || null,
+        profile_visibility: form.profile_visibility,
+        is_profile_complete: true,
+        updated_at: now,
+        ...(profileWasComplete ? {} : { completed_at: now }),
+      }
+
       const { error: profileError } = await supabase
         .from('profiles')
-        .update({
-          first_name: form.first_name,
-          last_name: form.last_name,
-          city: form.city,
-          region: form.region,
-          primary_club_id: form.primary_club_id || null,
-          is_profile_complete: true,
-          updated_at: new Date().toISOString(),
-        })
+        .update(profilePayload)
         .eq('id', userId)
 
       if (profileError) throw profileError
 
-      const { error: authError } = await supabase.auth.updateUser({
-        data: {
-          display_name: form.display_name || null,
-          favorite_bag: form.favorite_bag || null,
-          skill_level: form.skill_level || null,
-          profile_visibility: form.profile_visibility,
-        },
-      })
-
-      if (authError) throw authError
-
+      setProfileWasComplete(true)
       setMessage('Profile updated.')
       router.refresh()
     } catch (e: any) {
@@ -173,13 +203,13 @@ export default function ProfileEditorClient({
 
   return (
     <main className="min-h-screen bg-slate-50 p-8">
-      <div className="mx-auto max-w-3xl rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+      <div className="mx-auto max-w-4xl rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-usaBlue">Portal Profile</p>
-            <h1 className="mt-2 text-3xl font-bold text-gray-900">Community profile settings</h1>
+            <h1 className="mt-2 text-3xl font-bold text-gray-900">Shared member profile</h1>
             <p className="mt-2 text-sm text-gray-600">
-              {email ?? 'Signed-in member'} · role: {role}
+              {email ?? 'Signed-in member'} · role: {formatProfileValueLabel(role)}
             </p>
           </div>
           <Link href="/portal/dashboard" className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700">
@@ -198,15 +228,29 @@ export default function ProfileEditorClient({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Display name" value={form.display_name} onChange={(value) => updateField('display_name', value)} />
-            <Field label="Favorite bag" value={form.favorite_bag} onChange={(value) => updateField('favorite_bag', value)} />
+            <Field label="Phone" value={form.phone} onChange={(value) => updateField('phone', value)} />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          {canUseOrganizerTools(role) ? (
+            <Field label="Organization" value={form.organization} onChange={(value) => updateField('organization', value)} required />
+          ) : null}
+
+          <div className="grid gap-4 sm:grid-cols-3">
             <Field label="City" value={form.city} onChange={(value) => updateField('city', value)} required />
             <Field label="State / Region" value={form.region} onChange={(value) => updateField('region', value)} required />
+            <Field label="Country" value={form.country} onChange={(value) => updateField('country', value)} />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label="Favorite bag style"
+              value={form.favorite_bag_style}
+              onChange={(value) => updateField('favorite_bag_style', value)}
+            />
+            <Field label="Home venue" value={form.home_venue} onChange={(value) => updateField('home_venue', value)} />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-3">
             <label className="block">
               <span className="text-sm font-medium text-slate-700">Skill level</span>
               <select
@@ -215,9 +259,25 @@ export default function ProfileEditorClient({
                 className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm"
               >
                 <option value="">Choose a level</option>
-                {SKILL_LEVELS.map((level) => (
+                {PROFILE_SKILL_LEVEL_OPTIONS.map((level) => (
                   <option key={level} value={level}>
-                    {level}
+                    {formatProfileValueLabel(level)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="text-sm font-medium text-slate-700">Dominant hand</span>
+              <select
+                value={form.dominant_hand}
+                onChange={(event) => updateField('dominant_hand', event.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm"
+              >
+                <option value="">Choose a hand</option>
+                {DOMINANT_HAND_OPTIONS.map((hand) => (
+                  <option key={hand} value={hand}>
+                    {formatProfileValueLabel(hand)}
                   </option>
                 ))}
               </select>
@@ -227,12 +287,14 @@ export default function ProfileEditorClient({
               <span className="text-sm font-medium text-slate-700">Profile visibility</span>
               <select
                 value={form.profile_visibility}
-                onChange={(event) => updateField('profile_visibility', event.target.value as Visibility)}
+                onChange={(event) => updateField('profile_visibility', event.target.value as ProfileVisibility)}
                 className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm"
               >
-                <option value="public">Public</option>
-                <option value="members">Members only</option>
-                <option value="private">Private</option>
+                {PROFILE_VISIBILITY_OPTIONS.map((visibility) => (
+                  <option key={visibility} value={visibility}>
+                    {formatProfileValueLabel(visibility)}
+                  </option>
+                ))}
               </select>
             </label>
           </div>
@@ -252,8 +314,19 @@ export default function ProfileEditorClient({
               ))}
             </select>
             <p className="mt-2 text-xs text-slate-500">
-              This uses the current `primary_club_id` profile field, which is the safest club-affiliation model in the current stack.
+              This uses the shared `primary_club_id` profile field for players, organizers, and admins.
             </p>
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-medium text-slate-700">Bio</span>
+            <textarea
+              value={form.bio}
+              onChange={(event) => updateField('bio', event.target.value)}
+              rows={4}
+              className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm"
+              placeholder="Add a short player intro, throwing style, or a few community details."
+            />
           </label>
 
           <button

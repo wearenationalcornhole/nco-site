@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSupabaseBrowser } from '@/app/lib/supabaseBrowser';
@@ -111,7 +112,7 @@ export default function ProfileClient() {
     <main className="min-h-screen bg-gray-50 p-8">
       <div className="mx-auto max-w-xl bg-white rounded-2xl shadow p-8">
         <div className="text-center mb-6">
-          <img src="/images/nco-mark.png" alt="NCO" className="h-14 mx-auto mb-3" />
+          <Image src="/images/nco-mark.png" alt="NCO" width={56} height={56} className="mx-auto mb-3 h-14 w-14" />
           <h1 className="text-2xl font-semibold text-[#0A3161]">Complete your profile</h1>
           <p className="text-gray-600">{email}</p>
           <p className="mt-1 text-xs text-gray-500">Role: <strong>{role}</strong></p>

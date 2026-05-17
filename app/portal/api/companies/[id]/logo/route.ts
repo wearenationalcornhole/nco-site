@@ -1,15 +1,17 @@
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 import { NextResponse } from 'next/server'
 import crypto from 'node:crypto'
-import { supabaseAdmin } from '@/app/lib/supabaseAdmin'
-import { getPrisma } from '@/app/lib/safePrisma'
-import { devStore } from '@/app/lib/devStore'
 
 const BUCKET = process.env.SUPABASE_BUCKET_LOGOS || 'logos'
 
 export async function POST(req: Request, context: any) {
   try {
+    const { supabaseAdmin } = await import('@/app/lib/supabaseAdmin')
+    const { getPrisma } = await import('@/app/lib/safePrisma')
+    const { devStore } = await import('@/app/lib/devStore')
     const { id } = context.params as { id: string }
 
     const form = await req.formData()
