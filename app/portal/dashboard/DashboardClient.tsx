@@ -37,9 +37,11 @@ export default function DashboardClient() {
   const [avatar, setAvatar] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string>('NCO Player');
   const [clubName, setClubName] = useState<string | null>(null);
+  const [managedClubCount, setManagedClubCount] = useState(0);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
+    let alive = true;
     const run = async () => {
       try {
         const {
@@ -49,6 +51,7 @@ export default function DashboardClient() {
           router.replace('/portal/login?error=no_user_in_dashboard_client');
           return;
         }
+        if (!alive) return;
         setEmail(user.email ?? null);
 
         const { data: p, error: perr } = await supabase
@@ -83,7 +86,9 @@ export default function DashboardClient() {
           if (completeErr) throw completeErr;
         }
 
-        setRole((p.role as ProfileRole | null) ?? 'player');
+        const resolvedRole = (p.role as ProfileRole | null) ?? 'player';
+        if (!alive) return;
+        setRole(resolvedRole);
         setDisplayName(getProfileDisplayName({ ...p, email: user.email ?? null }));
         setAvatar(p.avatar_url ?? null);
 
@@ -93,17 +98,33 @@ export default function DashboardClient() {
             .select('name')
             .eq('id', p.primary_club_id)
             .maybeSingle();
-          if (!cerr) setClubName(club?.name ?? null);
+          if (!cerr && alive) setClubName(club?.name ?? null);
         }
 
-        setLoading(false);
+        try {
+          const managedRes = await fetch('/portal/api/clubs/managed', { cache: 'no-store' });
+          const managedJson = managedRes.ok ? await managedRes.json() : { items: [] };
+          if (alive) {
+            const count = Array.isArray(managedJson.items) ? managedJson.items.length : 0;
+            setManagedClubCount(canUseAdminTools(resolvedRole) ? Math.max(count, 1) : count);
+          }
+        } catch {
+          if (alive) setManagedClubCount(canUseAdminTools(resolvedRole) ? 1 : 0);
+        }
+
+        if (alive) setLoading(false);
       } catch (e: any) {
         console.error('dashboard error', e);
-        setErr(e?.message || 'Failed to load dashboard');
-        setLoading(false);
+        if (alive) {
+          setErr(e?.message || 'Failed to load dashboard');
+          setLoading(false);
+        }
       }
     };
     run();
+    return () => {
+      alive = false;
+    };
   }, [router, supabase]);
 
   const signOut = async () => {
@@ -187,12 +208,21 @@ export default function DashboardClient() {
           href="/portal/orders"
           color="#0A3161"
         />
+        {(managedClubCount > 0 || canUseAdminTools(role)) && (
+          <Card
+            title="Club Management"
+            desc="Open club-scoped tools and membership APIs without treating club access as organizer access."
+            cta="Open club tools"
+            href="/portal/clubs"
+            color="#B31942"
+          />
+        )}
 
         {canUseOrganizerTools(role) && (
           <>
             <Card
-              title="Organizer Console"
-              desc="Manage events and organizer-only tools without splitting your personal profile."
+              title="Organizer Tools"
+              desc="Manage event organizer workflows without splitting your personal profile or club permissions."
               cta="Open organizer tools"
               href="/portal/org"
               color="#0A3161"

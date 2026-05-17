@@ -4,10 +4,14 @@ export const runtime = 'nodejs'
 import { NextResponse } from 'next/server'
 import { getPrisma } from '@/app/lib/safePrisma'
 import { devStore } from '@/app/lib/devStore'
+import { requireRouteRoles } from '@/app/lib/portalRouteAccess'
 
 // GET /portal/api/companies?q=&page=1&pageSize=20
 export async function GET(req: Request) {
   try {
+    const access = await requireRouteRoles(['organizer', 'admin'])
+    if ('error' in access) return access.error
+
     const prisma = await getPrisma()
     const url = new URL(req.url)
     const q = (url.searchParams.get('q') ?? '').trim()
@@ -60,6 +64,9 @@ export async function GET(req: Request) {
 // body: { name: string; website?: string; logo_url?: string; logo_hash?: string }
 export async function POST(req: Request) {
   try {
+    const access = await requireRouteRoles(['organizer', 'admin'])
+    if ('error' in access) return access.error
+
     const body = await req.json()
     const { name, website, logo_url, logo_hash } = body ?? {}
     if (!name || typeof name !== 'string') {

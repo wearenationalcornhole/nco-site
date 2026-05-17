@@ -314,7 +314,8 @@ export default function ProfileEditorClient({
               ))}
             </select>
             <p className="mt-2 text-xs text-slate-500">
-              This uses the shared `primary_club_id` profile field for players, organizers, and admins.
+              This uses the shared `primary_club_id` profile field for players, organizers, and admins. It sets affiliation or
+              your default club, not club-management permission.
             </p>
           </label>
 

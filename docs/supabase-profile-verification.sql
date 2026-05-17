@@ -14,6 +14,7 @@ and tablename in (
   'registrations',
   'events',
   'clubs',
+  'club_memberships',
   'activity_feed',
   'badges',
   'profile_badges',
@@ -38,6 +39,7 @@ and tablename in (
   'registrations',
   'events',
   'clubs',
+  'club_memberships',
   'activity_feed',
   'badges',
   'profile_badges',
@@ -118,9 +120,36 @@ from public.users u
 left join public.profiles p on p.id = u.id
 where p.id is null;
 
--- I. Suggested repair approach
+-- I. Club memberships missing matching profiles or clubs
+select
+  cm.id,
+  cm.club_id,
+  c.name as club_name,
+  cm.profile_id,
+  p.email,
+  cm.role,
+  cm.created_at
+from public.club_memberships cm
+left join public.clubs c on c.id = cm.club_id
+left join public.profiles p on p.id = cm.profile_id
+where c.id is null
+   or p.id is null
+order by cm.created_at desc;
+
+-- J. Club memberships with invalid roles
+select
+  id,
+  club_id,
+  profile_id,
+  role
+from public.club_memberships
+where role not in ('owner', 'manager', 'staff', 'member');
+
+-- K. Suggested repair approach
 -- 1. Review auth.users rows that are missing profiles before creating any new records.
 -- 2. Backfill display fields only into blank public.profiles columns.
 -- 3. Never overwrite populated profile fields without manual review.
 -- 4. If legacy public.users rows still exist without matching profiles, treat them as
 --    compatibility/data-repair candidates rather than canonical identity records.
+-- 5. Review club membership rows manually before promoting anyone to owner or manager.
+-- 6. Do not infer management from profiles.primary_club_id alone; it is affiliation/default club only.

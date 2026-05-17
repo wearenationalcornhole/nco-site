@@ -1,4 +1,8 @@
 export type ProfileRole = 'player' | 'organizer' | 'admin'
+export type ClubMembershipRole = 'owner' | 'manager' | 'staff' | 'member'
+
+// Profiles are shared identities. Broad role and club membership records are layered permissions.
+// Event organizer capability comes from profiles.role; club management comes from club_memberships.
 
 export type ProfileSkillLevel = 'backyard' | 'social' | 'competitive' | 'advanced' | 'pro'
 
@@ -31,6 +35,7 @@ export type SharedProfile = {
 
 const PLAYER_CAPABLE_ROLES = new Set<ProfileRole>(['player', 'organizer', 'admin'])
 const ORGANIZER_CAPABLE_ROLES = new Set<ProfileRole>(['organizer', 'admin'])
+const CLUB_MANAGER_ROLES = new Set<ClubMembershipRole>(['owner', 'manager'])
 
 export const PROFILE_SKILL_LEVEL_OPTIONS: ProfileSkillLevel[] = [
   'backyard',
@@ -56,6 +61,34 @@ export function canUseOrganizerTools(role: string | null | undefined) {
 
 export function canUseAdminTools(role: string | null | undefined) {
   return role === 'admin'
+}
+
+export function isClubManagerRole(membershipRole: string | null | undefined) {
+  if (membershipRole == null) return false
+  return CLUB_MANAGER_ROLES.has(membershipRole as ClubMembershipRole)
+}
+
+export function canManageClub(profileRole: string | null | undefined, membershipRole: string | null | undefined) {
+  if (canUseAdminTools(profileRole)) return true
+  return isClubManagerRole(membershipRole)
+}
+
+export function canManageClubMembership(
+  profileRole: string | null | undefined,
+  actorMembershipRole: string | null | undefined,
+  targetMembershipRole?: string | null,
+) {
+  if (canUseAdminTools(profileRole)) return true
+
+  if (actorMembershipRole === 'owner') {
+    return targetMembershipRole !== 'owner'
+  }
+
+  if (actorMembershipRole === 'manager') {
+    return targetMembershipRole === 'staff' || targetMembershipRole === 'member' || targetMembershipRole == null
+  }
+
+  return false
 }
 
 export function getProfileDisplayName(profile: Pick<SharedProfile, 'display_name' | 'first_name' | 'last_name' | 'email'> | null | undefined) {

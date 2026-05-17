@@ -12,7 +12,7 @@ function titleCase(s: string) {
 
 const LABEL_OVERRIDES: Record<string, string> = {
   portal: 'Portal',
-  org: 'Organizer',
+  org: 'Organizer Tools',
   events: 'Events',
   profile: 'Profile',
 }

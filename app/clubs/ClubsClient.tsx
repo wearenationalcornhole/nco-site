@@ -59,7 +59,7 @@ export default function ClubsClient({
         {isAuthenticated ? (
           <p>
             Use the club action below to set your current club affiliation. This updates the same club field already used by
-            onboarding and the player portal.
+            onboarding and the player portal. Affiliation is separate from club-management permission.
           </p>
         ) : (
           <p>

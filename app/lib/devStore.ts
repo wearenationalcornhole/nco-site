@@ -58,7 +58,8 @@ export type TableName =
   | 'event_division_members'
   | 'division_assignments'
   | 'clubs'
-  | 'club_members' // <-- NEW for organizer profiles
+  | 'club_members'
+  | 'club_memberships'
   | 'store_products'
   | 'store_product_images'
   | 'store_orders'
@@ -89,7 +90,8 @@ function createDefaultData(): StoreShape {
     event_division_members: [],
     division_assignments: [],
     clubs: [], // ✅ Added
-    club_members: [], // ✅ Added
+    club_members: [],
+    club_memberships: [],
     store_products: [],
     store_product_images: [],
     store_orders: [],

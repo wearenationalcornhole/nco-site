@@ -3,9 +3,13 @@ export const runtime = 'nodejs'
 import { NextResponse } from 'next/server'
 import { getPrisma } from '@/app/lib/safePrisma'
 import { devStore } from '@/app/lib/devStore'
+import { requireRouteRoles } from '@/app/lib/portalRouteAccess'
 
 export async function GET(_req: Request, context: any) {
   try {
+    const access = await requireRouteRoles(['organizer', 'admin'])
+    if ('error' in access) return access.error
+
     const { id } = context.params
     const prisma = await getPrisma()
 
