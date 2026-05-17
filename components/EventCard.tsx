@@ -17,6 +17,7 @@ export default function EventCard({
   const content = (
     <>
       <div className="aspect-[16/9] w-full overflow-hidden rounded-xl bg-neutral-200">
+        {/* eslint-disable-next-line @next/next/no-img-element -- Event cards accept dynamic local or remote artwork and cannot assume a single allowed host list. */}
         <img src={image} alt={title} className="h-full w-full object-cover transition group-hover:scale-[1.02]" loading="lazy" />
       </div>
       <h3 className="mt-4 text-xl font-bold">{title}</h3>

@@ -5,6 +5,7 @@ export const revalidate = 0;
 import { redirect } from 'next/navigation';
 import { getSupabaseServer } from '@/app/lib/supabaseServer';
 import SecurityClient from './SecurityClient';
+import { type ProfileRole } from '@/app/lib/profileCapabilities';
 
 export default async function SecurityPage() {
   // getSupabaseServer is async → await it
@@ -25,6 +26,6 @@ export default async function SecurityPage() {
     .eq('id', session.user.id)
     .maybeSingle();
 
-  const role = me?.role ?? 'player';
+  const role = (me?.role ?? 'player') as ProfileRole;
   return <SecurityClient role={role} />;
 }

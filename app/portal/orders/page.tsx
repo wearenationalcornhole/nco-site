@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
 import { getSupabaseServer } from '@/app/lib/supabaseServer'
+import { isProfileReadyForPortal } from '@/app/lib/profileCapabilities'
 import OrdersClient from '@/app/portal/orders/OrdersClient'
 
 export default async function OrdersPage() {
@@ -22,15 +23,7 @@ export default async function OrdersPage() {
     .eq('id', user.id)
     .maybeSingle()
 
-  const hasRequiredBasics =
-    Boolean(profile?.role) &&
-    Boolean(profile?.first_name) &&
-    Boolean(profile?.last_name) &&
-    Boolean(profile?.city) &&
-    Boolean(profile?.region) &&
-    (profile?.role !== 'organizer' || Boolean(profile?.organization))
-
-  if (!hasRequiredBasics) {
+  if (!isProfileReadyForPortal(profile)) {
     redirect('/portal/onboarding?debug=incomplete_profile')
   }
 

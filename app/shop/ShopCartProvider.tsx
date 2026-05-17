@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  useCallback,
   createContext,
   useContext,
   useEffect,
@@ -88,7 +89,7 @@ export function ShopCartProvider({
         }
       })
       .filter((entry): entry is CartEntry => Boolean(entry))
-  }, [items])
+  }, [items, products])
 
   const itemCount = useMemo(
     () => entries.reduce((total, entry) => total + entry.quantity, 0),
@@ -99,7 +100,7 @@ export function ShopCartProvider({
     [entries],
   )
 
-  function addItem(slug: string, quantity = 1) {
+  const addItem = useCallback((slug: string, quantity = 1) => {
     if (quantity <= 0) return
     const product = products.find((candidate) => candidate.slug === slug)
     if (!product || product.inventoryStatus === 'sold_out') return
@@ -114,13 +115,13 @@ export function ShopCartProvider({
       )
     })
     setIsOpen(true)
-  }
+  }, [products])
 
-  function removeItem(slug: string) {
+  const removeItem = useCallback((slug: string) => {
     setItems((current) => current.filter((item) => item.slug !== slug))
-  }
+  }, [])
 
-  function setQuantity(slug: string, quantity: number) {
+  const setQuantity = useCallback((slug: string, quantity: number) => {
     if (quantity <= 0) {
       removeItem(slug)
       return
@@ -131,11 +132,11 @@ export function ShopCartProvider({
         item.slug === slug ? { ...item, quantity: Math.min(10, quantity) } : item,
       ),
     )
-  }
+  }, [removeItem])
 
-  function clearCart() {
+  const clearCart = useCallback(() => {
     setItems([])
-  }
+  }, [])
 
   const value = useMemo<ShopCartContextValue>(
     () => ({
@@ -151,7 +152,7 @@ export function ShopCartProvider({
       openCart: () => setIsOpen(true),
       closeCart: () => setIsOpen(false),
     }),
-    [entries, isOpen, itemCount, items, subtotal],
+    [addItem, clearCart, entries, isOpen, itemCount, items, removeItem, setQuantity, subtotal],
   )
 
   return <ShopCartContext.Provider value={value}>{children}</ShopCartContext.Provider>

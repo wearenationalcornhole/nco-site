@@ -7,6 +7,7 @@ import {
   getStoreOrderItemsModel,
   getStoreOrdersModel,
 } from '@/app/lib/prismaModels'
+import { listDisplayIdentitiesByIds } from '@/app/lib/profileIdentity'
 
 export type StoreOrderSummary = {
   id: string
@@ -167,6 +168,26 @@ function asIso(value: string | Date | null | undefined) {
 
 function normalizeEmail(value: string | null | undefined) {
   return value?.trim().toLowerCase() ?? ''
+}
+
+async function resolvePaymentUsers(
+  userIds: string[],
+  legacyFallbackRows: Array<{ id: string; name: string | null; email: string | null; role?: string | null }> = [],
+) {
+  // Payment compatibility only. public.profiles remains canonical for app identity
+  // and display names; legacy rows are used only when historical payment data lacks
+  // a matching profile record.
+  const resolved = await listDisplayIdentitiesByIds(userIds, legacyFallbackRows)
+  const byId = new Map<string, PaymentUserSummary>()
+
+  for (const [userId, identity] of resolved.entries()) {
+    byId.set(userId, {
+      name: identity.name,
+      email: identity.email,
+    })
+  }
+
+  return byId
 }
 
 function isPaidLikeStatus(value: string | null | undefined) {
@@ -713,13 +734,14 @@ export async function listRecentEventRegistrationPayments(limit = 10): Promise<E
         take: limit,
       })
       const eventIds = Array.from(new Set(rows.map((row: any) => row.event_id)))
-      const userIds = Array.from(new Set(rows.map((row: any) => row.user_id)))
+      const userIds = Array.from(new Set(rows.map((row: any) => row.user_id).filter(Boolean))) as string[]
 
       const [events, users] = await Promise.all([
         prisma.events.findMany({
           where: { id: { in: eventIds } },
           select: { id: true, title: true, slug: true },
         }),
+        // Payment compatibility only: historical rows may still reference the legacy users table.
         prisma.users.findMany({
           where: { id: { in: userIds } },
           select: { id: true, name: true, email: true },
@@ -729,8 +751,13 @@ export async function listRecentEventRegistrationPayments(limit = 10): Promise<E
       const eventMap = new Map<string, { title: string; slug: string | null }>(
         events.map((event: any) => [event.id, { title: event.title ?? 'Untitled Event', slug: event.slug ?? null }]),
       )
-      const userMap = new Map<string, PaymentUserSummary>(
-        users.map((user: any) => [user.id, { name: user.name ?? user.email ?? user.id, email: user.email ?? null }]),
+      const userMap = await resolvePaymentUsers(
+        userIds,
+        (users as any[]).map((user) => ({
+          id: user.id,
+          name: user.name ?? null,
+          email: user.email ?? null,
+        })),
       )
 
       return rows.map((row: any) => ({
@@ -758,15 +785,13 @@ export async function listRecentEventRegistrationPayments(limit = 10): Promise<E
       .getAll<any>('events')
       .map((event) => [event.id, { title: event.title ?? 'Untitled Event', slug: event.slug ?? null }]),
   )
-  const userMap = new Map<string, PaymentUserSummary>(
-    devStore.getAll<any>('users').map((user) => [user.id, { name: user.name ?? user.email ?? user.id, email: user.email ?? null }]),
-  )
-
-  return devStore
+  const rows = devStore
     .getAll<any>('event_registration_payments')
     .sort((a, b) => (asIso(b.created_at) ?? '').localeCompare(asIso(a.created_at) ?? ''))
     .slice(0, limit)
-    .map((row) => ({
+  const userMap = await resolvePaymentUsers(rows.map((row) => row.user_id))
+
+  return rows.map((row) => ({
       id: row.id,
       eventId: row.event_id,
       eventTitle: eventMap.get(row.event_id)?.title ?? 'Untitled Event',
@@ -806,6 +831,7 @@ export async function listEventRegistrationPaymentsByUserId(
           where: { id: { in: eventIds } },
           select: { id: true, title: true, slug: true },
         }),
+        // Payment compatibility only: used as a fallback when a profile record is missing.
         prisma.users.findFirst({
           where: { id: userId },
           select: { id: true, name: true, email: true },
@@ -815,8 +841,19 @@ export async function listEventRegistrationPaymentsByUserId(
       const eventMap = new Map<string, { title: string; slug: string | null }>(
         events.map((event: any) => [event.id, { title: event.title ?? 'Untitled Event', slug: event.slug ?? null }]),
       )
-      const userName = user?.name ?? user?.email ?? userId
-      const email = user?.email ?? null
+      const userMap = await resolvePaymentUsers(
+        [userId],
+        user
+          ? [
+              {
+                id: user.id,
+                name: user.name ?? null,
+                email: user.email ?? null,
+              },
+            ]
+          : [],
+      )
+      const resolvedUser = userMap.get(userId)
 
       return rows.map((row: any) => ({
         id: row.id,
@@ -824,8 +861,8 @@ export async function listEventRegistrationPaymentsByUserId(
         eventTitle: eventMap.get(row.event_id)?.title ?? 'Untitled Event',
         eventSlug: eventMap.get(row.event_id)?.slug ?? null,
         userId: row.user_id,
-        userName,
-        email,
+        userName: resolvedUser?.name ?? row.user_id,
+        email: resolvedUser?.email ?? null,
         registrationId: row.registration_id ?? null,
         stripeCheckoutSessionId: row.stripe_checkout_session_id,
         amountCents: row.amount_cents,
@@ -843,7 +880,8 @@ export async function listEventRegistrationPaymentsByUserId(
       .getAll<any>('events')
       .map((event) => [event.id, { title: event.title ?? 'Untitled Event', slug: event.slug ?? null }]),
   )
-  const user = devStore.getAll<any>('users').find((row) => row.id === userId)
+  const userMap = await resolvePaymentUsers([userId])
+  const resolvedUser = userMap.get(userId)
 
   return devStore
     .getAll<any>('event_registration_payments')
@@ -856,8 +894,8 @@ export async function listEventRegistrationPaymentsByUserId(
       eventTitle: eventMap.get(row.event_id)?.title ?? 'Untitled Event',
       eventSlug: eventMap.get(row.event_id)?.slug ?? null,
       userId: row.user_id,
-      userName: user?.name ?? user?.email ?? row.user_id,
-      email: user?.email ?? null,
+      userName: resolvedUser?.name ?? row.user_id,
+      email: resolvedUser?.email ?? null,
       registrationId: row.registration_id ?? null,
       stripeCheckoutSessionId: row.stripe_checkout_session_id,
       amountCents: row.amount_cents ?? 0,
@@ -937,6 +975,7 @@ export async function getEventRegistrationPaymentById(id: string): Promise<Event
           where: { id: row.event_id },
           select: { id: true, title: true, slug: true },
         }),
+        // Payment compatibility only: used as a fallback when a profile record is missing.
         prisma.users.findFirst({
           where: { id: row.user_id },
           select: { id: true, name: true, email: true },
@@ -947,12 +986,25 @@ export async function getEventRegistrationPaymentById(id: string): Promise<Event
       if (event) {
         eventMap.set(event.id, { title: event.title ?? 'Untitled Event', slug: event.slug ?? null })
       }
+      const userMap = await resolvePaymentUsers(
+        [row.user_id],
+        user
+          ? [
+              {
+                id: user.id,
+                name: user.name ?? null,
+                email: user.email ?? null,
+              },
+            ]
+          : [],
+      )
+      const resolvedUser = userMap.get(row.user_id)
 
       return mapEventPaymentRecord(
         row,
         eventMap,
-        user?.name ?? user?.email ?? row.user_id,
-        user?.email ?? null,
+        resolvedUser?.name ?? row.user_id,
+        resolvedUser?.email ?? null,
       )
     } catch {
       return null
@@ -963,17 +1015,18 @@ export async function getEventRegistrationPaymentById(id: string): Promise<Event
   if (!row) return null
 
   const event = devStore.getAll<any>('events').find((item) => item.id === row.event_id)
-  const user = devStore.getAll<any>('users').find((item) => item.id === row.user_id)
   const eventMap = new Map<string, { title: string; slug: string | null }>()
   if (event) {
     eventMap.set(event.id, { title: event.title ?? 'Untitled Event', slug: event.slug ?? null })
   }
+  const userMap = await resolvePaymentUsers([row.user_id])
+  const resolvedUser = userMap.get(row.user_id)
 
   return mapEventPaymentRecord(
     row,
     eventMap,
-    user?.name ?? user?.email ?? row.user_id,
-    user?.email ?? null,
+    resolvedUser?.name ?? row.user_id,
+    resolvedUser?.email ?? null,
   )
 }
 
@@ -1089,11 +1142,12 @@ export async function listRecentPaymentAuditActions(limit = 20): Promise<Payment
         take: limit,
       })
 
-      const actorIds = Array.from(new Set(rows.map((row: any) => row.actor_user_id).filter(Boolean)))
+      const actorIds = Array.from(new Set(rows.map((row: any) => row.actor_user_id).filter(Boolean))) as string[]
       const eventIds = Array.from(new Set(rows.map((row: any) => row.event_id).filter(Boolean)))
 
       const [users, events] = await Promise.all([
         actorIds.length > 0
+          // Payment compatibility only: audit rows may still reference legacy actor ids.
           ? prisma.users.findMany({
               where: { id: { in: actorIds } },
               select: { id: true, name: true, email: true },
@@ -1107,8 +1161,13 @@ export async function listRecentPaymentAuditActions(limit = 20): Promise<Payment
           : Promise.resolve([]),
       ])
 
-      const userMap = new Map<string, PaymentUserSummary>(
-        (users as any[]).map((user) => [user.id, { name: user.name ?? user.email ?? user.id, email: user.email ?? null }]),
+      const userMap = await resolvePaymentUsers(
+        actorIds,
+        (users as any[]).map((user) => ({
+          id: user.id,
+          name: user.name ?? null,
+          email: user.email ?? null,
+        })),
       )
       const eventMap = new Map<string, { title: string; slug?: string | null }>(
         (events as any[]).map((event) => [event.id, { title: event.title ?? 'Untitled Event', slug: event.slug ?? null }]),
@@ -1120,18 +1179,17 @@ export async function listRecentPaymentAuditActions(limit = 20): Promise<Payment
     }
   }
 
-  const userMap = new Map<string, PaymentUserSummary>(
-    devStore.getAll<any>('users').map((user) => [user.id, { name: user.name ?? user.email ?? user.id, email: user.email ?? null }]),
-  )
+  const rows = devStore
+    .getAll<any>('payment_action_audit_logs')
+    .sort((a, b) => (asIso(b.created_at) ?? '').localeCompare(asIso(a.created_at) ?? ''))
+    .slice(0, limit)
+  const actorIds = Array.from(new Set(rows.map((row) => row.actor_user_id).filter(Boolean)))
+  const userMap = await resolvePaymentUsers(actorIds)
   const eventMap = new Map<string, { title: string; slug?: string | null }>(
     devStore.getAll<any>('events').map((event) => [event.id, { title: event.title ?? 'Untitled Event', slug: event.slug ?? null }]),
   )
 
-  return devStore
-    .getAll<any>('payment_action_audit_logs')
-    .sort((a, b) => (asIso(b.created_at) ?? '').localeCompare(asIso(a.created_at) ?? ''))
-    .slice(0, limit)
-    .map((row) => mapPaymentAuditEntry(row, userMap, eventMap))
+  return rows.map((row) => mapPaymentAuditEntry(row, userMap, eventMap))
 }
 
 export async function listPaymentAuditActionsForEvent(

@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 type Company = {
   id: string
@@ -20,15 +20,17 @@ export default function OrgSponsorsClient() {
   const [newName, setNewName] = useState('')
   const [newWebsite, setNewWebsite] = useState('')
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true)
     const res = await fetch(`/portal/api/companies?q=${encodeURIComponent(q)}`)
     const data = await res.json()
     setItems(data.items ?? [])
     setLoading(false)
-  }
+  }, [q])
 
-  useEffect(() => { load() }, []) // initial
+  useEffect(() => {
+    void load()
+  }, [load])
 
   const filtered = useMemo(() => items, [items])
 
@@ -87,7 +89,10 @@ export default function OrgSponsorsClient() {
           <div key={c.id} className="rounded-xl border bg-white p-4">
             <div className="h-24 flex items-center justify-center border rounded mb-3 bg-gray-50 overflow-hidden">
               {c.logo ? (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- Sponsor logos are dynamic remote assets and may come from third-party or storage URLs. */}
                 <img src={c.logo} alt={c.name} className="max-h-24 object-contain" />
+                </>
               ) : (
                 <span className="text-gray-400 text-sm">No logo</span>
               )}

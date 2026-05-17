@@ -205,13 +205,19 @@ export default function EditDetailsPanel({
           <div className="mt-2 flex items-center gap-3">
             <div className="h-16 w-24 rounded bg-gray-100 overflow-hidden">
               {file ? (
-                <img
-                  src={URL.createObjectURL(file)}
-                  alt="Preview"
-                  className="h-full w-full object-cover"
-                />
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- Required for local editor preview/blob URL rendering before upload. */}
+                  <img
+                    src={URL.createObjectURL(file)}
+                    alt="Preview"
+                    className="h-full w-full object-cover"
+                  />
+                </>
               ) : imageUrl ? (
-                <img src={imageUrl} alt="Tournament hero" className="h-full w-full object-contain" />
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- Organizer-managed hero image URLs may point to arbitrary remote hosts. */}
+                  <img src={imageUrl} alt="Tournament hero" className="h-full w-full object-contain" />
+                </>
               ) : null}
             </div>
             <span className="text-xs text-gray-500">Preview</span>

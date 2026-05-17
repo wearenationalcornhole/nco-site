@@ -1,5 +1,5 @@
-import Client from './Client'
+import { redirect } from 'next/navigation'
 
 export default function Page() {
-  return <Client />
+  redirect('/portal/profile')
 }

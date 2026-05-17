@@ -6,7 +6,8 @@
     "dev": "NEXT_DISABLE_TURBOPACK=1 next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "typecheck": "tsc --noEmit --incremental false -p tsconfig.typecheck.json",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -18,7 +19,7 @@
     "@vercel/analytics": "^1.5.0",
     "archiver": "^7.0.1",
     "clsx": "^2.1.1",
-    "next": "15.0.7",
+    "next": "^15.5.15",
     "nodemailer": "^7.0.10",
     "react": "18.3.1",
     "react-dom": "18.3.1",
@@ -29,6 +30,7 @@
     "@types/nodemailer": "^7.0.3",
     "@types/react": "19.2.2",
     "autoprefixer": "10.4.20",
+    "baseline-browser-mapping": "^2.10.27",
     "eslint": "8.57.0",
     "eslint-config-next": "15.0.7",
     "postcss": "8.4.47",

@@ -108,8 +108,10 @@ export default function PlayersPanel({
       .then((data: Division[]) => {
         if (!alive) return
         setDivisions(data || [])
-        // default to the first division if present
-        if (data?.length && !divisionId) setDivisionId(data[0].id)
+        setDivisionId((current) => {
+          if (current || !data?.length) return current
+          return data[0].id
+        })
       })
       .catch(() => {
         if (!alive) return

@@ -5,6 +5,8 @@ import { NextResponse } from 'next/server'
 import { getPrisma } from '@/app/lib/safePrisma'
 import { devStore } from '@/app/lib/devStore'
 import { getEventDivisionMembersModel, getUsersModel } from '@/app/lib/prismaModels'
+import { requireManagedEventAccess } from '@/app/lib/portalRouteAccess'
+import { buildProfileIdentityPayload, getProfileServiceClient, listProfilesByIds } from '@/app/lib/profileIdentity'
 
 type Status = 'assigned' | 'waitlisted'
 
@@ -34,6 +36,23 @@ function asIso(d: string | Date | null): string | null {
 }
 
 async function getUserById(prisma: any | null, userId: string) {
+  const supa = getProfileServiceClient()
+  if (supa) {
+    const { profilesById, clubsById } = await listProfilesByIds(supa, [userId])
+    const profile = profilesById.get(userId)
+    if (profile) {
+      const identity = buildProfileIdentityPayload(
+        profile,
+        profile.primary_club_id ? clubsById.get(profile.primary_club_id)?.name ?? null : null,
+      )
+      return {
+        id: identity.id,
+        name: identity.name,
+        email: identity.email,
+      }
+    }
+  }
+
   if (prisma) {
     const Users = getUsersModel(prisma)
     if (!Users) throw new Error('Model users not found')
@@ -101,6 +120,8 @@ async function listAssignments(prisma: any | null, eventId: string, divisionId: 
 export async function GET(_req: Request, ctx: any) {
   try {
     const { id: eventId, divisionId } = ctx.params as { id: string; divisionId: string }
+    const access = await requireManagedEventAccess(eventId)
+    if ('error' in access) return access.error
     const prisma = await getPrisma()
     const out = await listAssignments(prisma, eventId, divisionId)
     return NextResponse.json(out)
@@ -116,6 +137,8 @@ export async function GET(_req: Request, ctx: any) {
 export async function POST(req: Request, ctx: any) {
   try {
     const { id: eventId, divisionId } = ctx.params as { id: string; divisionId: string }
+    const access = await requireManagedEventAccess(eventId)
+    if ('error' in access) return access.error
     const body = await req.json().catch(() => ({} as any))
     let userId: string = (body?.userId ?? '').trim()
 
@@ -242,6 +265,8 @@ export async function POST(req: Request, ctx: any) {
 export async function DELETE(req: Request, ctx: any) {
   try {
     const { id: eventId, divisionId } = ctx.params as { id: string; divisionId: string }
+    const access = await requireManagedEventAccess(eventId)
+    if ('error' in access) return access.error
     const { searchParams } = new URL(req.url)
     const assignmentId = String(searchParams.get('assignmentId') ?? '').trim()
     if (!assignmentId) return NextResponse.json({ error: 'assignmentId required' }, { status: 400 })

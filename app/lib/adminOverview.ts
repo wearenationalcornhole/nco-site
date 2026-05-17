@@ -1,9 +1,10 @@
 import { getPrisma } from '@/app/lib/safePrisma'
 import { getUsersModel } from '@/app/lib/prismaModels'
-import { devStore } from '@/app/lib/devStore'
+import { devStore, type DevProfileRecord } from '@/app/lib/devStore'
 import { getStripeClient } from '@/app/lib/stripe'
 import { listStoreProducts } from '@/app/lib/store/catalog'
 import { getConfiguredSiteUrl, getSupabaseServiceRoleKey } from '@/app/lib/site'
+import { getProfileDisplayName } from '@/app/lib/profileCapabilities'
 import {
   getPaymentOverviewTotals,
   getPersistenceCapabilities,
@@ -16,6 +17,7 @@ import {
   hasWebhookDeliveryPersistence,
   listRecentWebhookDeliveryLogs,
 } from '@/app/lib/webhookDeliveries'
+import { listDisplayIdentitiesByIds } from '@/app/lib/profileIdentity'
 
 type Role = 'player' | 'organizer' | 'admin'
 
@@ -149,6 +151,7 @@ type CheckoutSummary = AdminOverviewData['recentCheckouts'][number]
 type ProfileSummary = {
   id: string
   role: Role | null
+  display_name?: string | null
   first_name?: string | null
   last_name?: string | null
   email?: string | null
@@ -203,11 +206,30 @@ async function getProfilesFromSupabase() {
 
   const { data, error } = await admin
     .from('profiles')
-    .select('id,role,first_name,last_name,email')
+    .select('id,role,display_name,first_name,last_name,email')
     .order('first_name', { ascending: true })
 
   if (error) return null
   return (data ?? []) as ProfileSummary[]
+}
+
+function toProfileSummaryMap(profiles: Array<ProfileSummary | DevProfileRecord>) {
+  return new Map(
+    profiles
+      .filter((profile): profile is ProfileSummary & { id: string } => Boolean(profile?.id))
+      .map((profile) => [
+        profile.id,
+        {
+          name: getProfileDisplayName({
+            display_name: profile.display_name ?? null,
+            first_name: profile.first_name ?? null,
+            last_name: profile.last_name ?? null,
+            email: profile.email ?? null,
+          }),
+          email: profile.email ?? null,
+        },
+      ]),
+  )
 }
 
 async function getEventsFromSupabase() {
@@ -293,7 +315,8 @@ export async function getAdminOverview(): Promise<AdminOverviewData> {
 
   if (prisma) {
     const Users = getUsersModel(prisma)
-    const [users, events, registrations, clubs, recentCheckouts] = await Promise.all([
+    const [profiles, users, events, registrations, clubs, recentCheckouts] = await Promise.all([
+      getProfilesFromSupabase(),
       Users
         ? Users.findMany({
             select: { id: true, email: true, name: true, role: true },
@@ -312,21 +335,45 @@ export async function getAdminOverview(): Promise<AdminOverviewData> {
       getStripeCheckoutSummaries(),
     ])
 
-    const userMap = new Map<string, UserSummary>(
-      (users as any[]).map((user) => [
-        user.id,
-        { id: user.id, email: user.email ?? null, name: user.name ?? null },
-      ]),
+    const userMap = await listDisplayIdentitiesByIds(
+      Array.from(new Set(((users as any[]) ?? []).map((user) => user.id))),
+      (users as any[]).map((user) => ({
+        id: user.id,
+        email: user.email ?? null,
+        name: user.name ?? null,
+        role: user.role ?? null,
+      })),
     )
+    const profileRows = profiles ?? []
+    const profileMap = toProfileSummaryMap(profileRows)
     const eventMap = new Map<string, string>(
       (events as any[]).map((event) => [event.id, event.title ?? 'Untitled Event']),
+    )
+    const registrationUserIds = Array.from(new Set((registrations as RegistrationSummary[]).map((registration) => registration.user_id)))
+    const registrationIdentityMap = await listDisplayIdentitiesByIds(
+      registrationUserIds,
+      (users as any[]).map((user) => ({
+        id: user.id,
+        email: user.email ?? null,
+        name: user.name ?? null,
+        role: user.role ?? null,
+      })),
     )
 
     return {
       stats: {
-        players: (users as any[]).filter((user) => user.role === 'player' || !user.role).length,
-        organizers: (users as any[]).filter((user) => user.role === 'organizer').length,
-        admins: (users as any[]).filter((user) => user.role === 'admin').length,
+        players:
+          profileRows.length > 0
+            ? profileRows.filter((profile) => profile.role === 'player' || !profile.role).length
+            : (users as any[]).filter((user) => user.role === 'player' || !user.role).length,
+        organizers:
+          profileRows.length > 0
+            ? profileRows.filter((profile) => profile.role === 'organizer').length
+            : (users as any[]).filter((user) => user.role === 'organizer').length,
+        admins:
+          profileRows.length > 0
+            ? profileRows.filter((profile) => profile.role === 'admin').length
+            : (users as any[]).filter((user) => user.role === 'admin').length,
         clubs,
         events: events.length,
         upcomingEvents: (events as any[]).filter((event) => isUpcomingDate(event.date)).length,
@@ -352,11 +399,11 @@ export async function getAdminOverview(): Promise<AdminOverviewData> {
         webhookLogPersistence,
       },
       recentRegistrations: (registrations as RegistrationSummary[]).map((registration) => {
-        const user = userMap.get(registration.user_id)
+        const user = registrationIdentityMap.get(registration.user_id) ?? profileMap.get(registration.user_id) ?? userMap.get(registration.user_id)
         return {
           id: registration.id ?? `${registration.event_id}-${registration.user_id}`,
           eventTitle: eventMap.get(registration.event_id) ?? 'Untitled Event',
-          userName: user?.name ?? user?.email ?? registration.user_id,
+          userName: user?.name ?? registration.user_id,
           email: user?.email ?? null,
           createdAt: asIso(registration.created_at),
         }
@@ -381,11 +428,10 @@ export async function getAdminOverview(): Promise<AdminOverviewData> {
   const devRegistrations = devStore
     .getAll<RegistrationSummary>('registrations')
     .sort((a, b) => (asIso(b.created_at) ?? '').localeCompare(asIso(a.created_at) ?? ''))
-  const devUsers = new Map<string, UserSummary>(
-    devStore.getAll<any>('users').map((user) => [
-      user.id,
-      { id: user.id, email: user.email ?? null, name: user.name ?? null },
-    ]),
+  const fallbackProfiles = profileRows.length > 0 ? profileRows : devStore.listProfiles()
+  const profileMap = toProfileSummaryMap(fallbackProfiles)
+  const devUsers = await listDisplayIdentitiesByIds(
+    Array.from(new Set(devRegistrations.map((registration) => registration.user_id))),
   )
   const eventMap = new Map<string, string>(eventRows.map((event) => [event.id, event.title ?? 'Untitled Event']))
 
@@ -421,11 +467,11 @@ export async function getAdminOverview(): Promise<AdminOverviewData> {
       webhookLogPersistence,
     },
     recentRegistrations: devRegistrations.slice(0, 8).map((registration) => {
-      const user = devUsers.get(registration.user_id)
+      const user = profileMap.get(registration.user_id) ?? devUsers.get(registration.user_id)
       return {
         id: registration.id ?? `${registration.event_id}-${registration.user_id}`,
         eventTitle: eventMap.get(registration.event_id) ?? 'Untitled Event',
-        userName: user?.name ?? user?.email ?? registration.user_id,
+        userName: user?.name ?? registration.user_id,
         email: user?.email ?? null,
         createdAt: asIso(registration.created_at),
       }

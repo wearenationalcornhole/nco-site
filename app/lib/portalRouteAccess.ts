@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSupabaseServer } from '@/app/lib/supabaseServer'
+import { canUseOrganizerTools, canUseAdminTools } from '@/app/lib/profileCapabilities'
 
 type AllowedRole = 'admin' | 'organizer' | 'player'
 
@@ -47,8 +48,8 @@ export async function requireRouteRoles(roles: AllowedRole[]) {
 }
 
 export async function listManagedEventIds(actor: RouteActor) {
-  if (actor.role === 'admin') return null
-  if (actor.role !== 'organizer') return []
+  if (canUseAdminTools(actor.role)) return null
+  if (!canUseOrganizerTools(actor.role)) return []
 
   const { data, error } = await actor.supabase
     .from('event_admins')
@@ -61,8 +62,8 @@ export async function listManagedEventIds(actor: RouteActor) {
 }
 
 export async function canManageEvent(actor: RouteActor, eventId: string) {
-  if (actor.role === 'admin') return true
-  if (actor.role !== 'organizer') return false
+  if (canUseAdminTools(actor.role)) return true
+  if (!canUseOrganizerTools(actor.role)) return false
 
   const { data, error } = await actor.supabase
     .from('event_admins')
@@ -72,6 +73,21 @@ export async function canManageEvent(actor: RouteActor, eventId: string) {
     .maybeSingle()
 
   return !error && Boolean(data)
+}
+
+export async function requireManagedEventAccess(eventId: string) {
+  const actor = await getRouteActor()
+
+  if (!actor.user) {
+    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+  }
+
+  const allowed = await canManageEvent(actor, eventId)
+  if (!allowed) {
+    return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
+  }
+
+  return { actor }
 }
 
 export function splitDisplayName(value: string | null | undefined) {

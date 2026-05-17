@@ -2,6 +2,7 @@
 import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 import { getSupabaseServer } from '@/app/lib/supabaseServer';
+import { canUseOrganizerTools } from '@/app/lib/profileCapabilities';
 import OrgSidebar from './components/OrgSidebar';
 import OrgBreadcrumbs from './components/OrgBreadcrumbs';
 
@@ -23,7 +24,7 @@ export default async function OrgLayout({ children }: { children: ReactNode }) {
     .eq('id', user.id)
     .maybeSingle();
 
-  if (profileError || !profile || (profile.role !== 'organizer' && profile.role !== 'admin')) {
+  if (profileError || !profile || !canUseOrganizerTools(profile.role)) {
     redirect('/portal/dashboard');
   }
 

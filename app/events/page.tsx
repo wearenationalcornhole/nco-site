@@ -24,12 +24,15 @@ export default async function Page() {
             <li key={e.id} className="rounded-xl border bg-white overflow-hidden">
               <Link href={`/events/${e.slug ?? e.id}`} className="block">
                 {e.image ? (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- Event artwork can come from organizer-managed remote URLs outside configured Next image hosts. */}
                   <img
                     src={e.image}
                     alt=""
                     className="w-full h-40 object-cover"
                     loading="lazy"
                   />
+                  </>
                 ) : (
                   <div className="w-full h-40 bg-gray-100" />
                 )}

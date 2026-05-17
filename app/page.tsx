@@ -13,10 +13,13 @@ export default async function Home() {
       {/* HERO */}
       <section className="relative isolate overflow-hidden">
         <div className="absolute inset-0 -z-10">
-          <img
+          <Image
             src="/images/hero-cornhole.webp"
             alt=""
-            className="h-full w-full object-cover opacity-90"
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover opacity-90"
           />
           <div className="absolute inset-0 bg-usaBlue/25" />
           <div className="absolute inset-0 bg-gradient-to-b from-brand/30 via-brand/40 to-brand/50" />

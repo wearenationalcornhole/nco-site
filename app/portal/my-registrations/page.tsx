@@ -2,7 +2,9 @@ export const revalidate = 0
 export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { getSupabaseServer } from '@/app/lib/supabaseServer'
+import { isProfileReadyForPortal } from '@/app/lib/profileCapabilities'
 
 type RegistrationRow = {
   id: string
@@ -49,15 +51,7 @@ export default async function MyRegistrationsPage() {
     .eq('id', user.id)
     .maybeSingle()
 
-  const hasRequiredBasics =
-    Boolean(profile?.role) &&
-    Boolean(profile?.first_name) &&
-    Boolean(profile?.last_name) &&
-    Boolean(profile?.city) &&
-    Boolean(profile?.region) &&
-    (profile?.role !== 'organizer' || Boolean(profile?.organization))
-
-  if (!hasRequiredBasics) {
+  if (!isProfileReadyForPortal(profile)) {
     redirect('/portal/onboarding?debug=incomplete_profile')
   }
 
@@ -189,12 +183,12 @@ export default async function MyRegistrationsPage() {
           <p className="mt-2 text-sm text-slate-600">
             Once you register for an event, it will show up here.
           </p>
-          <a
+          <Link
             href="/portal/events"
             className="mt-5 inline-flex rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
           >
             Browse events
-          </a>
+          </Link>
         </div>
       )}
     </main>

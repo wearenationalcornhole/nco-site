@@ -1,6 +1,7 @@
 // app/portal/onboarding/OnboardingClient.tsx
 'use client';
 
+import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSupabaseBrowser } from '@/app/lib/supabaseBrowser';
@@ -72,6 +73,7 @@ export default function OnboardingClient() {
         const { data: p, error: perr } = await supabase
           .from('profiles')
           .select('role,is_profile_complete,first_name,last_name,phone,organization,city,region,country,avatar_url,primary_club_id')
+          .eq('id', user.id)
           .maybeSingle<ProfileRow>();
         if (perr) throw perr;
 
@@ -177,7 +179,7 @@ export default function OnboardingClient() {
     <main className="min-h-screen bg-gray-50 p-8">
       <div className="mx-auto max-w-2xl bg-white rounded-2xl shadow p-8">
         <div className="text-center mb-6">
-          <img src="/images/nco-mark.png" alt="NCO" className="h-14 mx-auto mb-3" />
+          <Image src="/images/nco-mark.png" alt="NCO" width={56} height={56} className="mx-auto mb-3 h-14 w-14" />
           <h1 className="text-2xl font-semibold text-[#0A3161]">Complete your profile</h1>
           {email ? <p className="text-gray-600">{email}</p> : null}
         </div>
@@ -219,6 +221,8 @@ export default function OnboardingClient() {
           {/* Avatar */}
           <div className="grid sm:grid-cols-[112px,1fr] gap-4 items-center">
             <div className="justify-self-center">
+              {/* Object URLs are local previews and not compatible with Next image optimization. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={avatarFile ? URL.createObjectURL(avatarFile) : (avatarUrl || '/images/nco-mark.webp')}
                 alt="Avatar"
