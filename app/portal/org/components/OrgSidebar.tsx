@@ -12,7 +12,7 @@ export default function OrgSidebar() {
   const pathname = usePathname()
   return (
     <nav className="rounded-2xl border bg-white p-4">
-      <h2 className="text-xs uppercase tracking-wider text-gray-500 px-2">Organizer</h2>
+      <h2 className="text-xs uppercase tracking-wider text-gray-500 px-2">Organizer Tools</h2>
       <ul className="mt-2 space-y-1">
         {NAV.map((item) => {
           const active = pathname === item.href || pathname?.startsWith(item.href + '/')

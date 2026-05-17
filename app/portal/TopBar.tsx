@@ -15,6 +15,7 @@ export default function TopBar() {
 
   const [role, setRole] = useState<ProfileRole | null>(null);
   const [email, setEmail] = useState<string | null>(null);
+  const [managedClubCount, setManagedClubCount] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -23,7 +24,10 @@ export default function TopBar() {
       if (!alive) return;
 
       setEmail(user?.email ?? null);
-      if (!user) return;
+      if (!user) {
+        setManagedClubCount(0);
+        return;
+      }
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -36,6 +40,16 @@ export default function TopBar() {
         setRole(profile.role as ProfileRole);
       } else {
         setRole('player');
+      }
+
+      try {
+        const managedRes = await fetch('/portal/api/clubs/managed', { cache: 'no-store' });
+        const managedJson = managedRes.ok ? await managedRes.json() : { items: [] };
+        if (!alive) return;
+        setManagedClubCount(Array.isArray(managedJson.items) ? managedJson.items.length : 0);
+      } catch {
+        if (!alive) return;
+        setManagedClubCount(0);
       }
     })();
 
@@ -74,9 +88,13 @@ export default function TopBar() {
           <Link href="/portal/orders" className={linkClass('/portal/orders')}>Orders</Link>
           <Link href="/portal/profile" className={linkClass('/portal/profile')}>Profile</Link>
 
-          {/* Organizer console (exists as /portal/org) */}
+          {(managedClubCount > 0 || canUseAdminTools(role)) && (
+            <Link href="/portal/clubs" className={linkClass('/portal/clubs')}>Club Management</Link>
+          )}
+
+          {/* Event organizer tools remain separate from club management. */}
           {canUseOrganizerTools(role) && (
-            <Link href="/portal/org" className={linkClass('/portal/org')}>Organizer Console</Link>
+            <Link href="/portal/org" className={linkClass('/portal/org')}>Organizer Tools</Link>
           )}
 
           {/* Admin console (exists as /portal/admin) */}

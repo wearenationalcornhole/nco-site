@@ -49,7 +49,7 @@ export default function EventsPageClient() {
           return;
         }
 
-        // 2) Role (for Organizer Console button)
+        // 2) Role (for organizer tools button)
         const { data: me, error: roleErr } = await supabase
           .from('profiles')
           .select('role')
@@ -104,7 +104,7 @@ export default function EventsPageClient() {
             href="/portal/org"
             className="rounded bg-usaBlue text-white px-4 py-2 text-sm hover:opacity-90"
           >
-            Organizer Console
+            Organizer Tools
           </Link>
         )}
       </div>

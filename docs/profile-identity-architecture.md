@@ -9,3 +9,26 @@
   2. `profiles.first_name + profiles.last_name`
   3. email prefix
   4. `NCO Player`
+
+## Profiles, Event Organizers, and Club Managers
+
+- `public.profiles` remains identity. Roles and memberships are permissions layered onto that shared identity.
+- `profiles.role` controls broad platform capability:
+  - `player`: player, profile, and community features
+  - `organizer`: player features plus event organizer tooling
+  - `admin`: platform-wide admin access
+- `public.club_memberships` controls club-scoped access:
+  - `owner` and `manager` can manage club-scoped settings and memberships
+  - `staff` and `member` do not imply management
+- A club manager is not automatically an event organizer.
+- An event organizer is not automatically a club manager.
+- A person can be both by having `profiles.role = 'organizer'` and a `club_memberships` row with role `owner` or `manager`.
+- `primary_club_id` is affiliation/default club only. It should not be used as management permission.
+- Admin can bypass scoped checks where appropriate.
+
+Examples:
+- Player only: `profiles.role = 'player'`, no club-management membership.
+- Club manager only: `profiles.role = 'player'`, plus `club_memberships.role = 'manager'` for a specific club.
+- Event organizer only: `profiles.role = 'organizer'`, no club-management membership required.
+- Both organizer and club manager: `profiles.role = 'organizer'` plus `club_memberships.role = 'owner'` or `manager`.
+- Admin: `profiles.role = 'admin'`.

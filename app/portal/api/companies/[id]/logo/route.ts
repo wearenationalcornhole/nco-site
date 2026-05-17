@@ -4,11 +4,15 @@ export const revalidate = 0
 
 import { NextResponse } from 'next/server'
 import crypto from 'node:crypto'
+import { requireRouteRoles } from '@/app/lib/portalRouteAccess'
 
 const BUCKET = process.env.SUPABASE_BUCKET_LOGOS || 'logos'
 
 export async function POST(req: Request, context: any) {
   try {
+    const access = await requireRouteRoles(['organizer', 'admin'])
+    if ('error' in access) return access.error
+
     const { supabaseAdmin } = await import('@/app/lib/supabaseAdmin')
     const { getPrisma } = await import('@/app/lib/safePrisma')
     const { devStore } = await import('@/app/lib/devStore')

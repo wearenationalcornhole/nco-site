@@ -78,7 +78,7 @@ export default function OrganizerClient() {
     <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <p className="text-xs uppercase tracking-wider text-gray-500">Organizer</p>
+          <p className="text-xs uppercase tracking-wider text-gray-500">Event Organizer</p>
           <h1 className="text-2xl font-bold">Dashboard</h1>
           <p className="mt-1 text-gray-600">Quick view of your events and activity.</p>
         </div>
