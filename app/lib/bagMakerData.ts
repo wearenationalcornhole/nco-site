@@ -97,7 +97,43 @@ function normalizeSide(value: any, fallback: BagDesignJson['slowSide']): BagDesi
         ? value.fontFamily
         : fallback.fontFamily,
     textColor: normalizeHexColor(value?.textColor, fallback.textColor),
+    showNcoLogo:
+      typeof value?.showNcoLogo === 'boolean' ? value.showNcoLogo : fallback.showNcoLogo,
   }
+}
+
+function parseStorageBucketPath(value: string | null | undefined) {
+  const trimmed = String(value ?? '').trim()
+  const slashIndex = trimmed.indexOf('/')
+  if (slashIndex <= 0) return null
+  return {
+    bucket: trimmed.slice(0, slashIndex),
+    objectPath: trimmed.slice(slashIndex + 1),
+  }
+}
+
+export async function createStorageAccessUrl(
+  storagePath: string | null | undefined,
+  fallbackUrl: string,
+  expiresInSeconds = 60 * 60 * 24 * 7,
+) {
+  const parsed = parseStorageBucketPath(storagePath)
+  const supabaseAdmin = await getSupabaseAdminSafe()
+
+  if (parsed && supabaseAdmin) {
+    const { data, error } = await supabaseAdmin.storage
+      .from(parsed.bucket)
+      .createSignedUrl(parsed.objectPath, expiresInSeconds)
+
+    if (!error && data?.signedUrl) {
+      return data.signedUrl
+    }
+
+    const publicUrl = supabaseAdmin.storage.from(parsed.bucket).getPublicUrl(parsed.objectPath).data.publicUrl
+    if (publicUrl) return publicUrl
+  }
+
+  return fallbackUrl
 }
 
 export function normalizeBagDesignJson(value: any, fallbackColor = '#ffffff'): BagDesignJson {
@@ -170,12 +206,31 @@ function normalizeBagDesignAssetRecord(row: BagDesignAssetRow): BagDesignAssetRe
   }
 }
 
+async function resolveAssetUrls(assets: BagDesignAssetRecord[]) {
+  return Promise.all(
+    assets.map(async (asset) => ({
+      ...asset,
+      file_url: await createStorageAccessUrl(asset.storage_path, asset.file_url),
+    })),
+  )
+}
+
+function getRenderedAssetUrl(assets: BagDesignAssetRecord[], filename: string, fallbackUrl: string | null) {
+  const asset = assets.find((item) => item.original_filename === filename)
+  return asset?.file_url ?? fallbackUrl
+}
+
 function toBagDesignWithAssets(record: BagDesignRecord, assets: BagDesignAssetRecord[]): BagDesignWithAssets {
+  const scopedAssets = assets
+    .filter((asset) => asset.bag_design_id === record.id)
+    .sort((left, right) => right.created_at.localeCompare(left.created_at))
+
   return {
     ...record,
-    assets: assets
-      .filter((asset) => asset.bag_design_id === record.id)
-      .sort((left, right) => right.created_at.localeCompare(left.created_at)),
+    slow_side_art_url: getRenderedAssetUrl(scopedAssets, 'slow-side-production.png', record.slow_side_art_url),
+    fast_side_art_url: getRenderedAssetUrl(scopedAssets, 'fast-side-production.png', record.fast_side_art_url),
+    proof_url: getRenderedAssetUrl(scopedAssets, 'customer-proof.png', record.proof_url),
+    assets: scopedAssets,
   }
 }
 
@@ -215,7 +270,7 @@ async function listSupabaseBagDesignsByIds(ids: string[]) {
   }
 
   const designs = (designsResult.data ?? []).map(normalizeBagDesignRecord)
-  const assets = (assetsResult.data ?? []).map(normalizeBagDesignAssetRecord)
+  const assets = await resolveAssetUrls((assetsResult.data ?? []).map(normalizeBagDesignAssetRecord))
   return designs.map((design) => toBagDesignWithAssets(design, assets))
 }
 
@@ -672,4 +727,21 @@ export function mergeBagDesignColorFromCmyk(input: Partial<BagColorCmyk>) {
     bagColorCmyk: cmyk,
     bagColorHex: cmykToHex(cmyk),
   }
+}
+
+export function sanitizeBagDesignForActor(actor: RouteActor, design: BagDesignWithAssets): BagDesignWithAssets {
+  if (canUseAdminTools(actor.role)) {
+    return design
+  }
+
+  return {
+    ...design,
+    slow_side_art_url: null,
+    fast_side_art_url: null,
+    assets: design.assets.filter((asset) => asset.asset_type !== 'production_art'),
+  }
+}
+
+export function sanitizeBagDesignsForActor(actor: RouteActor, designs: BagDesignWithAssets[]) {
+  return designs.map((design) => sanitizeBagDesignForActor(actor, design))
 }

@@ -4,7 +4,7 @@ export const revalidate = 0
 
 import { NextResponse } from 'next/server'
 import { buildCustomBagCartItem } from '@/app/lib/bagMakerCart'
-import { getBagDesignForActor, setBagDesignAddedToCart } from '@/app/lib/bagMakerData'
+import { getBagDesignForActor, sanitizeBagDesignForActor, setBagDesignAddedToCart } from '@/app/lib/bagMakerData'
 import { getCartItemKey } from '@/app/lib/shopCart'
 import { requireRouteRoles } from '@/app/lib/portalRouteAccess'
 
@@ -40,11 +40,10 @@ export async function POST(request: Request, context: any) {
 
     return NextResponse.json({
       cartItem,
-      design: updated ?? design,
+      design: sanitizeBagDesignForActor(access.actor, updated ?? design),
     })
   } catch (error: any) {
     console.error('POST /portal/api/bag-designs/[id]/add-to-cart error:', error)
     return NextResponse.json({ error: error?.message ?? 'Unable to add custom bag to the cart.' }, { status: 500 })
   }
 }
-

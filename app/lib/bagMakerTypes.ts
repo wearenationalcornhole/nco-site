@@ -32,6 +32,7 @@ export type BagSideDesign = {
   secondaryText: string
   fontFamily: BagMakerFontFamily
   textColor: string
+  showNcoLogo: boolean
 }
 
 export type BagDesignJson = {
@@ -86,4 +87,3 @@ export type ManagedBagMakerOption = {
   id: string
   label: string
 }
-

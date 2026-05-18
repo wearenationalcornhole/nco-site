@@ -345,7 +345,7 @@ async function renderSideArt(
   }
 
   const lockedLogo = await renderLockedLogo()
-  if (lockedLogo) {
+  if (lockedLogo && side.showNcoLogo) {
     overlays.push({
       input: lockedLogo,
       left: LOCKED_NCO_LOGO_ZONE.x,
