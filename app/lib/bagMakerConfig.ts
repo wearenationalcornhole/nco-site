@@ -84,7 +84,7 @@ export function createDefaultBagDesignJson(): BagDesignJson {
       secondaryText: '',
       fontFamily: 'Inter',
       textColor: '#111111',
-      showNcoLogo: true,
+      showNcoLogo: false,
     },
   }
 }
