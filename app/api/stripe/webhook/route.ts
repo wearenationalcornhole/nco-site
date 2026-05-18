@@ -1,5 +1,6 @@
 import Stripe from 'stripe'
 import { NextResponse } from 'next/server'
+import { markBagDesignsOrdered } from '@/app/lib/bagMakerData'
 import { getStripeClient } from '@/app/lib/stripe'
 import { persistStoreOrderFromSession } from '@/app/lib/paymentPersistence'
 import { createWebhookDeliveryLog, updateWebhookDeliveryLog } from '@/app/lib/webhookDeliveries'
@@ -75,6 +76,15 @@ export async function POST(request: Request) {
   if (event.type === 'checkout.session.completed') {
     try {
       const stored = session ? await persistStoreOrderFromSession(stripe, session) : false
+      const customDesignIds = session?.metadata?.custom_design_ids
+        ?.split(',')
+        .map((value) => value.trim())
+        .filter(Boolean) ?? []
+
+      if (session && customDesignIds.length > 0) {
+        await markBagDesignsOrdered(customDesignIds, session.id)
+      }
+
       await updateWebhookDeliveryLog(logId, {
         status: stored ? 'processed' : 'skipped',
         httpStatus: 200,

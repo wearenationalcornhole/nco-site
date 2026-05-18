@@ -94,7 +94,10 @@ export default function TopBar() {
 
           {/* Event organizer tools remain separate from club management. */}
           {canUseOrganizerTools(role) && (
-            <Link href="/portal/org" className={linkClass('/portal/org')}>Organizer Tools</Link>
+            <>
+              <Link href="/portal/org" className={linkClass('/portal/org')}>Organizer Tools</Link>
+              <Link href="/portal/bag-maker" className={linkClass('/portal/bag-maker')}>Bag Maker</Link>
+            </>
           )}
 
           {/* Admin console (exists as /portal/admin) */}

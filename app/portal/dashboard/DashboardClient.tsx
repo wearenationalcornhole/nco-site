@@ -235,6 +235,13 @@ export default function DashboardClient() {
               color="#B31942"
             />
             <Card
+              title="Bag Maker"
+              desc="Build custom organizer bag art, generate production PNGs, and send approved designs into the cart."
+              cta="Open bag maker"
+              href="/portal/bag-maker"
+              color="#0A3161"
+            />
+            <Card
               title="Security & Passkeys"
               desc="Register passkeys and manage device trust."
               cta="Open security"

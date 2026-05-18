@@ -67,6 +67,8 @@ export type TableName =
   | 'event_registration_payments'
   | 'payment_action_audit_logs'
   | 'webhook_delivery_logs'
+  | 'bag_designs'
+  | 'bag_design_assets'
 
 type StoreShape = Record<TableName, AnyRecord[]>
 
@@ -99,6 +101,8 @@ function createDefaultData(): StoreShape {
     event_registration_payments: [],
     payment_action_audit_logs: [],
     webhook_delivery_logs: [],
+    bag_designs: [],
+    bag_design_assets: [],
   }
 }
 
