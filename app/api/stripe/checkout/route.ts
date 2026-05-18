@@ -1,6 +1,8 @@
 import Stripe from 'stripe'
 import { NextResponse } from 'next/server'
+import { CUSTOM_BAG_CART_SLUG } from '@/app/lib/bagMakerConfig'
 import { listStoreProducts } from '@/app/lib/store/catalog'
+import { isCustomBagCartItem, normalizePersistedCartItems } from '@/app/lib/shopCart'
 
 export const runtime = 'nodejs'
 
@@ -28,7 +30,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => null)
-  const rawItems = Array.isArray(body?.items) ? body.items : []
+  const rawItems = normalizePersistedCartItems(body?.items)
   if (rawItems.length === 0) {
     return NextResponse.json({ error: 'Cart is empty.' }, { status: 400 })
   }
@@ -36,7 +38,32 @@ export async function POST(request: Request) {
   const products = await listStoreProducts()
   const origin = getSiteUrl(request)
 
-  const lineItems = rawItems.map((item: { slug?: string; quantity?: number }) => {
+  const customDesignIds: string[] = []
+
+  const lineItems = rawItems.map((item) => {
+    if (isCustomBagCartItem(item)) {
+      customDesignIds.push(item.designId)
+      return {
+        quantity: 1,
+        price_data: {
+          currency: 'usd',
+          unit_amount: item.unitPrice,
+          product_data: {
+            name: item.title,
+            description: `${item.description} Design ${item.designId}.`,
+            images: /^https?:\/\//.test(item.proofUrl) ? [item.proofUrl] : undefined,
+            metadata: {
+              slug: CUSTOM_BAG_CART_SLUG,
+              category: item.category,
+              design_id: item.designId,
+              item_type: 'custom_bag' as const,
+              bag_color_hex: item.bagColorHex,
+            },
+          },
+        },
+      }
+    }
+
     const product = products.find((candidate) => candidate.slug === item.slug)
     const quantity = Math.max(1, Math.min(10, Number(item.quantity ?? 1)))
 
@@ -60,6 +87,9 @@ export async function POST(request: Request) {
           metadata: {
             slug: product.slug,
             category: product.category,
+            design_id: null,
+            item_type: 'catalog',
+            bag_color_hex: null,
           },
         },
       },
@@ -69,7 +99,7 @@ export async function POST(request: Request) {
   try {
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
-      line_items: lineItems,
+      line_items: lineItems as any,
       success_url: `${origin}/shop/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/shop/cancel`,
       allow_promotion_codes: true,
@@ -77,6 +107,7 @@ export async function POST(request: Request) {
       metadata: {
         source: 'nco-store-mvp',
         cart_count: String(rawItems.length),
+        custom_design_ids: customDesignIds.join(','),
       },
     })
 

@@ -7,6 +7,7 @@ import { useShopCart } from './ShopCartProvider'
 
 export default function CartDrawer() {
   const {
+    items,
     entries,
     itemCount,
     subtotal,
@@ -31,10 +32,7 @@ export default function CartDrawer() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items: entries.map((entry) => ({
-            slug: entry.product.slug,
-            quantity: entry.quantity,
-          })),
+          items,
         }),
       })
 
@@ -109,22 +107,27 @@ export default function CartDrawer() {
               ) : (
                 <ul className="space-y-4">
                   {entries.map((entry) => (
-                    <li key={entry.product.slug} className="rounded-3xl border border-slate-200 p-4">
+                    <li key={entry.key} className="rounded-3xl border border-slate-200 p-4">
                       <div className="flex items-start justify-between gap-4">
                         <div>
                           <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                            {entry.product.category}
+                            {entry.category}
                           </p>
                           <h3 className="mt-1 text-base font-semibold text-slate-900">
-                            {entry.product.title}
+                            {entry.title}
                           </h3>
                           <p className="mt-1 text-sm text-slate-600">
-                            {getInventoryLabel(entry.product.inventoryStatus)}
+                            {entry.inventoryStatus === 'custom_order'
+                              ? 'Custom bag build'
+                              : getInventoryLabel(entry.inventoryStatus)}
                           </p>
+                          {entry.kind === 'custom_bag' && entry.designId ? (
+                            <p className="mt-1 text-xs text-slate-500">Design {entry.designId}</p>
+                          ) : null}
                         </div>
                         <button
                           type="button"
-                          onClick={() => removeItem(entry.product.slug)}
+                          onClick={() => removeItem(entry.key)}
                           className="text-sm font-medium text-[#B31942] hover:underline"
                         >
                           Remove
@@ -135,7 +138,7 @@ export default function CartDrawer() {
                         <div className="inline-flex items-center rounded-full border border-slate-200">
                           <button
                             type="button"
-                            onClick={() => setQuantity(entry.product.slug, entry.quantity - 1)}
+                            onClick={() => setQuantity(entry.key, entry.quantity - 1)}
                             className="px-3 py-2 text-slate-700 hover:bg-slate-100"
                           >
                             -
@@ -145,7 +148,7 @@ export default function CartDrawer() {
                           </span>
                           <button
                             type="button"
-                            onClick={() => setQuantity(entry.product.slug, entry.quantity + 1)}
+                            onClick={() => setQuantity(entry.key, entry.quantity + 1)}
                             className="px-3 py-2 text-slate-700 hover:bg-slate-100"
                           >
                             +
@@ -153,7 +156,7 @@ export default function CartDrawer() {
                         </div>
 
                         <div className="text-right">
-                          <p className="text-sm text-slate-500">{formatPrice(entry.product.price)} each</p>
+                          <p className="text-sm text-slate-500">{formatPrice(entry.unitPrice)} each</p>
                           <p className="text-base font-semibold text-slate-900">
                             {formatPrice(entry.lineTotal)}
                           </p>
