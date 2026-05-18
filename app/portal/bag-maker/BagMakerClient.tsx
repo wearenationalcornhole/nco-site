@@ -245,6 +245,27 @@ export default function BagMakerClient({
     })
   }
 
+  function toggleNcoLogoSide(side: SideKey, checked: boolean) {
+    if (!design) return
+
+    const slowEnabled =
+      side === 'slowSide' ? checked : design.design_json.slowSide.showNcoLogo
+    const fastEnabled =
+      side === 'fastSide' ? checked : design.design_json.fastSide.showNcoLogo
+
+    updateDesignJson({
+      ...design.design_json,
+      slowSide: {
+        ...design.design_json.slowSide,
+        showNcoLogo: slowEnabled || !slowEnabled && !fastEnabled,
+      },
+      fastSide: {
+        ...design.design_json.fastSide,
+        showNcoLogo: fastEnabled,
+      },
+    })
+  }
+
   function updateColorFromHex(nextHex: string) {
     if (!design) return
     const bagColorHex = normalizeHexColor(nextHex, design.design_json.bagColorHex)
@@ -632,14 +653,28 @@ export default function BagMakerClient({
                     className="h-[46px] w-full rounded-2xl border border-slate-300 bg-white p-1"
                   />
                 </label>
-                <label className="inline-flex items-center gap-2 rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={selectedSide.showNcoLogo}
-                    onChange={(event) => updateSide('showNcoLogo', event.target.checked)}
-                  />
-                  Show NCO logo on this side
-                </label>
+                <div className="rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-700">
+                  <span className="mb-2 block font-medium">NCO logo placement</span>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={design.design_json.slowSide.showNcoLogo}
+                      onChange={(event) => toggleNcoLogoSide('slowSide', event.target.checked)}
+                    />
+                    Slow Side
+                  </label>
+                  <label className="mt-2 flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={design.design_json.fastSide.showNcoLogo}
+                      onChange={(event) => toggleNcoLogoSide('fastSide', event.target.checked)}
+                    />
+                    Fast Side
+                  </label>
+                  <p className="mt-2 text-xs text-slate-500">
+                    The NCO logo must appear on at least one side. If both are turned off, Slow Side is restored.
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -692,8 +727,8 @@ export default function BagMakerClient({
             {organizerLogoWarning ? <p className="mt-2 text-sm text-amber-700">{organizerLogoWarning}</p> : null}
             <p className="mt-4 text-xs leading-5 text-slate-500">
               The organizer logo stays in the top-left zone when enabled. The NCO logo renders in the bottom-right only
-              on sides where its toggle is enabled. Optional overlay and mask assets can still be swapped later without
-              changing this page structure.
+              on one enforced side at a time, with slow side as the default fallback. Optional overlay and mask assets
+              can still be swapped later without changing this page structure.
             </p>
           </div>
         </div>

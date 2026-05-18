@@ -102,6 +102,26 @@ function normalizeSide(value: any, fallback: BagDesignJson['slowSide']): BagDesi
   }
 }
 
+function enforceNcoLogoPlacement(
+  slowSide: BagDesignJson['slowSide'],
+  fastSide: BagDesignJson['fastSide'],
+) {
+  if (slowSide.showNcoLogo || fastSide.showNcoLogo) {
+    return { slowSide, fastSide }
+  }
+
+  return {
+    slowSide: {
+      ...slowSide,
+      showNcoLogo: true,
+    },
+    fastSide: {
+      ...fastSide,
+      showNcoLogo: false,
+    },
+  }
+}
+
 function parseStorageBucketPath(value: string | null | undefined) {
   const trimmed = String(value ?? '').trim()
   const slashIndex = trimmed.indexOf('/')
@@ -140,6 +160,9 @@ export function normalizeBagDesignJson(value: any, fallbackColor = '#ffffff'): B
   const defaults = createDefaultBagDesignJson()
   const bagColorHex = normalizeHexColor(value?.bagColorHex, fallbackColor)
   const bagColorCmyk = normalizeBagColorCmyk(value?.bagColorCmyk)
+  const slowSide = normalizeSide(value?.slowSide, defaults.slowSide)
+  const fastSide = normalizeSide(value?.fastSide, defaults.fastSide)
+  const enforcedSides = enforceNcoLogoPlacement(slowSide, fastSide)
 
   return {
     version: 1,
@@ -151,8 +174,8 @@ export function normalizeBagDesignJson(value: any, fallbackColor = '#ffffff'): B
       typeof value?.showOrganizerLogo === 'boolean'
         ? value.showOrganizerLogo
         : defaults.showOrganizerLogo,
-    slowSide: normalizeSide(value?.slowSide, defaults.slowSide),
-    fastSide: normalizeSide(value?.fastSide, defaults.fastSide),
+    slowSide: enforcedSides.slowSide,
+    fastSide: enforcedSides.fastSide,
   }
 }
 
