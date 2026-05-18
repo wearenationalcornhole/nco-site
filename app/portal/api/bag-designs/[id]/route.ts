@@ -8,6 +8,7 @@ import {
   getBagDesignForActor,
   mergeBagDesignColorFromCmyk,
   normalizeBagDesignJson,
+  sanitizeBagDesignForActor,
   updateBagDesign,
 } from '@/app/lib/bagMakerData'
 import { requireRouteRoles } from '@/app/lib/portalRouteAccess'
@@ -31,7 +32,7 @@ export async function GET(_request: Request, context: any) {
       return NextResponse.json({ error: 'Bag design not found.' }, { status: 404 })
     }
 
-    return NextResponse.json(design)
+    return NextResponse.json(sanitizeBagDesignForActor(access.actor, design))
   } catch (error: any) {
     console.error('GET /portal/api/bag-designs/[id] error:', error)
     return NextResponse.json({ error: error?.message ?? 'Unable to load bag design.' }, { status: 500 })
@@ -77,7 +78,7 @@ export async function PATCH(request: Request, context: any) {
       return NextResponse.json({ error: 'Bag design not found.' }, { status: 404 })
     }
 
-    return NextResponse.json(updated)
+    return NextResponse.json(sanitizeBagDesignForActor(access.actor, updated))
   } catch (error: any) {
     console.error('PATCH /portal/api/bag-designs/[id] error:', error)
     return NextResponse.json({ error: error?.message ?? 'Unable to update bag design.' }, { status: 500 })
@@ -105,4 +106,3 @@ export async function DELETE(_request: Request, context: any) {
     return NextResponse.json({ error: error?.message ?? 'Unable to archive bag design.' }, { status: 500 })
   }
 }
-

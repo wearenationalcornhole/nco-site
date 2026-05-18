@@ -4,9 +4,11 @@ export const revalidate = 0
 
 import { NextResponse } from 'next/server'
 import {
+  createStorageAccessUrl,
   getBagDesignForActor,
   getSupabaseAdminSafe,
   replaceRenderedArt,
+  sanitizeBagDesignForActor,
 } from '@/app/lib/bagMakerData'
 import { renderBagDesignBuffers } from '@/app/lib/bagMakerRender'
 import { requireRouteRoles } from '@/app/lib/portalRouteAccess'
@@ -51,10 +53,9 @@ async function uploadGeneratedFile(
     }
   }
 
-  const { data } = supabaseAdmin.storage.from(GENERATED_BUCKET).getPublicUrl(objectPath)
   return {
-    fileUrl: data.publicUrl,
     storagePath: `${GENERATED_BUCKET}/${objectPath}`,
+    fileUrl: await createStorageAccessUrl(`${GENERATED_BUCKET}/${objectPath}`, ''),
   }
 }
 
@@ -95,10 +96,9 @@ export async function POST(_request: Request, context: any) {
       return NextResponse.json({ error: 'Bag design not found.' }, { status: 404 })
     }
 
-    return NextResponse.json(updated)
+    return NextResponse.json(sanitizeBagDesignForActor(access.actor, updated))
   } catch (error: any) {
     console.error('POST /portal/api/bag-designs/[id]/render error:', error)
     return NextResponse.json({ error: error?.message ?? 'Unable to render bag art.' }, { status: 500 })
   }
 }
-

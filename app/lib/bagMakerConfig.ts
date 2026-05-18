@@ -75,6 +75,7 @@ export function createDefaultBagDesignJson(): BagDesignJson {
       secondaryText: '',
       fontFamily: 'Inter',
       textColor: '#111111',
+      showNcoLogo: true,
     },
     fastSide: {
       layout: 'center_logo',
@@ -83,6 +84,7 @@ export function createDefaultBagDesignJson(): BagDesignJson {
       secondaryText: '',
       fontFamily: 'Inter',
       textColor: '#111111',
+      showNcoLogo: true,
     },
   }
 }
@@ -99,4 +101,3 @@ export function getCustomBagPriceCents() {
 
   return DEFAULT_CUSTOM_BAG_PRICE_CENTS
 }
-

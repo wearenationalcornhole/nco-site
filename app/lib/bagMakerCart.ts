@@ -19,8 +19,5 @@ export function buildCustomBagCartItem(design: BagDesignWithAssets): CustomBagCa
     unitPrice: getCustomBagPriceCents(),
     bagColorHex: design.bag_color_hex,
     proofUrl: design.proof_url,
-    slowSideArtUrl: design.slow_side_art_url,
-    fastSideArtUrl: design.fast_side_art_url,
   }
 }
-

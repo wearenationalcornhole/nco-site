@@ -622,15 +622,25 @@ export default function BagMakerClient({
                 />
               </label>
 
-              <label className="block text-sm text-slate-700">
-                <span className="mb-1 block font-medium">Text color</span>
-                <input
-                  type="color"
-                  value={selectedSide.textColor}
-                  onChange={(event) => updateSide('textColor', event.target.value)}
-                  className="h-[46px] w-full rounded-2xl border border-slate-300 bg-white p-1"
-                />
-              </label>
+              <div className="grid gap-3">
+                <label className="block text-sm text-slate-700">
+                  <span className="mb-1 block font-medium">Text color</span>
+                  <input
+                    type="color"
+                    value={selectedSide.textColor}
+                    onChange={(event) => updateSide('textColor', event.target.value)}
+                    className="h-[46px] w-full rounded-2xl border border-slate-300 bg-white p-1"
+                  />
+                </label>
+                <label className="inline-flex items-center gap-2 rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={selectedSide.showNcoLogo}
+                    onChange={(event) => updateSide('showNcoLogo', event.target.checked)}
+                  />
+                  Show NCO logo on this side
+                </label>
+              </div>
             </div>
 
             {sideMainAsset ? (
@@ -681,8 +691,9 @@ export default function BagMakerClient({
             ) : null}
             {organizerLogoWarning ? <p className="mt-2 text-sm text-amber-700">{organizerLogoWarning}</p> : null}
             <p className="mt-4 text-xs leading-5 text-slate-500">
-              The NCO logo stays locked in the bottom-right on both production sides. The optional preview overlay and
-              mask assets can be swapped later without changing this page structure.
+              The organizer logo stays in the top-left zone when enabled. The NCO logo renders in the bottom-right only
+              on sides where its toggle is enabled. Optional overlay and mask assets can still be swapped later without
+              changing this page structure.
             </p>
           </div>
         </div>
@@ -777,9 +788,14 @@ export default function BagMakerClient({
             </div>
 
             <div className="mt-5 rounded-3xl bg-slate-50 p-4 text-sm text-slate-600">
-              <p>Slow side file: {design.slow_side_art_url ? 'ready' : 'not generated yet'}</p>
-              <p className="mt-1">Fast side file: {design.fast_side_art_url ? 'ready' : 'not generated yet'}</p>
+              <p>Production art status: {design.status === 'rendered' || design.status === 'added_to_cart' || design.status === 'ordered' ? 'generated' : 'not generated yet'}</p>
               <p className="mt-1">Proof file: {design.proof_url ? 'ready' : 'not generated yet'}</p>
+              {design.proof_url ? (
+                <p className="mt-2 text-xs text-slate-500">
+                  The server writes production files under `bag-art/{design.id}/...`. Those production PNGs are not
+                  exposed to organizer or user clients.
+                </p>
+              ) : null}
             </div>
           </div>
         </div>
@@ -830,16 +846,20 @@ function BagPreviewCard({
 
         <PreviewMainContent side={side} mainAsset={mainAsset} />
 
-        {/* eslint-disable-next-line @next/next/no-img-element -- Local NCO logo falls back between bag-maker and site assets. */}
-        <img
-          src={BAG_MAKER_PUBLIC_NCO_LOGO_PATH}
-          alt="NCO logo"
-          onError={(event) => {
-            event.currentTarget.onerror = null
-            event.currentTarget.src = BAG_MAKER_FALLBACK_NCO_LOGO_PATH
-          }}
-          className="absolute bottom-[12%] right-[10%] h-[16%] w-[16%] object-contain"
-        />
+        {side.showNcoLogo ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element -- Local NCO logo falls back between bag-maker and site assets. */}
+            <img
+              src={BAG_MAKER_PUBLIC_NCO_LOGO_PATH}
+              alt="NCO logo"
+              onError={(event) => {
+                event.currentTarget.onerror = null
+                event.currentTarget.src = BAG_MAKER_FALLBACK_NCO_LOGO_PATH
+              }}
+              className="absolute bottom-[12%] right-[10%] h-[16%] w-[16%] object-contain"
+            />
+          </>
+        ) : null}
       </div>
     </div>
   )

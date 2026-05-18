@@ -18,8 +18,6 @@ export type CustomBagCartItem = {
   unitPrice: number
   bagColorHex: string
   proofUrl: string
-  slowSideArtUrl: string
-  fastSideArtUrl: string
 }
 
 export type PersistedCartItem = CatalogCartItem | CustomBagCartItem
@@ -39,8 +37,6 @@ export type ResolvedCartEntry = {
   designId?: string
   bagColorHex?: string
   proofUrl?: string
-  slowSideArtUrl?: string
-  fastSideArtUrl?: string
 }
 
 export const SHOP_CART_STORAGE_KEY = 'nco-shop-cart'
@@ -82,10 +78,6 @@ export function normalizePersistedCartItems(value: unknown): PersistedCartItem[]
         const unitPrice = Number(raw.unitPrice ?? 0)
         const bagColorHex = typeof raw.bagColorHex === 'string' ? raw.bagColorHex.trim() : '#ffffff'
         const proofUrl = typeof raw.proofUrl === 'string' ? raw.proofUrl.trim() : ''
-        const slowSideArtUrl =
-          typeof raw.slowSideArtUrl === 'string' ? raw.slowSideArtUrl.trim() : ''
-        const fastSideArtUrl =
-          typeof raw.fastSideArtUrl === 'string' ? raw.fastSideArtUrl.trim() : ''
 
         if (
           !designId ||
@@ -94,8 +86,6 @@ export function normalizePersistedCartItems(value: unknown): PersistedCartItem[]
           !description ||
           !image ||
           !proofUrl ||
-          !slowSideArtUrl ||
-          !fastSideArtUrl ||
           !isPositiveNumber(unitPrice)
         ) {
           return null
@@ -113,8 +103,6 @@ export function normalizePersistedCartItems(value: unknown): PersistedCartItem[]
           unitPrice: Math.round(unitPrice),
           bagColorHex,
           proofUrl,
-          slowSideArtUrl,
-          fastSideArtUrl,
         } satisfies CustomBagCartItem
       }
 
@@ -144,8 +132,6 @@ export function resolveCartEntry(item: PersistedCartItem, products: Product[]): 
       designId: item.designId,
       bagColorHex: item.bagColorHex,
       proofUrl: item.proofUrl,
-      slowSideArtUrl: item.slowSideArtUrl,
-      fastSideArtUrl: item.fastSideArtUrl,
     }
   }
 

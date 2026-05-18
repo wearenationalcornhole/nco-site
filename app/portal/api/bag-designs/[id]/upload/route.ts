@@ -6,10 +6,12 @@ import crypto from 'node:crypto'
 import sharp from 'sharp'
 import { NextResponse } from 'next/server'
 import {
+  createStorageAccessUrl,
   createBagDesignAsset,
   getAssetSlotType,
   getBagDesignForActor,
   getSupabaseAdminSafe,
+  sanitizeBagDesignForActor,
 } from '@/app/lib/bagMakerData'
 import { requireRouteRoles } from '@/app/lib/portalRouteAccess'
 
@@ -86,9 +88,8 @@ export async function POST(request: Request, context: any) {
       })
 
       if (!error) {
-        const { data } = supabaseAdmin.storage.from(ASSET_BUCKET).getPublicUrl(objectPath)
-        fileUrl = data.publicUrl
         storagePath = `${ASSET_BUCKET}/${objectPath}`
+        fileUrl = await createStorageAccessUrl(storagePath, '')
       } else if (process.env.NODE_ENV === 'production') {
         return NextResponse.json(
           {
@@ -125,10 +126,9 @@ export async function POST(request: Request, context: any) {
       return NextResponse.json({ error: 'Bag design not found.' }, { status: 404 })
     }
 
-    return NextResponse.json(updated)
+    return NextResponse.json(sanitizeBagDesignForActor(access.actor, updated))
   } catch (error: any) {
     console.error('POST /portal/api/bag-designs/[id]/upload error:', error)
     return NextResponse.json({ error: error?.message ?? 'Unable to upload bag maker asset.' }, { status: 500 })
   }
 }
-
