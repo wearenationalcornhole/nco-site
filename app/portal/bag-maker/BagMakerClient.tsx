@@ -801,9 +801,10 @@ export default function BagMakerClient({
             ) : null}
             {organizerLogoWarning ? <p className="mt-2 text-sm text-amber-700">{organizerLogoWarning}</p> : null}
             <p className="mt-4 text-xs leading-5 text-slate-500">
-              The organizer logo stays in the top-left zone on whichever sides you enable. The NCO logo renders in the
-              bottom-right and must stay on at least one side, with slow side as the default fallback. Optional overlay
-              and mask assets can still be swapped later without changing this page structure.
+              The organizer logo sits just outside the top-left corner of the main art area on whichever sides you
+              enable. The NCO logo mirrors that behavior at the bottom-right and must stay on at least one side, with
+              slow side as the default fallback. Optional overlay and mask assets can still be swapped later without
+              changing this page structure.
             </p>
           </div>
         </div>
@@ -962,7 +963,7 @@ function BagPreviewCard({
       </div>
       <div className="relative mx-auto aspect-square w-full max-w-[330px] overflow-hidden rounded-[26%] border border-slate-300 shadow-sm">
         <div className="absolute inset-0" style={{ backgroundColor: bagColor }} />
-        <div className="absolute left-[18%] top-[18%] h-[16%] w-[20%] rounded-2xl border border-dashed border-slate-400/50" />
+        <div className="absolute left-[12%] top-[12%] h-[16%] w-[16%] rounded-2xl border border-dashed border-slate-400/50" />
         <div className="absolute bottom-[14%] right-[12%] h-[16%] w-[16%] rounded-2xl border border-dashed border-slate-400/50" />
         <div className="absolute left-[23%] top-[23%] h-[54%] w-[54%] rounded-[20%] border-2 border-dashed border-white/65" />
 
@@ -972,7 +973,7 @@ function BagPreviewCard({
             <img
               src={organizerLogo.file_url}
               alt="Organizer logo"
-              className="absolute left-[18%] top-[16%] h-[18%] w-[20%] object-contain"
+              className="absolute left-[12%] top-[12%] h-[16%] w-[16%] object-contain"
             />
           </>
         ) : null}
