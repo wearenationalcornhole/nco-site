@@ -28,10 +28,14 @@ export type BagColorCmyk = {
 export type BagSideDesign = {
   layout: BagMakerLayout
   mainAssetId: string | null
+  mainArtScale: number
+  mainArtOffsetX: number
+  mainArtOffsetY: number
   mainText: string
   secondaryText: string
   fontFamily: BagMakerFontFamily
   textColor: string
+  showOrganizerLogo: boolean
   showNcoLogo: boolean
 }
 
@@ -40,7 +44,7 @@ export type BagDesignJson = {
   bagColorHex: string
   bagColorCmyk: BagColorCmyk
   organizerLogoAssetId: string | null
-  showOrganizerLogo: boolean
+  showOrganizerLogo?: boolean
   slowSide: BagSideDesign
   fastSide: BagSideDesign
 }

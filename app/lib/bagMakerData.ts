@@ -1,5 +1,6 @@
 import { devStore } from '@/app/lib/devStore'
 import { createDefaultBagDesignJson } from '@/app/lib/bagMakerConfig'
+import { normalizeMainArtOffset, normalizeMainArtScale } from '@/app/lib/bagMakerPlacement'
 import { cmykToHex, normalizeBagColorCmyk, normalizeHexColor } from '@/app/lib/bagMakerColor'
 import { canUseAdminTools } from '@/app/lib/profileCapabilities'
 import {
@@ -87,6 +88,9 @@ function normalizeSide(value: any, fallback: BagDesignJson['slowSide']): BagDesi
         ? value.layout
         : fallback.layout,
     mainAssetId: typeof value?.mainAssetId === 'string' ? value.mainAssetId : null,
+    mainArtScale: normalizeMainArtScale(value?.mainArtScale ?? fallback.mainArtScale),
+    mainArtOffsetX: normalizeMainArtOffset(value?.mainArtOffsetX ?? fallback.mainArtOffsetX),
+    mainArtOffsetY: normalizeMainArtOffset(value?.mainArtOffsetY ?? fallback.mainArtOffsetY),
     mainText: typeof value?.mainText === 'string' ? value.mainText : fallback.mainText,
     secondaryText:
       typeof value?.secondaryText === 'string' ? value.secondaryText : fallback.secondaryText,
@@ -97,6 +101,10 @@ function normalizeSide(value: any, fallback: BagDesignJson['slowSide']): BagDesi
         ? value.fontFamily
         : fallback.fontFamily,
     textColor: normalizeHexColor(value?.textColor, fallback.textColor),
+    showOrganizerLogo:
+      typeof value?.showOrganizerLogo === 'boolean'
+        ? value.showOrganizerLogo
+        : fallback.showOrganizerLogo,
     showNcoLogo:
       typeof value?.showNcoLogo === 'boolean' ? value.showNcoLogo : fallback.showNcoLogo,
   }
@@ -160,8 +168,28 @@ export function normalizeBagDesignJson(value: any, fallbackColor = '#ffffff'): B
   const defaults = createDefaultBagDesignJson()
   const bagColorHex = normalizeHexColor(value?.bagColorHex, fallbackColor)
   const bagColorCmyk = normalizeBagColorCmyk(value?.bagColorCmyk)
-  const slowSide = normalizeSide(value?.slowSide, defaults.slowSide)
-  const fastSide = normalizeSide(value?.fastSide, defaults.fastSide)
+  const legacyShowOrganizerLogo =
+    typeof value?.showOrganizerLogo === 'boolean' ? value.showOrganizerLogo : null
+  const slowSide = normalizeSide(
+    {
+      ...value?.slowSide,
+      showOrganizerLogo:
+        typeof value?.slowSide?.showOrganizerLogo === 'boolean'
+          ? value.slowSide.showOrganizerLogo
+          : legacyShowOrganizerLogo ?? defaults.slowSide.showOrganizerLogo,
+    },
+    defaults.slowSide,
+  )
+  const fastSide = normalizeSide(
+    {
+      ...value?.fastSide,
+      showOrganizerLogo:
+        typeof value?.fastSide?.showOrganizerLogo === 'boolean'
+          ? value.fastSide.showOrganizerLogo
+          : legacyShowOrganizerLogo ?? defaults.fastSide.showOrganizerLogo,
+    },
+    defaults.fastSide,
+  )
   const enforcedSides = enforceNcoLogoPlacement(slowSide, fastSide)
 
   return {
@@ -170,10 +198,6 @@ export function normalizeBagDesignJson(value: any, fallbackColor = '#ffffff'): B
     bagColorCmyk,
     organizerLogoAssetId:
       typeof value?.organizerLogoAssetId === 'string' ? value.organizerLogoAssetId : null,
-    showOrganizerLogo:
-      typeof value?.showOrganizerLogo === 'boolean'
-        ? value.showOrganizerLogo
-        : defaults.showOrganizerLogo,
     slowSide: enforcedSides.slowSide,
     fastSide: enforcedSides.fastSide,
   }
@@ -500,6 +524,9 @@ function nextDesignJsonForAsset(
       slowSide: {
         ...current.slowSide,
         mainAssetId: assetId,
+        mainArtScale: 1,
+        mainArtOffsetX: 0,
+        mainArtOffsetY: 0,
       },
     }
   }
@@ -510,6 +537,9 @@ function nextDesignJsonForAsset(
       fastSide: {
         ...current.fastSide,
         mainAssetId: assetId,
+        mainArtScale: 1,
+        mainArtOffsetX: 0,
+        mainArtOffsetY: 0,
       },
     }
   }
