@@ -1,16 +1,19 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { PointerEvent as ReactPointerEvent } from 'react'
 import Toast from '@/components/ui/Toast'
 import {
   BAG_MAKER_FONT_OPTIONS,
   BAG_MAKER_LAYOUT_OPTIONS,
   BAG_MAKER_PUBLIC_NCO_LOGO_PATH,
   BAG_MAKER_FALLBACK_NCO_LOGO_PATH,
+  MAIN_PLACEMENT_SIZE_PX,
   createDefaultBagDesignJson,
 } from '@/app/lib/bagMakerConfig'
 import { cmykToHex, hexToCmyk, normalizeBagColorCmyk, normalizeHexColor } from '@/app/lib/bagMakerColor'
+import { getMainArtPlacementBox, MAIN_ART_SCALE_MAX, MAIN_ART_SCALE_MIN } from '@/app/lib/bagMakerPlacement'
 import { formatPrice } from '@/app/lib/store/catalog'
 import { upsertCustomBagCartItem } from '@/app/lib/shopCart'
 import type {
@@ -58,6 +61,10 @@ function assetById(design: BagDesignWithAssets | null, assetId: string | null | 
 
 function sideLabel(side: SideKey) {
   return side === 'slowSide' ? 'Slow Side' : 'Fast Side'
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max)
 }
 
 export default function BagMakerClient({
@@ -234,14 +241,19 @@ export default function BagMakerClient({
     )
   }
 
-  function updateSide<K extends keyof BagDesignJson['slowSide']>(field: K, value: BagDesignJson['slowSide'][K]) {
+  function updateSideByKey(sideKey: SideKey, nextSide: BagDesignJson['slowSide']) {
     if (!design) return
     updateDesignJson({
       ...design.design_json,
-      [activeSide]: {
-        ...design.design_json[activeSide],
-        [field]: value,
-      },
+      [sideKey]: nextSide,
+    })
+  }
+
+  function updateSide<K extends keyof BagDesignJson['slowSide']>(field: K, value: BagDesignJson['slowSide'][K]) {
+    if (!design) return
+    updateSideByKey(activeSide, {
+      ...design.design_json[activeSide],
+      [field]: value,
     })
   }
 
@@ -263,6 +275,46 @@ export default function BagMakerClient({
         ...design.design_json.fastSide,
         showNcoLogo: fastEnabled,
       },
+    })
+  }
+
+  function toggleOrganizerLogoSide(side: SideKey, checked: boolean) {
+    if (!design) return
+
+    updateDesignJson({
+      ...design.design_json,
+      slowSide: {
+        ...design.design_json.slowSide,
+        showOrganizerLogo: side === 'slowSide' ? checked : design.design_json.slowSide.showOrganizerLogo,
+      },
+      fastSide: {
+        ...design.design_json.fastSide,
+        showOrganizerLogo: side === 'fastSide' ? checked : design.design_json.fastSide.showOrganizerLogo,
+      },
+    })
+  }
+
+  function updateMainArtTransform(sideKey: SideKey, patch: Partial<Pick<BagDesignJson['slowSide'], 'mainArtScale' | 'mainArtOffsetX' | 'mainArtOffsetY'>>) {
+    if (!design) return
+    const currentSide = design.design_json[sideKey]
+    updateSideByKey(sideKey, {
+      ...currentSide,
+      mainArtScale:
+        typeof patch.mainArtScale === 'number'
+          ? clamp(patch.mainArtScale, MAIN_ART_SCALE_MIN, MAIN_ART_SCALE_MAX)
+          : currentSide.mainArtScale,
+      mainArtOffsetX:
+        typeof patch.mainArtOffsetX === 'number' ? Math.round(patch.mainArtOffsetX) : currentSide.mainArtOffsetX,
+      mainArtOffsetY:
+        typeof patch.mainArtOffsetY === 'number' ? Math.round(patch.mainArtOffsetY) : currentSide.mainArtOffsetY,
+    })
+  }
+
+  function resetMainArtTransform(sideKey: SideKey) {
+    updateMainArtTransform(sideKey, {
+      mainArtScale: 1,
+      mainArtOffsetX: 0,
+      mainArtOffsetY: 0,
     })
   }
 
@@ -685,6 +737,19 @@ export default function BagMakerClient({
               </div>
             ) : null}
             {mainArtWarning ? <p className="mt-2 text-sm text-amber-700">{mainArtWarning}</p> : null}
+            {sideMainAsset ? (
+              <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-600">
+                <span>Drag inside the preview placement zone to move artwork.</span>
+                <span>Use the corner handle to resize.</span>
+                <button
+                  type="button"
+                  onClick={() => resetMainArtTransform(activeSide)}
+                  className="rounded-full border border-slate-300 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Reset Artwork Position
+                </button>
+              </div>
+            ) : null}
             {uploadingSlot === 'slow_main' || uploadingSlot === 'fast_main' ? (
               <p className="mt-2 text-sm text-slate-500">Uploading artwork…</p>
             ) : null}
@@ -704,19 +769,29 @@ export default function BagMakerClient({
                 />
               </label>
 
-              <label className="inline-flex items-center gap-2 rounded-full border border-slate-300 px-4 py-3 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={design.design_json.showOrganizerLogo}
-                  onChange={(event) =>
-                    updateDesignJson({
-                      ...design.design_json,
-                      showOrganizerLogo: event.target.checked,
-                    })
-                  }
-                />
-                Show organizer logo on both sides
-              </label>
+              <div className="rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-700">
+                <span className="mb-2 block font-medium">Organizer logo placement</span>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={design.design_json.slowSide.showOrganizerLogo}
+                    onChange={(event) => toggleOrganizerLogoSide('slowSide', event.target.checked)}
+                  />
+                  Slow Side
+                </label>
+                <label className="mt-2 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={design.design_json.fastSide.showOrganizerLogo}
+                    onChange={(event) => toggleOrganizerLogoSide('fastSide', event.target.checked)}
+                  />
+                  Fast Side
+                </label>
+                <p className="mt-2 text-xs text-slate-500">
+                  Optional. Turn it on for either side, both sides, or neither. The proof can still include the organizer
+                  logo at the bottom when one is uploaded.
+                </p>
+              </div>
             </div>
             {organizerLogo ? (
               <div className="mt-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
@@ -726,9 +801,9 @@ export default function BagMakerClient({
             ) : null}
             {organizerLogoWarning ? <p className="mt-2 text-sm text-amber-700">{organizerLogoWarning}</p> : null}
             <p className="mt-4 text-xs leading-5 text-slate-500">
-              The organizer logo stays in the top-left zone when enabled. The NCO logo renders in the bottom-right only
-              on one enforced side at a time, with slow side as the default fallback. Optional overlay and mask assets
-              can still be swapped later without changing this page structure.
+              The organizer logo stays in the top-left zone on whichever sides you enable. The NCO logo renders in the
+              bottom-right and must stay on at least one side, with slow side as the default fallback. Optional overlay
+              and mask assets can still be swapped later without changing this page structure.
             </p>
           </div>
         </div>
@@ -744,20 +819,26 @@ export default function BagMakerClient({
             </div>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <BagPreviewCard
+                sideKey="slowSide"
                 title="Slow Side"
                 side={design.design_json.slowSide}
                 bagColor={design.design_json.bagColorHex}
                 mainAsset={assetById(design, design.design_json.slowSide.mainAssetId)}
                 organizerLogo={organizerLogo}
-                showOrganizerLogo={design.design_json.showOrganizerLogo}
+                active={activeSide === 'slowSide'}
+                onSelect={() => setActiveSide('slowSide')}
+                onUpdateMainArt={(patch) => updateMainArtTransform('slowSide', patch)}
               />
               <BagPreviewCard
+                sideKey="fastSide"
                 title="Fast Side"
                 side={design.design_json.fastSide}
                 bagColor={design.design_json.bagColorHex}
                 mainAsset={assetById(design, design.design_json.fastSide.mainAssetId)}
                 organizerLogo={organizerLogo}
-                showOrganizerLogo={design.design_json.showOrganizerLogo}
+                active={activeSide === 'fastSide'}
+                onSelect={() => setActiveSide('fastSide')}
+                onUpdateMainArt={(patch) => updateMainArtTransform('fastSide', patch)}
               />
             </div>
           </div>
@@ -842,25 +923,42 @@ export default function BagMakerClient({
 }
 
 function BagPreviewCard({
+  sideKey,
   title,
   side,
   bagColor,
   mainAsset,
   organizerLogo,
-  showOrganizerLogo,
+  active,
+  onSelect,
+  onUpdateMainArt,
 }: {
+  sideKey: SideKey
   title: string
   side: BagDesignJson['slowSide']
   bagColor: string
   mainAsset: BagDesignAssetRecord | null
   organizerLogo: BagDesignAssetRecord | null
-  showOrganizerLogo: boolean
+  active: boolean
+  onSelect: () => void
+  onUpdateMainArt: (
+    patch: Partial<Pick<BagDesignJson['slowSide'], 'mainArtScale' | 'mainArtOffsetX' | 'mainArtOffsetY'>>,
+  ) => void
 }) {
   return (
-    <div className="rounded-[28px] bg-slate-50 p-4">
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`rounded-[28px] bg-slate-50 p-4 text-left transition ${
+        active ? 'ring-2 ring-[#0A3161]' : 'ring-1 ring-transparent'
+      }`}
+    >
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-700">{title}</h3>
-        <span className="text-xs text-slate-500">{side.layout.replace(/_/g, ' ')}</span>
+        <span className="text-xs text-slate-500">
+          {side.layout.replace(/_/g, ' ')}
+          {active ? ' · editing' : ''}
+        </span>
       </div>
       <div className="relative mx-auto aspect-square w-full max-w-[330px] overflow-hidden rounded-[26%] border border-slate-300 shadow-sm">
         <div className="absolute inset-0" style={{ backgroundColor: bagColor }} />
@@ -868,7 +966,7 @@ function BagPreviewCard({
         <div className="absolute bottom-[14%] right-[12%] h-[16%] w-[16%] rounded-2xl border border-dashed border-slate-400/50" />
         <div className="absolute left-[23%] top-[23%] h-[54%] w-[54%] rounded-[20%] border-2 border-dashed border-white/65" />
 
-        {showOrganizerLogo && organizerLogo ? (
+        {side.showOrganizerLogo && organizerLogo ? (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element -- Organizer logos may be storage or data URLs. */}
             <img
@@ -879,7 +977,13 @@ function BagPreviewCard({
           </>
         ) : null}
 
-        <PreviewMainContent side={side} mainAsset={mainAsset} />
+        <PreviewMainContent
+          sideKey={sideKey}
+          side={side}
+          mainAsset={mainAsset}
+          editable={active}
+          onUpdateMainArt={onUpdateMainArt}
+        />
 
         {side.showNcoLogo ? (
           <>
@@ -896,16 +1000,24 @@ function BagPreviewCard({
           </>
         ) : null}
       </div>
-    </div>
+    </button>
   )
 }
 
 function PreviewMainContent({
+  sideKey,
   side,
   mainAsset,
+  editable,
+  onUpdateMainArt,
 }: {
+  sideKey: SideKey
   side: BagDesignJson['slowSide']
   mainAsset: BagDesignAssetRecord | null
+  editable: boolean
+  onUpdateMainArt: (
+    patch: Partial<Pick<BagDesignJson['slowSide'], 'mainArtScale' | 'mainArtOffsetX' | 'mainArtOffsetY'>>,
+  ) => void
 }) {
   const titleClass =
     side.fontFamily === 'Georgia'
@@ -913,6 +1025,7 @@ function PreviewMainContent({
       : side.fontFamily === 'Oswald'
         ? 'font-extrabold tracking-wide'
         : 'font-semibold'
+  const zoneRef = useRef<HTMLDivElement | null>(null)
 
   if (side.layout === 'text_only') {
     return (
@@ -929,35 +1042,146 @@ function PreviewMainContent({
     )
   }
 
+  const previewBox =
+    mainAsset && (mainAsset.width_px ?? 0) > 0 && (mainAsset.height_px ?? 0) > 0
+      ? getMainArtPlacementBox({
+          layout: side.layout,
+          sourceWidth: mainAsset.width_px ?? MAIN_PLACEMENT_SIZE_PX,
+          sourceHeight: mainAsset.height_px ?? MAIN_PLACEMENT_SIZE_PX,
+          scale: side.mainArtScale,
+          offsetX: side.mainArtOffsetX,
+          offsetY: side.mainArtOffsetY,
+        })
+      : null
+
+  function startMove(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!editable || !mainAsset || !zoneRef.current) return
+    event.preventDefault()
+    event.stopPropagation()
+    const zoneRect = zoneRef.current.getBoundingClientRect()
+    const startOffsetX = side.mainArtOffsetX
+    const startOffsetY = side.mainArtOffsetY
+    const startClientX = event.clientX
+    const startClientY = event.clientY
+
+    const handleMove = (nextEvent: PointerEvent) => {
+      const deltaX = ((nextEvent.clientX - startClientX) / zoneRect.width) * MAIN_PLACEMENT_SIZE_PX
+      const deltaY = ((nextEvent.clientY - startClientY) / zoneRect.height) * MAIN_PLACEMENT_SIZE_PX
+      onUpdateMainArt({
+        mainArtOffsetX: startOffsetX + deltaX,
+        mainArtOffsetY: startOffsetY + deltaY,
+      })
+    }
+
+    const handleUp = () => {
+      window.removeEventListener('pointermove', handleMove)
+      window.removeEventListener('pointerup', handleUp)
+    }
+
+    window.addEventListener('pointermove', handleMove)
+    window.addEventListener('pointerup', handleUp, { once: true })
+  }
+
+  function startResize(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!editable || !mainAsset || !zoneRef.current || !previewBox) return
+    event.preventDefault()
+    event.stopPropagation()
+    const zoneRect = zoneRef.current.getBoundingClientRect()
+    const startScale = side.mainArtScale
+    const startClientX = event.clientX
+    const startClientY = event.clientY
+    const startWidthPx = (previewBox.width / MAIN_PLACEMENT_SIZE_PX) * zoneRect.width
+    const startHeightPx = (previewBox.height / MAIN_PLACEMENT_SIZE_PX) * zoneRect.height
+
+    const handleMove = (nextEvent: PointerEvent) => {
+      const deltaXRatio = (nextEvent.clientX - startClientX) / Math.max(startWidthPx, 1)
+      const deltaYRatio = (nextEvent.clientY - startClientY) / Math.max(startHeightPx, 1)
+      const nextScale = startScale * (1 + Math.max(deltaXRatio, deltaYRatio))
+      onUpdateMainArt({ mainArtScale: clamp(nextScale, MAIN_ART_SCALE_MIN, MAIN_ART_SCALE_MAX) })
+    }
+
+    const handleUp = () => {
+      window.removeEventListener('pointermove', handleMove)
+      window.removeEventListener('pointerup', handleUp)
+    }
+
+    window.addEventListener('pointermove', handleMove)
+    window.addEventListener('pointerup', handleUp, { once: true })
+  }
+
   return (
-    <div className="absolute left-[23%] top-[23%] flex h-[54%] w-[54%] flex-col items-center justify-center text-center">
+    <div
+      ref={zoneRef}
+      className={`absolute left-[23%] top-[23%] h-[54%] w-[54%] ${editable ? 'cursor-default' : ''}`}
+      data-side={sideKey}
+    >
       {side.layout === 'title_above_logo' && side.mainText ? (
-        <p className={`mb-4 text-xl ${titleClass}`} style={{ color: side.textColor }}>
+        <p className={`absolute left-0 right-0 top-[8%] text-center text-xl ${titleClass}`} style={{ color: side.textColor }}>
           {side.mainText}
         </p>
       ) : null}
       {mainAsset ? (
-        <>
+        <div
+          className={`absolute ${editable ? 'cursor-move' : ''}`}
+          style={
+            previewBox
+              ? {
+                  left: `${(previewBox.left / MAIN_PLACEMENT_SIZE_PX) * 100}%`,
+                  top: `${(previewBox.top / MAIN_PLACEMENT_SIZE_PX) * 100}%`,
+                  width: `${(previewBox.width / MAIN_PLACEMENT_SIZE_PX) * 100}%`,
+                  height: `${(previewBox.height / MAIN_PLACEMENT_SIZE_PX) * 100}%`,
+                  touchAction: 'none',
+                }
+              : {
+                  left: '12.5%',
+                  top: '15%',
+                  width: '75%',
+                  height: '70%',
+                  touchAction: 'none',
+                }
+          }
+          data-editable={editable ? 'true' : 'false'}
+          onPointerDown={startMove}
+        >
           {/* eslint-disable-next-line @next/next/no-img-element -- Artwork previews may be storage or data URLs. */}
-          <img src={mainAsset.file_url} alt="Main artwork" className="max-h-[62%] max-w-[72%] object-contain" />
-        </>
+          <img src={mainAsset.file_url} alt="Main artwork" className="h-full w-full object-contain" draggable={false} />
+          {editable ? (
+            <>
+              <div className="pointer-events-none absolute inset-0 rounded-2xl border border-dashed border-[#0A3161]/60" />
+              <div
+                className="absolute bottom-0 right-0 h-5 w-5 translate-x-1/3 translate-y-1/3 rounded-full border border-white bg-[#0A3161] shadow-sm"
+                style={{ touchAction: 'none' }}
+                onPointerDown={startResize}
+              />
+            </>
+          ) : null}
+        </div>
       ) : (
-        <div className="rounded-3xl border border-dashed border-slate-400/60 px-6 py-10 text-sm text-slate-500">
+        <div className="absolute left-[12%] top-[15%] rounded-3xl border border-dashed border-slate-400/60 px-6 py-10 text-sm text-slate-500">
           Artwork
         </div>
       )}
       {side.layout === 'logo_with_title_below' && side.mainText ? (
-        <p className={`mt-4 text-xl ${titleClass}`} style={{ color: side.textColor }}>
+        <p
+          className={`absolute bottom-[12%] left-0 right-0 text-center text-xl ${titleClass}`}
+          style={{ color: side.textColor }}
+        >
           {side.mainText}
         </p>
       ) : null}
       {side.layout === 'sponsor_layout' && side.mainText ? (
-        <p className={`mt-4 text-lg ${titleClass}`} style={{ color: side.textColor }}>
+        <p
+          className={`absolute left-0 right-0 top-[6%] text-center text-lg ${titleClass}`}
+          style={{ color: side.textColor }}
+        >
           {side.mainText}
         </p>
       ) : null}
       {side.secondaryText ? (
-        <p className="mt-2 text-sm" style={{ color: side.textColor }}>
+        <p
+          className={`absolute left-0 right-0 ${side.layout === 'sponsor_layout' ? 'bottom-[10%]' : 'bottom-[8%]'} text-center text-sm`}
+          style={{ color: side.textColor }}
+        >
           {side.secondaryText}
         </p>
       ) : null}

@@ -14,6 +14,7 @@ import {
 } from '@/app/lib/bagMakerConfig'
 import { hexToRgb, normalizeHexColor } from '@/app/lib/bagMakerColor'
 import { getSupabaseAdminSafe, resolveBagDesignAsset } from '@/app/lib/bagMakerData'
+import { getMainArtPlacementBox } from '@/app/lib/bagMakerPlacement'
 import type {
   BagDesignAssetRecord,
   BagDesignJson,
@@ -213,34 +214,29 @@ async function renderMainPlacement(
 
   if (mainAsset) {
     const assetBuffer = await loadBagDesignAssetBuffer(mainAsset)
-    const assetHeightLimit =
-      side.layout === 'logo_with_title_below'
-        ? 700
-        : side.layout === 'title_above_logo'
-          ? 760
-          : side.layout === 'sponsor_layout'
-            ? 620
-            : 860
+    const metadata = await sharp(assetBuffer.buffer).metadata()
+    const placementBox = getMainArtPlacementBox({
+      layout: side.layout,
+      sourceWidth: metadata.width ?? MAIN_PLACEMENT_ZONE.width,
+      sourceHeight: metadata.height ?? MAIN_PLACEMENT_ZONE.height,
+      scale: side.mainArtScale,
+      offsetX: side.mainArtOffsetX,
+      offsetY: side.mainArtOffsetY,
+    })
     const rendered = await sharp(assetBuffer.buffer)
       .resize({
-        width: 900,
-        height: assetHeightLimit,
+        width: placementBox.width,
+        height: placementBox.height,
         fit: 'inside',
         withoutEnlargement: true,
       })
       .png()
       .toBuffer()
 
-    let assetTop = 250
-    if (side.layout === 'center_logo') assetTop = 180
-    if (side.layout === 'logo_with_title_below') assetTop = 150
-    if (side.layout === 'title_above_logo') assetTop = 340
-    if (side.layout === 'sponsor_layout') assetTop = 280
-
     overlays.push({
       input: rendered,
-      left: placementLeft + 150,
-      top: placementTop + assetTop,
+      left: placementLeft + placementBox.left,
+      top: placementTop + placementBox.top,
     })
   }
 
@@ -282,10 +278,8 @@ async function renderMainPlacement(
 
 async function renderOrganizerLogo(
   design: BagDesignWithAssets,
-  designJson: BagDesignJson,
 ) {
-  if (!designJson.showOrganizerLogo) return null
-  const organizerLogo = resolveBagDesignAsset(design, designJson.organizerLogoAssetId)
+  const organizerLogo = resolveBagDesignAsset(design, design.design_json.organizerLogoAssetId)
   if (!organizerLogo) return null
 
   const assetBuffer = await loadBagDesignAssetBuffer(organizerLogo)
@@ -335,8 +329,8 @@ async function renderSideArt(
   })
 
   const overlays = await renderMainPlacement(design, side)
-  const organizerLogo = await renderOrganizerLogo(design, designJson)
-  if (organizerLogo) {
+  const organizerLogo = await renderOrganizerLogo(design)
+  if (organizerLogo && side.showOrganizerLogo) {
     overlays.push({
       input: organizerLogo,
       left: ORGANIZER_LOGO_ZONE.x,
@@ -439,7 +433,7 @@ async function renderProof(
     },
   ]
 
-  const organizerLogo = await renderOrganizerLogo(design, designJson)
+  const organizerLogo = await renderOrganizerLogo(design)
   if (organizerLogo) {
     const proofLogo = await sharp(organizerLogo)
       .resize({
