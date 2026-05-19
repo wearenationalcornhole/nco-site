@@ -24,10 +24,10 @@ export const MAIN_PLACEMENT_ZONE = {
 }
 
 export const ORGANIZER_LOGO_ZONE = {
-  x: 300,
-  y: 270,
-  width: 360,
-  height: 260,
+  x: MAIN_PLACEMENT_ZONE.x - 225,
+  y: MAIN_PLACEMENT_ZONE.y - 225,
+  width: 300,
+  height: 300,
 }
 
 export const LOCKED_NCO_LOGO_ZONE = {
