@@ -2,6 +2,7 @@
 export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
+import { emitEventRegisteredActivity } from '@/app/lib/activityFeed'
 import { getSupabaseServer } from '@/app/lib/supabaseServer';
 import { getPrisma } from '@/app/lib/safePrisma';
 import { devStore } from '@/app/lib/devStore';
@@ -78,6 +79,11 @@ export async function POST(req: Request, context: any) {
       const created = await prisma.registrations.create({
         data: { event_id: event.id, user_id: userId },
       });
+      await emitEventRegisteredActivity({
+        actorProfileId: userId,
+        eventId: event.id,
+        registrationId: String(created.id),
+      })
       return NextResponse.json(created, { status: 201 });
     }
 
@@ -94,6 +100,12 @@ export async function POST(req: Request, context: any) {
       user_id: userId,
       created_at: new Date(),
     });
+
+    await emitEventRegisteredActivity({
+      actorProfileId: userId,
+      eventId: event.id,
+      registrationId: String((created as any).id),
+    })
 
     return NextResponse.json(created, { status: 201 });
   } catch (e: any) {

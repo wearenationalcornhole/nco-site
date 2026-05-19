@@ -2,6 +2,7 @@
 export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
+import { emitEventCreatedActivity } from '@/app/lib/activityFeed'
 import { getPrisma } from '@/app/lib/safePrisma'
 import { devStore } from '@/app/lib/devStore'
 import {
@@ -224,6 +225,15 @@ export async function POST(req: Request) {
         }
       }
 
+      await emitEventCreatedActivity({
+        actorProfileId: access.actor.user.id,
+        eventId: created.id,
+        eventTitle: created.title ?? title,
+        city: created.city ?? city,
+        region: (created as Record<string, any>).region ?? (created as Record<string, any>).state ?? null,
+        date: created.date instanceof Date ? created.date.toISOString().slice(0, 10) : date,
+      })
+
       return NextResponse.json(serializeEventRecord(created), { status: 201 })
     }
 
@@ -234,7 +244,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'slug already in use' }, { status: 409 })
     }
 
-    const created = devStore.upsert('events', {
+    const created = devStore.upsert<Record<string, any>>('events', {
       title,
       slug,
       city,
@@ -242,6 +252,14 @@ export async function POST(req: Request) {
       image,
       logo_url,
       created_at: new Date().toISOString(),
+    })
+
+    await emitEventCreatedActivity({
+      actorProfileId: access.actor.user.id,
+      eventId: String(created.id),
+      eventTitle: title,
+      city,
+      date,
     })
 
     return NextResponse.json(serializeEventRecord(created), { status: 201 })

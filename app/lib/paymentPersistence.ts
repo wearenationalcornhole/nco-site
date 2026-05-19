@@ -1,4 +1,5 @@
 import Stripe from 'stripe'
+import { emitEventRegisteredActivity } from '@/app/lib/activityFeed'
 import { getPrisma } from '@/app/lib/safePrisma'
 import { devStore } from '@/app/lib/devStore'
 import {
@@ -505,6 +506,12 @@ export async function persistEventRegistrationFromSession(session: Stripe.Checko
     amountCents: session.amount_total ?? 0,
     currency: session.currency ?? 'usd',
     status: session.payment_status ?? session.status ?? 'paid',
+  })
+
+  await emitEventRegisteredActivity({
+    actorProfileId: userId,
+    eventId,
+    registrationId,
   })
 
   return true

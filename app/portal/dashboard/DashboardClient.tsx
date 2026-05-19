@@ -3,6 +3,9 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import type { ActivityFeedItem, CornholeNearMeResult } from '@/app/lib/communityPulseTypes'
+import CommunityPulseCard from '@/app/portal/components/CommunityPulseCard'
+import CornholeNearMeCard from '@/app/portal/components/CornholeNearMeCard'
 import { getSupabaseBrowser } from '@/app/lib/supabaseBrowser';
 import {
   canUseAdminTools,
@@ -38,6 +41,9 @@ export default function DashboardClient() {
   const [displayName, setDisplayName] = useState<string>('NCO Player');
   const [clubName, setClubName] = useState<string | null>(null);
   const [managedClubCount, setManagedClubCount] = useState(0);
+  const [communityPulse, setCommunityPulse] = useState<ActivityFeedItem[]>([])
+  const [nearMe, setNearMe] = useState<CornholeNearMeResult | null>(null)
+  const [communityLoading, setCommunityLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -102,14 +108,24 @@ export default function DashboardClient() {
         }
 
         try {
-          const managedRes = await fetch('/portal/api/clubs/managed', { cache: 'no-store' });
-          const managedJson = managedRes.ok ? await managedRes.json() : { items: [] };
+          const [managedRes, communityRes] = await Promise.all([
+            fetch('/portal/api/clubs/managed', { cache: 'no-store' }),
+            fetch('/portal/api/community/summary', { cache: 'no-store' }),
+          ])
+          const managedJson = managedRes.ok ? await managedRes.json() : { items: [] }
+          const communityJson = communityRes.ok ? await communityRes.json() : { communityPulse: [], nearMe: null }
           if (alive) {
-            const count = Array.isArray(managedJson.items) ? managedJson.items.length : 0;
-            setManagedClubCount(canUseAdminTools(resolvedRole) ? Math.max(count, 1) : count);
+            const count = Array.isArray(managedJson.items) ? managedJson.items.length : 0
+            setManagedClubCount(canUseAdminTools(resolvedRole) ? Math.max(count, 1) : count)
+            setCommunityPulse(Array.isArray(communityJson.communityPulse) ? communityJson.communityPulse : [])
+            setNearMe(communityJson.nearMe ?? null)
+            setCommunityLoading(false)
           }
         } catch {
-          if (alive) setManagedClubCount(canUseAdminTools(resolvedRole) ? 1 : 0);
+          if (alive) {
+            setManagedClubCount(canUseAdminTools(resolvedRole) ? 1 : 0)
+            setCommunityLoading(false)
+          }
         }
 
         if (alive) setLoading(false);
@@ -173,6 +189,12 @@ export default function DashboardClient() {
       </header>
 
       <section className="mx-auto grid max-w-5xl gap-6 sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <CommunityPulseCard items={communityPulse} loading={communityLoading} />
+        </div>
+        <div className="sm:col-span-2">
+          <CornholeNearMeCard data={nearMe} loading={communityLoading} />
+        </div>
         <Card
           title="Player Hub"
           desc="Open your shared player dashboard, identity fields, and registration history."
