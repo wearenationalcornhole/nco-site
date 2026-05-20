@@ -83,6 +83,7 @@ export default function TopBar() {
         {/* Center: Route links that actually exist */}
         <div className="hidden md:flex items-center gap-1">
           <Link href="/portal/dashboard" className={linkClass('/portal/dashboard')}>Dashboard</Link>
+          <Link href="/portal/community" className={linkClass('/portal/community')}>Community</Link>
           <Link href="/portal/events" className={linkClass('/portal/events')}>Events</Link>
           <Link href="/portal/my-registrations" className={linkClass('/portal/my-registrations')}>My Registrations</Link>
           <Link href="/portal/orders" className={linkClass('/portal/orders')}>Orders</Link>

@@ -183,6 +183,17 @@ export default function ProfileEditorClient({
 
       if (profileError) throw profileError
 
+      if (!profileWasComplete) {
+        try {
+          await fetch('/portal/api/community/profile-joined', {
+            method: 'POST',
+            cache: 'no-store',
+          })
+        } catch {
+          // Community activity is best-effort only.
+        }
+      }
+
       setProfileWasComplete(true)
       setMessage('Profile updated.')
       router.refresh()

@@ -44,6 +44,7 @@ export type DevProfileRecord = {
 export type TableName =
   | 'users'
   | 'profiles'
+  | 'activity_feed'
   | 'events'
   | 'divisions'
   | 'sponsors'
@@ -78,6 +79,7 @@ function createDefaultData(): StoreShape {
   return {
     users: [],
     profiles: [],
+    activity_feed: [],
     events: [],
     divisions: [],
     sponsors: [],

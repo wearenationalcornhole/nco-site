@@ -3,6 +3,8 @@ export type EventRecord = {
   slug: string | null
   title: string
   city: string | null
+  region?: string | null
+  country?: string | null
   date: string | null
   image: string | null
   logo_url?: string | null
@@ -32,12 +34,21 @@ export function normalizeDateOnly(value: unknown): string | null {
   return null
 }
 
+export function formatEventLocation(city?: string | null, region?: string | null) {
+  if (city && region) return `${city}, ${region}`
+  if (city) return city
+  if (region) return region
+  return 'TBD'
+}
+
 export function serializeEventRecord(event: Record<string, any>): EventRecord {
   return {
     id: String(event.id),
     slug: event.slug ?? null,
     title: String(event.title ?? ''),
     city: event.city ?? null,
+    region: event.region ?? event.state ?? null,
+    country: event.country ?? null,
     date: normalizeDateOnly(event.date),
     image: event.image ?? null,
     logo_url: event.logo_url ?? null,

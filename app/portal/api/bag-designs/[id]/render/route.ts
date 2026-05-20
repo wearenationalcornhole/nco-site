@@ -3,12 +3,11 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 import { NextResponse } from 'next/server'
+import { emitBagProofGeneratedActivity } from '@/app/lib/activityFeed'
 import {
-  createStorageAccessUrl,
   getBagDesignForActor,
   getSupabaseAdminSafe,
   replaceRenderedArt,
-  sanitizeBagDesignForActor,
 } from '@/app/lib/bagMakerData'
 import { renderBagDesignBuffers } from '@/app/lib/bagMakerRender'
 import { requireRouteRoles } from '@/app/lib/portalRouteAccess'
@@ -53,9 +52,10 @@ async function uploadGeneratedFile(
     }
   }
 
+  const { data } = supabaseAdmin.storage.from(GENERATED_BUCKET).getPublicUrl(objectPath)
   return {
+    fileUrl: data.publicUrl,
     storagePath: `${GENERATED_BUCKET}/${objectPath}`,
-    fileUrl: await createStorageAccessUrl(`${GENERATED_BUCKET}/${objectPath}`, ''),
   }
 }
 
@@ -96,7 +96,14 @@ export async function POST(_request: Request, context: any) {
       return NextResponse.json({ error: 'Bag design not found.' }, { status: 404 })
     }
 
-    return NextResponse.json(sanitizeBagDesignForActor(access.actor, updated))
+    await emitBagProofGeneratedActivity({
+      actorProfileId: updated.profile_id,
+      designId: updated.id,
+      eventId: updated.event_id,
+      clubId: updated.club_id,
+    })
+
+    return NextResponse.json(updated)
   } catch (error: any) {
     console.error('POST /portal/api/bag-designs/[id]/render error:', error)
     return NextResponse.json({ error: error?.message ?? 'Unable to render bag art.' }, { status: 500 })

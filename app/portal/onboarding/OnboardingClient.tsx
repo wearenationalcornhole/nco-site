@@ -158,6 +158,15 @@ export default function OnboardingClient() {
 
       if (error) throw error;
 
+      try {
+        await fetch('/portal/api/community/profile-joined', {
+          method: 'POST',
+          cache: 'no-store',
+        })
+      } catch {
+        // Community activity is best-effort only.
+      }
+
       // Hand off to dashboard (it will gate further if still incomplete)
       router.replace('/portal/dashboard');
     } catch (e: any) {

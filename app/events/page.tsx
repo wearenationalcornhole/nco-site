@@ -1,6 +1,6 @@
 // app/events/page.tsx
 import Link from 'next/link'
-import { fetchPublicEvents, formatEventDate } from '@/app/lib/publicEvents'
+import { fetchPublicEvents, formatEventDate, formatEventLocation } from '@/app/lib/publicEvents'
 
 export default async function Page() {
   const events = await fetchPublicEvents()
@@ -39,7 +39,7 @@ export default async function Page() {
                 <div className="p-4">
                   <h2 className="font-semibold text-gray-900 truncate">{e.title}</h2>
                   <div className="mt-1 text-sm text-gray-600">
-                    {e.city ?? 'TBD'} • {formatEventDate(e.date)}
+                    {formatEventLocation(e.city, e.region)} • {formatEventDate(e.date)}
                   </div>
                   <p className="mt-3 text-sm text-gray-500">
                     Free online registration is available in the current release.

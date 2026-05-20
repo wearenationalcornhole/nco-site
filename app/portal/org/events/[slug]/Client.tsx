@@ -8,6 +8,7 @@ import Spinner from '@/components/ui/Spinner'
 import Toast from '@/components/ui/Toast'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
+import { formatEventLocation } from '@/app/lib/eventRecords'
 import { getEventRegistrationConfig } from '@/app/lib/eventRegistration'
 
 // ── Dynamic, client-only panels ─────────────────────────────────────────
@@ -24,6 +25,8 @@ type Event = {
   slug: string | null
   title: string
   city: string | null
+  region: string | null
+  country: string | null
   date: string | null
   image: string | null
   logo_url: string | null
@@ -37,6 +40,8 @@ function normalizeEventRecord(event: Partial<Event> | null): Event | null {
     slug: event.slug ?? null,
     title: event.title,
     city: event.city ?? null,
+    region: event.region ?? null,
+    country: event.country ?? null,
     date: event.date ?? null,
     image: event.image ?? null,
     logo_url: event.logo_url ?? null,
@@ -124,7 +129,7 @@ export default function Client({ slug }: { slug: string }) {
           <div className="mt-1 flex flex-wrap gap-2 text-sm text-gray-700">
             <Badge color="gray">{event.slug ?? event.id}</Badge>
             <Badge color="blue">{fmtDate(event.date)}</Badge>
-            <Badge color="gray">{event.city ?? 'TBD'}</Badge>
+            <Badge color="gray">{formatEventLocation(event.city, event.region)}</Badge>
             <Badge color="gray">{registrationConfig.amountLabel}</Badge>
           </div>
         </div>
@@ -173,8 +178,8 @@ export default function Client({ slug }: { slug: string }) {
                 <dd className="font-medium">{fmtDate(event.date)}</dd>
               </div>
               <div>
-                <dt className="text-gray-500">City</dt>
-                <dd className="font-medium">{event.city ?? 'TBD'}</dd>
+                <dt className="text-gray-500">Location</dt>
+                <dd className="font-medium">{formatEventLocation(event.city, event.region)}</dd>
               </div>
               <div>
                 <dt className="text-gray-500">Registration</dt>

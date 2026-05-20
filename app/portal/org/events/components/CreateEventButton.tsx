@@ -17,6 +17,8 @@ export default function CreateEventButton() {
 
   const [title, setTitle] = useState('')
   const [city, setCity] = useState('')
+  const [region, setRegion] = useState('')
+  const [country, setCountry] = useState('US')
   const [date, setDate] = useState('')  // YYYY-MM-DD
   const [image, setImage] = useState('')
 
@@ -29,6 +31,8 @@ export default function CreateEventButton() {
         title: title.trim(),
         slug: slugify(title),
         city: city.trim() || undefined,
+        region: region.trim() || undefined,
+        country: country.trim() || 'US',
         date: date || undefined,
         image: image.trim() || undefined,
       }
@@ -92,7 +96,7 @@ export default function CreateEventButton() {
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
                     className="rounded border px-3 py-2"
-                    placeholder="e.g., Boston, MA"
+                    placeholder="e.g., Boston"
                   />
                 </label>
                 <label className="grid gap-1 text-sm">
@@ -102,6 +106,28 @@ export default function CreateEventButton() {
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
                     className="rounded border px-3 py-2"
+                  />
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className="grid gap-1 text-sm">
+                  <span className="text-gray-700">State / Region</span>
+                  <input
+                    value={region}
+                    onChange={(e) => setRegion(e.target.value)}
+                    className="rounded border px-3 py-2"
+                    placeholder="e.g., MA"
+                  />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span className="text-gray-700">Country</span>
+                  <input
+                    value={country}
+                    onChange={(e) => setCountry(e.target.value.toUpperCase())}
+                    className="rounded border px-3 py-2"
+                    placeholder="US"
+                    maxLength={2}
                   />
                 </label>
               </div>
