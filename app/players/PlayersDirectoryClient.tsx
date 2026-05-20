@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import type { PlayerDirectoryItem } from '@/app/lib/communityData'
 
@@ -47,7 +48,11 @@ export default function PlayersDirectoryClient({ players }: { players: PlayerDir
       ) : (
         <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filtered.map((player) => (
-            <article key={player.id} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <Link
+              key={player.id}
+              href={`/portal/players/${encodeURIComponent(player.id)}`}
+              className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-usaBlue/30 hover:shadow-md"
+            >
               <div className="flex items-start gap-4">
                 <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
                   {player.avatarUrl ? (
@@ -89,7 +94,7 @@ export default function PlayersDirectoryClient({ players }: { players: PlayerDir
                   This card is visible only to you because your profile is set to private.
                 </p>
               ) : null}
-            </article>
+            </Link>
           ))}
         </div>
       )}

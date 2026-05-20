@@ -3,10 +3,10 @@ export const runtime = 'nodejs'
 import { NextResponse } from 'next/server'
 import { devStore } from '@/app/lib/devStore'
 import { canUseAdminTools } from '@/app/lib/profileCapabilities'
+import { loadPlayerProfileDetail } from '@/app/lib/playerProfileDetail'
 import { getRouteActor } from '@/app/lib/portalRouteAccess'
 import {
   buildProfileIdentityPayload,
-  canReadProfileIdentity,
   getProfileServiceClient,
   type ClubIdentityRow,
   type ProfileIdentityRow,
@@ -40,53 +40,26 @@ export async function GET(_req: Request, context: any) {
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
     const actor = await getRouteActor()
-    const viewer = {
-      userId: actor.user?.id ?? null,
-      role: actor.role,
-      isAuthenticated: Boolean(actor.user),
+    if (!actor.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const detail = await loadPlayerProfileDetail({
+      profileId: id,
+      viewer: {
+        userId: actor.user.id,
+        role: actor.role,
+        isAuthenticated: true,
+      },
+    })
+
+    if (detail.status === 'not_found') {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    const supa = getProfileServiceClient()
-    if (supa) {
-      const { data: profile, error } = await supa
-        .from('profiles')
-        .select(
-          'id,email,role,created_at,first_name,last_name,display_name,avatar_url,city,region,primary_club_id,skill_level,favorite_bag_style,dominant_hand,home_venue,profile_visibility',
-        )
-        .eq('id', id)
-        .maybeSingle<ProfileIdentityRow>()
-
-      if (error) throw error
-      if (!profile) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-      if (!canReadProfileIdentity(profile, viewer)) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
-
-      let club: ClubIdentityRow | null = null
-      if (profile.primary_club_id) {
-        const { data: clubRow } = await supa
-          .from('clubs')
-          .select('id,name')
-          .eq('id', profile.primary_club_id)
-          .maybeSingle<ClubIdentityRow>()
-        club = clubRow ?? null
-      }
-
-      const payload = buildProfileIdentityPayload(profile, club?.name ?? null)
-      return NextResponse.json({
-        ...payload,
-        club: club
-          ? {
-              id: club.id,
-              name: club.name,
-            }
-          : null,
-      })
+    if (detail.status === 'forbidden') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const row = devStore.getById<DevUserRow>('users', id)
-    if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    return NextResponse.json(toDevPlayer(row))
+    return NextResponse.json(detail)
   } catch (e: any) {
     console.error('GET /portal/api/players/[id] error:', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

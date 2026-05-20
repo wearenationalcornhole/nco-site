@@ -134,9 +134,9 @@ Priority order:
 
 Nearby player links:
 
-- V1 links nearby players to the existing authenticated player directory at `/portal/players`
-- there is no dedicated safe player detail page route yet
-- future player detail pages should reuse the existing privacy checks before deep-linking individual profiles
+- nearby players now deep-link to `/portal/players/[id]`
+- the detail page is authenticated and reuses the shared profile visibility rules
+- `/portal/players` remains the current self-only player hub
 
 Limits:
 
@@ -162,6 +162,7 @@ Dashboard additions:
 Portal page:
 
 - `/portal/community`
+- `/portal/players/[id]`
 
 Reusable portal components:
 
@@ -173,6 +174,60 @@ Reusable portal components:
 Navigation:
 
 - authenticated portal top bar now includes `Community`
+
+## Player Detail Page V1
+
+Authenticated route:
+
+- `/portal/players/[id]`
+
+Purpose:
+
+- give Community Pulse and Cornhole Near Me a privacy-safe player detail destination
+- keep `/portal/players` as the current self-only player hub
+- avoid introducing public unauthenticated profile pages or social-network features
+
+Visibility rules:
+
+- `public`: viewable by authenticated portal users
+- `members`: viewable by authenticated portal users
+- `private`: viewable only by the profile owner or admins
+- null or invalid visibility values follow the current app convention and normalize to `public`
+- admins can view all profiles
+
+Fields shown:
+
+- avatar
+- display name
+- city, region, country
+- club name and logo when available
+- member since
+- bio
+- skill level
+- favorite bag style
+- dominant hand
+- home venue
+- visibility label only for self or admin
+
+Fields not shown:
+
+- phone
+- payment or order data
+- private registration notes
+- bag art asset URLs
+- auth metadata
+
+Upcoming events:
+
+- V1 shows up to 5 upcoming registered events when registration and event data are available
+- events are deduped by event id so multiple registrations do not repeat the same event card
+- payment status and private registration notes are intentionally excluded
+
+Recent activity:
+
+- V1 shows up to 10 activity feed items where `actor_profile_id = viewed player id`
+- activity visibility still follows `activity_feed` rules, so private activity only appears to self or admin
+- bag proof activity remains safe because it excludes production art URLs
 
 ## Dev Fallback
 
