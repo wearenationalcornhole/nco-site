@@ -35,7 +35,7 @@ function toPlayerItems(data: CornholeNearMeResult, compact: boolean): NearMeList
     ]
       .filter(Boolean)
       .join(' • '),
-    href: '/portal/players',
+    href: player.id ? `/portal/players/${encodeURIComponent(player.id)}` : null,
     badge: player.matchLevel === 'city' ? 'City match' : 'Region match',
   }))
 }
