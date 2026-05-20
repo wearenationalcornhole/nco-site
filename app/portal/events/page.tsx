@@ -1,9 +1,10 @@
 // app/portal/events/page.tsx
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { formatEventLocation } from '@/app/lib/eventRecords';
 import { getSupabaseBrowser } from '@/app/lib/supabaseBrowser';
 import { getEventRegistrationConfig } from '@/app/lib/eventRegistration';
 import { canUseOrganizerTools, type ProfileRole } from '@/app/lib/profileCapabilities';
@@ -13,6 +14,7 @@ type EventRow = {
   slug: string | null;
   title: string;
   city: string | null;
+  region: string | null;
   date: string | null;   // ISO 'YYYY-MM-DD'
   image: string | null;
 };
@@ -119,7 +121,7 @@ export default function EventsPageClient() {
               className="rounded-xl border bg-white p-4 shadow-sm hover:shadow-md transition"
             >
               <h2 className="text-lg font-semibold text-gray-900">{e.title}</h2>
-              <p className="text-sm text-gray-600">{e.city ?? 'TBD'}</p>
+              <p className="text-sm text-gray-600">{formatEventLocation(e.city, e.region)}</p>
               <p className="text-sm text-gray-600 mt-1">{fmtDate(e.date)}</p>
               <p className="mt-2 text-sm text-gray-500">
                 Registration: {getEventRegistrationConfig({ id: e.id, slug: e.slug }).amountLabel}

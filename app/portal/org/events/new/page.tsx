@@ -17,6 +17,8 @@ export default function NewEventPage() {
   const router = useRouter()
   const [title, setTitle] = useState('')
   const [city, setCity]   = useState('')
+  const [region, setRegion] = useState('')
+  const [country, setCountry] = useState('US')
   const [date, setDate]   = useState('') // yyyy-mm-dd
   const [slug, setSlug]   = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -34,6 +36,8 @@ export default function NewEventPage() {
           title: title.trim(),
           slug: slug.trim() || slugify(title),
           city: city.trim() || null,
+          region: region.trim() || null,
+          country: country.trim() || 'US',
           date: date || null,
         }),
       })
@@ -100,7 +104,34 @@ export default function NewEventPage() {
               className="mt-1 w-full rounded border px-3 py-2 text-sm"
               value={city}
               onChange={(e) => setCity(e.target.value)}
-              placeholder="Boston, MA"
+              placeholder="Boston"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              State / Region (optional)
+            </label>
+            <input
+              className="mt-1 w-full rounded border px-3 py-2 text-sm"
+              value={region}
+              onChange={(e) => setRegion(e.target.value)}
+              placeholder="MA"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Country
+            </label>
+            <input
+              className="mt-1 w-full rounded border px-3 py-2 text-sm"
+              value={country}
+              onChange={(e) => setCountry(e.target.value.toUpperCase())}
+              placeholder="US"
+              maxLength={2}
             />
           </div>
         </div>

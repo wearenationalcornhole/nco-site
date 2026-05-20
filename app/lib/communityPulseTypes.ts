@@ -41,6 +41,7 @@ export type NearMeEvent = {
   title: string
   city: string | null
   region: string | null
+  country: string | null
   date: string | null
   image: string | null
   matchLevel: NearMeMatchLevel

@@ -39,7 +39,7 @@ export async function GET(req: Request) {
     const q = (searchParams.get('q') ?? '').trim().toLowerCase()
     const page = Math.max(1, Number(searchParams.get('page') ?? '1'))
     const pageSize = Math.min(50, Math.max(1, Number(searchParams.get('pageSize') ?? '12')))
-    const state = (searchParams.get('state') ?? '').trim().toUpperCase() || undefined
+    const region = (searchParams.get('region') ?? searchParams.get('state') ?? '').trim() || undefined
     const month = (searchParams.get('month') ?? '').trim() || undefined // format: YYYY-MM
     const managedOnly = searchParams.get('managedOnly') === '1'
 
@@ -62,9 +62,8 @@ export async function GET(req: Request) {
         ]
       }
 
-      if (state) {
-        // Only apply if you actually have a 'state' column; remove otherwise
-        where.state = state
+      if (region) {
+        where.region = { equals: region, mode: 'insensitive' }
       }
 
       if (month) {
@@ -98,10 +97,11 @@ export async function GET(req: Request) {
             slug: true,
             title: true,
             city: true,
+            region: true,
+            country: true,
             date: true,
             image: true,
             created_at: true,
-            // state: true, // uncomment if you add a state column
           },
         }) as unknown as Promise<Record<string, any>[]>,
       ])
@@ -126,7 +126,7 @@ export async function GET(req: Request) {
         like(e.city).includes(q) ||
         like(e.slug).includes(q)
 
-      const matchesState = !state || (e as any).state === state
+      const matchesRegion = !region || like(e.region) === like(region) || like((e as any).state) === like(region)
 
       const matchesMonth = !month
         ? true
@@ -135,7 +135,7 @@ export async function GET(req: Request) {
             return e.date.startsWith(month) // naive but fine for dev
           })()
 
-      return matchesQ && matchesState && matchesMonth
+      return matchesQ && matchesRegion && matchesMonth
     })
 
     if (managedOnly && managedEventIds !== null) {
@@ -165,6 +165,8 @@ type CreateBody = Partial<{
   title: string
   slug: string | null
   city: string | null
+  region: string | null
+  country: string | null
   date: string | null
   image: string | null
   logo_url: string | null
@@ -183,6 +185,8 @@ export async function POST(req: Request) {
 
     const slug = (body.slug ? String(body.slug) : slugifyEventTitle(title)).trim() || null
     const city = body.city ? String(body.city).trim() : null
+    const region = body.region ? String(body.region).trim() : null
+    const country = body.country ? String(body.country).trim().toUpperCase() : 'US'
     const date = normalizeDateOnly(body.date)
     const image = body.image ? String(body.image).trim() : null
     const logo_url = body.logo_url ? String(body.logo_url).trim() : null
@@ -201,6 +205,8 @@ export async function POST(req: Request) {
           title,
           slug,
           city,
+          region,
+          country,
           date: toDateInput(date),
           image,
           logo_url,
@@ -230,7 +236,8 @@ export async function POST(req: Request) {
         eventId: created.id,
         eventTitle: created.title ?? title,
         city: created.city ?? city,
-        region: (created as Record<string, any>).region ?? (created as Record<string, any>).state ?? null,
+        region: (created as Record<string, any>).region ?? region,
+        country: (created as Record<string, any>).country ?? country,
         date: created.date instanceof Date ? created.date.toISOString().slice(0, 10) : date,
       })
 
@@ -248,6 +255,8 @@ export async function POST(req: Request) {
       title,
       slug,
       city,
+      region,
+      country,
       date,
       image,
       logo_url,
@@ -259,6 +268,8 @@ export async function POST(req: Request) {
       eventId: String(created.id),
       eventTitle: title,
       city,
+      region,
+      country,
       date,
     })
 

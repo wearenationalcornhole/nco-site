@@ -9,6 +9,8 @@ type Event = {
   slug: string | null
   title: string
   city: string | null
+  region: string | null
+  country: string | null
   date: string | null
   image: string | null
   logo_url?: string | null
@@ -26,6 +28,8 @@ export default function EditDetailsPanel({
   const [title, setTitle] = useState(event.title)
   const [slug, setSlug] = useState(event.slug ?? '')
   const [city, setCity] = useState(event.city ?? '')
+  const [region, setRegion] = useState(event.region ?? '')
+  const [country, setCountry] = useState(event.country ?? 'US')
   const [date, setDate] = useState(event.date ?? '')
   const [imageUrl, setImageUrl] = useState(event.image ?? '')
   const [file, setFile] = useState<File | null>(null)
@@ -36,21 +40,25 @@ export default function EditDetailsPanel({
     setTitle(event.title)
     setSlug(event.slug ?? '')
     setCity(event.city ?? '')
+    setRegion(event.region ?? '')
+    setCountry(event.country ?? 'US')
     setDate(event.date ?? '')
     setImageUrl(event.image ?? '')
     setFile(null)
-  }, [event.id, event.title, event.slug, event.city, event.date, event.image])
+  }, [event.id, event.title, event.slug, event.city, event.region, event.country, event.date, event.image])
 
   const hasChanges = useMemo(() => {
     return (
       title !== event.title ||
       (slug || null) !== (event.slug ?? null) ||
       (city || null) !== (event.city ?? null) ||
+      (region || null) !== (event.region ?? null) ||
+      (country || 'US') !== (event.country ?? 'US') ||
       (date || null) !== (event.date ?? null) ||
       (imageUrl || null) !== (event.image ?? null) ||
       !!file
     )
-  }, [title, slug, city, date, imageUrl, file, event])
+  }, [title, slug, city, region, country, date, imageUrl, file, event])
 
   async function uploadToSupabase(file: File): Promise<string> {
     setUploading(true)
@@ -101,6 +109,8 @@ export default function EditDetailsPanel({
           title: title.trim(),
           slug: slug.trim() || slugifyEventTitle(title),
           city: city.trim() || null,
+          region: region.trim() || null,
+          country: country.trim() || 'US',
           date: date.trim() || null,
           image: finalImage ?? null,
         }),
@@ -151,7 +161,6 @@ export default function EditDetailsPanel({
           />
         </label>
 
-        {/* City / Date */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <label className="grid gap-1">
             <span className="text-sm text-gray-600">City</span>
@@ -159,9 +168,21 @@ export default function EditDetailsPanel({
               className="rounded border px-3 py-2 text-sm"
               value={city}
               onChange={(e) => setCity(e.target.value)}
-              placeholder="e.g., Nashville, TN"
+              placeholder="e.g., Nashville"
             />
           </label>
+          <label className="grid gap-1">
+            <span className="text-sm text-gray-600">State / Region</span>
+            <input
+              className="rounded border px-3 py-2 text-sm"
+              value={region}
+              onChange={(e) => setRegion(e.target.value)}
+              placeholder="e.g., TN"
+            />
+          </label>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <label className="grid gap-1">
             <span className="text-sm text-gray-600">Date</span>
             <input
@@ -169,6 +190,16 @@ export default function EditDetailsPanel({
               value={date}
               onChange={(e) => setDate(e.target.value)}
               placeholder="YYYY-MM-DD"
+            />
+          </label>
+          <label className="grid gap-1">
+            <span className="text-sm text-gray-600">Country</span>
+            <input
+              className="rounded border px-3 py-2 text-sm"
+              value={country}
+              onChange={(e) => setCountry(e.target.value.toUpperCase())}
+              placeholder="US"
+              maxLength={2}
             />
           </label>
         </div>

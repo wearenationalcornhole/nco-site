@@ -5,6 +5,7 @@ import {
   fetchEventBySlug,
   fetchEventSponsors,
   formatEventDate,
+  formatEventLocation,
 } from '@/app/lib/publicEvents'
 import { getEventRegistrationConfigByRecord } from '@/app/lib/eventRegistration'
 
@@ -50,7 +51,7 @@ export default async function Page({
             {event.title}
           </h1>
           <p className="mt-3 text-white/90">
-            {event.city ?? 'TBD'} • {formatEventDate(event.date)}
+            {formatEventLocation(event.city, event.region)} • {formatEventDate(event.date)}
           </p>
           <div className="mt-6 max-w-md rounded-2xl bg-white/10 p-4 backdrop-blur">
             <p className="text-sm font-semibold uppercase tracking-wide text-white/80">
@@ -104,7 +105,7 @@ export default async function Page({
                 </div>
                 <div className="flex justify-between py-2 border-b">
                   <dt className="text-gray-500">Venue</dt>
-                  <dd className="font-medium">{event.city ?? 'TBD'}</dd>
+                  <dd className="font-medium">{formatEventLocation(event.city, event.region)}</dd>
                 </div>
                 <div className="flex justify-between py-2 border-b">
                   <dt className="text-gray-500">Registration</dt>

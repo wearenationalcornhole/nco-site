@@ -28,6 +28,7 @@ type EventLocationRow = {
   title: string
   city: string | null
   region: string | null
+  country: string | null
   date: string | null
   image: string | null
   created_at: string | null
@@ -114,6 +115,50 @@ function matchesLocation(
   return { score: 0, level: 'fallback' }
 }
 
+function matchesEventLocation(
+  event: Pick<EventLocationRow, 'city' | 'region' | 'country'>,
+  profileCity: string | null | undefined,
+  profileRegion: string | null | undefined,
+  profileCountry: string | null | undefined,
+): MatchResult {
+  const city = normalizeText(event.city)
+  const region = normalizeText(event.region)
+  const country = normalizeText(event.country)
+  const targetCity = normalizeText(profileCity)
+  const targetRegion = normalizeText(profileRegion)
+  const targetCountry = normalizeText(profileCountry)
+
+  if (country && targetCountry && country !== targetCountry) {
+    return { score: 0, level: 'fallback' }
+  }
+
+  if (region) {
+    if (targetRegion && region === targetRegion) {
+      if (targetCity && city && city === targetCity) {
+        return { score: 120, level: 'city' }
+      }
+
+      if (targetCity && city && city.includes(targetCity)) {
+        return { score: 115, level: 'city' }
+      }
+
+      return { score: 100, level: 'region' }
+    }
+
+    if (targetCity && city && city === targetCity) {
+      return { score: 90, level: 'city' }
+    }
+
+    if (targetCity && city && city.includes(targetCity)) {
+      return { score: 85, level: 'city' }
+    }
+
+    return { score: 0, level: 'fallback' }
+  }
+
+  return matchesLocation(event.city, null, profileCity, profileRegion)
+}
+
 function sortByMatchAndDate<T extends { matchScore: number; date?: string | null; title?: string; name?: string }>(items: T[]) {
   return items.sort((left, right) => {
     if (right.matchScore !== left.matchScore) return right.matchScore - left.matchScore
@@ -166,7 +211,10 @@ async function loadEventRows() {
   const supa = getProfileServiceClient()
   if (supa) {
     const selectAttempts = [
-      'id,slug,title,city,region,state,date,image,created_at',
+      'id,slug,title,city,region,country,date,image,created_at',
+      'id,slug,title,city,region,date,image,created_at',
+      'id,slug,title,city,region,state,country,date,image,created_at',
+      'id,slug,title,city,state,country,date,image,created_at',
       'id,slug,title,city,state,date,image,created_at',
       'id,slug,title,city,date,image,created_at',
     ]
@@ -187,6 +235,7 @@ async function loadEventRows() {
           title: String(row.title ?? ''),
           city: row.city ? String(row.city) : null,
           region: row.region ? String(row.region) : row.state ? String(row.state) : null,
+          country: row.country ? String(row.country) : null,
           date: row.date ? String(row.date).slice(0, 10) : null,
           image: row.image ? String(row.image) : null,
           created_at: row.created_at ? String(row.created_at) : null,
@@ -205,6 +254,7 @@ async function loadEventRows() {
       title: String(row.title ?? ''),
       city: row.city ? String(row.city) : null,
       region: row.region ? String(row.region) : row.state ? String(row.state) : null,
+      country: row.country ? String(row.country) : null,
       date: row.date ? String(row.date).slice(0, 10) : null,
       image: row.image ? String(row.image) : null,
       created_at: row.created_at ? String(row.created_at) : null,
@@ -216,7 +266,8 @@ async function loadEventRows() {
     slug: row.slug ? String(row.slug) : null,
     title: String(row.title ?? ''),
     city: row.city ? String(row.city) : null,
-    region: null,
+    region: row.region ? String(row.region) : null,
+    country: row.country ? String(row.country) : 'US',
     date: row.date ? String(row.date).slice(0, 10) : null,
     image: row.image ? String(row.image) : null,
     created_at: null,
@@ -362,7 +413,7 @@ export async function getCornholeNearMe(input: {
     eventRows
       .filter((event) => isUpcoming(event.date))
       .map((event) => {
-        const match = matchesLocation(event.city, event.region, profileCity, profileRegion)
+        const match = matchesEventLocation(event, profileCity, profileRegion, profileCountry)
         return {
           ...event,
           matchScore: match.score,
@@ -440,6 +491,7 @@ export async function getCornholeNearMe(input: {
       title: event.title,
       city: event.city,
       region: event.region,
+      country: event.country,
       date: event.date,
       image: event.image,
       matchLevel: event.matchLevel,

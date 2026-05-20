@@ -76,7 +76,7 @@ export default async function PortalCommunityPage() {
             body="Keep your city and region current so local discovery stays useful."
           />
           <QuickAction
-            href="/players"
+            href="/portal/players"
             title="View player page"
             body="Open the member player directory and see who is active around the network."
           />

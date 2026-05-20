@@ -58,6 +58,7 @@ type EventSummary = {
   slug: string | null
   city: string | null
   region: string | null
+  country: string | null
   date: string | null
 }
 
@@ -182,7 +183,10 @@ async function getEventSummary(eventId: string) {
   const supa = getProfileServiceClient()
   if (supa) {
     const selectAttempts = [
-      'id,title,slug,city,region,state,date',
+      'id,title,slug,city,region,country,date',
+      'id,title,slug,city,region,date',
+      'id,title,slug,city,region,state,country,date',
+      'id,title,slug,city,state,country,date',
       'id,title,slug,city,state,date',
       'id,title,slug,city,date',
     ]
@@ -207,6 +211,7 @@ async function getEventSummary(eventId: string) {
             slug: data.slug ? String(data.slug) : null,
             city: data.city ? String(data.city) : null,
             region: data.region ? String(data.region) : data.state ? String(data.state) : null,
+            country: data.country ? String(data.country) : null,
             date: data.date ? String(data.date).slice(0, 10) : null,
           } satisfies EventSummary
         }
@@ -225,6 +230,7 @@ async function getEventSummary(eventId: string) {
     slug: event.slug ? String(event.slug) : null,
     city: event.city ? String(event.city) : null,
     region: event.region ? String(event.region) : event.state ? String(event.state) : null,
+    country: event.country ? String(event.country) : null,
     date: event.date ? String(event.date).slice(0, 10) : null,
   } satisfies EventSummary
 }
@@ -410,6 +416,7 @@ export async function emitEventCreatedActivity(input: {
   eventTitle?: string | null
   city?: string | null
   region?: string | null
+  country?: string | null
   date?: string | null
 }) {
   const [actor, event] = await Promise.all([
@@ -421,6 +428,7 @@ export async function emitEventCreatedActivity(input: {
           slug: null,
           city: input.city ?? null,
           region: input.region ?? null,
+          country: input.country ?? null,
           date: input.date ?? null,
         } satisfies EventSummary)
       : getEventSummary(input.eventId),
@@ -440,6 +448,7 @@ export async function emitEventCreatedActivity(input: {
       event_title: eventTitle,
       city: input.city ?? event?.city ?? null,
       region: input.region ?? event?.region ?? null,
+      country: input.country ?? event?.country ?? null,
       date: input.date ?? event?.date ?? null,
     },
     visibility: 'members',
@@ -467,6 +476,9 @@ export async function emitEventRegisteredActivity(input: {
       event_title: eventTitle,
       division: input.division ?? null,
       event_slug: event?.slug ?? null,
+      city: event?.city ?? null,
+      region: event?.region ?? null,
+      country: event?.country ?? null,
     },
     visibility: 'members',
   })
@@ -488,6 +500,9 @@ export async function emitBagProofGeneratedActivity(input: {
     title: 'Bag proof generated',
     message: `${actor.name} generated a custom bag proof.`,
     metadata: {
+      // Keep V1 metadata free of proof or art asset URLs. `bag_design_created` is
+      // intentionally reserved for future use; the community feed only emits once
+      // a design has progressed to a meaningful proof-generation step.
       bag_design_id: input.designId,
       event_id: input.eventId ?? null,
       club_id: input.clubId ?? null,

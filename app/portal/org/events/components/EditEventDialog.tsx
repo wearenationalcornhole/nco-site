@@ -8,6 +8,8 @@ type Event = {
   slug: string | null
   title: string
   city?: string | null
+  region?: string | null
+  country?: string | null
   date?: string | null
   image?: string | null
 }
@@ -16,6 +18,8 @@ export default function EditEventDialog({ event }: { event: Event }) {
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState(event.title)
   const [city, setCity] = useState(event.city ?? '')
+  const [region, setRegion] = useState(event.region ?? '')
+  const [country, setCountry] = useState(event.country ?? 'US')
   const [date, setDate] = useState(event.date ?? '')
   const [image, setImage] = useState(event.image ?? '')
   const router = useRouter()
@@ -30,7 +34,14 @@ export default function EditEventDialog({ event }: { event: Event }) {
       const res = await fetch(`/portal/api/events/${encodeURIComponent(event.id)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, city: city || null, date: date || null, image: image || null }),
+        body: JSON.stringify({
+          title,
+          city: city || null,
+          region: region || null,
+          country: country || 'US',
+          date: date || null,
+          image: image || null,
+        }),
       })
       if (!res.ok) throw new Error((await res.json())?.error ?? 'Update failed')
       setOpen(false)
@@ -55,6 +66,8 @@ export default function EditEventDialog({ event }: { event: Event }) {
             <form onSubmit={save} className="mt-4 grid gap-3">
               <input className="rounded border px-3 py-2 text-sm" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" required />
               <input className="rounded border px-3 py-2 text-sm" value={city} onChange={(e) => setCity(e.target.value)} placeholder="City (optional)" />
+              <input className="rounded border px-3 py-2 text-sm" value={region} onChange={(e) => setRegion(e.target.value)} placeholder="State / Region (optional)" />
+              <input className="rounded border px-3 py-2 text-sm" value={country} onChange={(e) => setCountry(e.target.value.toUpperCase())} placeholder="Country (default US)" maxLength={2} />
               <input className="rounded border px-3 py-2 text-sm" value={date} onChange={(e) => setDate(e.target.value)} placeholder="Date (YYYY-MM-DD, optional)" />
               <input className="rounded border px-3 py-2 text-sm" value={image} onChange={(e) => setImage(e.target.value)} placeholder="Image URL (optional)" />
               {err && <p className="text-sm text-red-600">{err}</p>}

@@ -96,6 +96,8 @@ Design notes:
 - helper failures are logged server-side and do not block the primary action
 - duplicate-prone paths use `activity_type + entity_type + entity_id` idempotency
 - profile display names are resolved from `public.profiles` first
+- bag proof activity metadata intentionally excludes production bag art URLs
+- `bag_design_created` is reserved for future use; V1 emits `bag_proof_generated` once a design reaches a meaningful proof step
 
 `app/lib/cornholeNearMe.ts`
 
@@ -118,7 +120,7 @@ Inputs come from the shared profile identity:
 
 Nearby matching uses existing table data only:
 
-- events: prefers explicit `region` or `state` when available, otherwise falls back to city string matching
+- events: prefers explicit `region` matches when available, then city matches, and only falls back to city-string heuristics for older rows without a stored region
 - clubs: uses `city` plus `region` or `state`
 - players: uses `city` plus `region`, excludes the current user, and excludes `private` profiles
 
@@ -129,6 +131,12 @@ Priority order:
 3. exact region match
 4. city string contains the viewer region
 5. broader fallback for events only if local event matches are empty
+
+Nearby player links:
+
+- V1 links nearby players to the existing authenticated player directory at `/portal/players`
+- there is no dedicated safe player detail page route yet
+- future player detail pages should reuse the existing privacy checks before deep-linking individual profiles
 
 Limits:
 
@@ -187,6 +195,24 @@ Fallback behavior:
 - region and city matching only
 - activity is system-generated only
 - club creation activity is not wired yet because there is no clean club creation route in the current branch
+- older events may still need manual `region` backfill if they were created before the durable event location fields existed
+
+## Event Location Normalization
+
+Migration: `supabase/migrations/20260517_add_event_location_fields.sql`
+
+Fields:
+
+- `events.city`
+- `events.region`
+- `events.country` with default `US`
+
+Current behavior:
+
+- new event creation and organizer editing now capture `city`, `region`, and `country`
+- `event_created` and `event_registered` activity metadata now carries safe location fields when available
+- Cornhole Near Me uses explicit event `region` first and only falls back to city-string matching for older events without normalized location data
+- existing older events are left untouched rather than attempting risky parsing of free-form city strings
 
 ## Future Enhancements
 

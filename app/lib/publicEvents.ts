@@ -1,4 +1,5 @@
 import localEvents from '@/app/data/events.json'
+import { formatEventLocation } from '@/app/lib/eventRecords'
 import { getRequestOrigin } from '@/app/lib/site'
 
 export type EventRecord = {
@@ -6,6 +7,8 @@ export type EventRecord = {
   slug: string | null
   title: string
   city?: string | null
+  region?: string | null
+  country?: string | null
   date?: string | null
   image?: string | null
   logo_url?: string | null
@@ -30,6 +33,8 @@ type LocalEvent = {
   slug: string
   title: string
   city?: string | null
+  region?: string | null
+  country?: string | null
   date?: string | null
   image?: string | null
 }
@@ -40,12 +45,16 @@ function toLocalEventRecord(event: LocalEvent): EventRecord {
     slug: event.slug,
     title: event.title,
     city: event.city ?? null,
+    region: event.region ?? null,
+    country: event.country ?? null,
     date: event.date ?? null,
     image: event.image ?? null,
     logo_url: null,
     createdAt: null,
   }
 }
+
+export { formatEventLocation }
 
 export function formatEventDate(iso?: string | null) {
   if (!iso) return 'TBD'

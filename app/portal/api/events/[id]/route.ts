@@ -10,6 +10,8 @@ import { canManageEvent, requireRouteRoles } from '@/app/lib/portalRouteAccess'
 type Body = Partial<{
   title: string
   city: string | null
+  region: string | null
+  country: string | null
   date: string | null
   image: string | null
   logo_url: string | null
@@ -47,9 +49,17 @@ export async function PATCH(req: Request, context: any) {
     const body: Body = await req.json()
 
     const allowed: Body = {}
-    for (const k of ['title', 'city', 'date', 'image', 'logo_url', 'slug'] as const) {
+    for (const k of ['title', 'city', 'region', 'country', 'date', 'image', 'logo_url', 'slug'] as const) {
       if (k in body) (allowed as any)[k] = (body as any)[k]
     }
+
+    if (typeof allowed.title === 'string') allowed.title = allowed.title.trim()
+    if (typeof allowed.city === 'string') allowed.city = allowed.city.trim() || null
+    if (typeof allowed.region === 'string') allowed.region = allowed.region.trim() || null
+    if (typeof allowed.country === 'string') allowed.country = allowed.country.trim().toUpperCase() || 'US'
+    if (typeof allowed.slug === 'string') allowed.slug = allowed.slug.trim() || null
+    if (typeof allowed.image === 'string') allowed.image = allowed.image.trim() || null
+    if (typeof allowed.logo_url === 'string') allowed.logo_url = allowed.logo_url.trim() || null
 
     const prisma = await getPrisma()
     if (prisma) {
@@ -68,6 +78,8 @@ export async function PATCH(req: Request, context: any) {
         data: {
           ...(allowed.title !== undefined ? { title: allowed.title } : {}),
           ...(allowed.city !== undefined ? { city: allowed.city } : {}),
+          ...(allowed.region !== undefined ? { region: allowed.region } : {}),
+          ...(allowed.country !== undefined ? { country: allowed.country } : {}),
           ...(allowed.date !== undefined
             ? {
                 date: (() => {

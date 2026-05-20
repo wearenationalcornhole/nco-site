@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import NearMeList, { type NearMeListItem } from '@/app/portal/components/NearMeList'
+import { formatEventLocation } from '@/app/lib/eventRecords'
 import { formatProfileValueLabel } from '@/app/lib/profileCapabilities'
 import type { CornholeNearMeResult } from '@/app/lib/communityPulseTypes'
 
@@ -7,7 +8,7 @@ function toEventItems(data: CornholeNearMeResult, compact: boolean): NearMeListI
   return data.nearbyEvents.slice(0, compact ? 3 : 5).map((event) => ({
     id: event.id,
     title: event.title,
-    subtitle: [event.city, event.region, event.date].filter(Boolean).join(' • '),
+    subtitle: [formatEventLocation(event.city, event.region), event.date].filter(Boolean).join(' • '),
     href: `/portal/events/${encodeURIComponent(event.slug ?? event.id)}`,
     badge: event.matchLevel === 'city' ? 'City match' : event.matchLevel === 'region' ? 'Region match' : 'Broader',
   }))
@@ -34,7 +35,7 @@ function toPlayerItems(data: CornholeNearMeResult, compact: boolean): NearMeList
     ]
       .filter(Boolean)
       .join(' • '),
-    href: '/players',
+    href: '/portal/players',
     badge: player.matchLevel === 'city' ? 'City match' : 'Region match',
   }))
 }

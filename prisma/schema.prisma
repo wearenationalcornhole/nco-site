@@ -32,6 +32,8 @@ model events {
   slug       String?
   title      String
   city       String?
+  region     String?
+  country    String?   @default("US")
   date       DateTime? @db.Date
   image      String?
   logo_url   String?
